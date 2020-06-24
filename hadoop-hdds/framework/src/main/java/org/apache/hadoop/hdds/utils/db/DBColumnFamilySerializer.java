@@ -30,7 +30,7 @@ import java.util.List;
 
 public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDefinition> {
 
-  private String rocksDBPath;
+  private final String rocksDBPath;
 
   public DBColumnFamilySerializer(String rocksDBPath) {
     this.rocksDBPath = rocksDBPath;
@@ -38,15 +38,27 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
 
   @Override
   public JsonElement serialize(DBColumnFamilyDefinition dbDef, Type typeOfDBDef,
-                               JsonSerializationContext context) throws IOException, RocksDBException {
+                               JsonSerializationContext context) {
 
     // Get the column family descriptor using its name.
-    byte[] columnFamilyNameBytes = dbDef.getTableName().getBytes(StandardCharsets.UTF_8);
+    String columnFamilyName = dbDef.getTableName();
+    byte[] columnFamilyNameBytes = columnFamilyName.getBytes(StandardCharsets.UTF_8);
     ColumnFamilyDescriptor cfDescriptor = new ColumnFamilyDescriptor(columnFamilyNameBytes);
 
     // Open only the desired column family in the RocksDB instance, and get a handle for it.
     List<ColumnFamilyHandle> cfHandles = new ArrayList<>();
-    RocksDB rocksDB = RocksDB.openReadOnly(this.rocksDBPath, Arrays.asList(cfDescriptor), cfHandles);
+
+
+    RocksDB rocksDB;
+    try {
+      rocksDB = RocksDB.openReadOnly(rocksDBPath, Arrays.asList(cfDescriptor), cfHandles);
+    }
+    catch (RocksDBException e) {
+      String errorMsg = "Failed to open column family " + columnFamilyName + " in database " + rocksDBPath;
+      throw new JsonParseException(errorMsg, e);
+    }
+
+
     ColumnFamilyHandle cfHandle = cfHandles.get(0);
 
     // Serialize all key value pairs in the column family.
@@ -57,11 +69,22 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
     JsonArray columnFamily = new JsonArray();
 
     while (iterator.isValid()) {
-      Object key = null;
-      Object value = null;
+      Object key;
+      Object value;
 
-      key = dbDef.getValueCodec().fromPersistedFormat(iterator.value());
-      value = dbDef.getKeyCodec().fromPersistedFormat(iterator.value());
+      try {
+        key = dbDef.getValueCodec().fromPersistedFormat(iterator.value());
+      }
+      catch (IOException e) {
+        throw new JsonParseException("Failed to key value with codec.", e);
+      }
+
+      try {
+        value = dbDef.getKeyCodec().fromPersistedFormat(iterator.value());
+      }
+      catch (IOException e) {
+        throw new JsonParseException("Failed to parse value with codec.", e);
+      }
 
       JsonObject keyValue = new JsonObject();
       keyValue.add("key", context.serialize(key));
@@ -72,7 +95,7 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
       iterator.next();
     }
 
-    root.add("column_family", columnFamily);
+    root.add(columnFamilyName, columnFamily);
 
     // Cleanup: column family handle must be closed before database.
     cfHandle.close();
