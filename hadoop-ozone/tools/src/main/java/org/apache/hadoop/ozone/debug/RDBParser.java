@@ -34,7 +34,8 @@ import picocli.CommandLine;
 public class RDBParser extends GenericCli {
 
   @CommandLine.Option(names = {"--db"},
-            description = "Database File Path")
+            description = "Database File Path",
+            required=true)
     private  String dbPath;
 
   public String getDbPath() {
