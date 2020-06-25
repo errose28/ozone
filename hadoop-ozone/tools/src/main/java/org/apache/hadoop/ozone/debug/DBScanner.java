@@ -36,7 +36,8 @@ import java.util.*;
 import java.util.concurrent.Callable;
 
 /**
- * Parser for scm.db file.
+ * Debugging tool that allows the user to scan the contents of om, scm, or datanode rocksdb
+ * instances and display their contents as json.
  */
 @CommandLine.Command(
         name = "scan",
@@ -81,8 +82,10 @@ public class DBScanner implements Callable<Void> {
   }
 
   /**
-   * Returns the DBDefinition corresponding to the user's input,
-   * or prints an error and exits if an invalid DB type was passed.
+   * Determines the {@link DBDefinition} corresponding to the user's input in {@code dbType}.
+   * If there is no corresponding {@link DBDefinition}, prints an error and exits.
+   *
+   * @return The {@link DBDefinition} corresponding to the user's input.
    */
   private DBDefinition parseDBType() {
     DBDefinition dbDef = null;
@@ -105,8 +108,13 @@ public class DBScanner implements Callable<Void> {
   }
 
   /**
-   * Returns the ColumnFamilyDefinition corresponding to the user's input,
-   * or prints an error and exits if the column family does not exist in the provided DBDefinition.
+   * Returns the {@link DBColumnFamilyDefinition} corresponding to the user's input in {@code
+   * tableName}. Prints an error and exits if {@code tableName} is not found in the RocksDB
+   * database pointed to by {@code parent.DBPath()} or if it is not found in {@code dbDef}.
+   *
+   * @param dbDef The database definition which contains the list of column families.
+   * @return The {@link DBColumnFamilyDefinition} in {@code dbDef} corresponding to the user's
+   * input.
    */
   private DBColumnFamilyDefinition parseColFamily(DBDefinition dbDef) {
     // Find the desired column family in the database
@@ -142,6 +150,11 @@ public class DBScanner implements Callable<Void> {
     return colFamily;
   }
 
+  /**
+   * Prints a message to stderr (with a trailing newline) and exits.
+   *
+   * @param message The message to print to stderr before exiting.
+   */
   private static void cliErrorExit(String message) {
     System.err.println(message);
     System.exit(1);

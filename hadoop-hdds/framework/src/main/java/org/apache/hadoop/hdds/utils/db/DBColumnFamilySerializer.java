@@ -28,10 +28,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Custom json serializer to be used with gson to serialize {@link DBColumnFamilyDefinition}
+ * objects.
+ */
 public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDefinition> {
 
   private final String rocksDBPath;
 
+  /**
+   * Creates a new instance that can be used to serialize {@link DBColumnFamilyDefinition}s
+   * belonging to the RocksDB database pointed to by {@param rocksDBPath}.
+   *
+   * @param rocksDBPath The path to the directory corresponding to the RocksDB database that this
+   *                   serializer will read from.
+   */
   public DBColumnFamilySerializer(String rocksDBPath) {
     this.rocksDBPath = rocksDBPath;
   }
@@ -54,12 +65,14 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
       openOptions.setCreateIfMissing(false);
       openOptions.setCreateMissingColumnFamilies(false);
 
-      // Rocks requires the default column family to always be passed to open, even if we don't use it.
+      // Rocks requires the default column family to always be passed to open,
+      // even if we don't use it.
       rocksDB = RocksDB.openReadOnly(openOptions, rocksDBPath,
               Arrays.asList(cfDescriptor, defaultDescriptor), cfHandles);
     }
     catch (RocksDBException e) {
-      // When gson encounters a JsonParseException, it will just display the message of the first exception in the chain.
+      // When gson encounters a JsonParseException, it will just display the message of the first
+      // exception in the chain.
       // Therefore, add the message of the rocks exception for clarity.
       String errorMsg = e.getMessage() + "\nFailed to open column family " + colFamilyName +
               " in database " + rocksDBPath;
@@ -113,9 +126,13 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
   }
 
   /**
-   * Helper method to get a column family descriptor from a String, instead of from a byte array.
+   * Helper method to create a column family descriptor from a String, instead of from a byte array.
+   *
+   * @param colFamilyName The name of the column family to create a
+   * {@link ColumnFamilyDescriptor} for.
+   * @return A new {@link ColumnFamilyDescriptor} created from {@code colFamilyName}.
    */
-  private ColumnFamilyDescriptor getColFamilyDescriptor(String colFamilyName) {
+  private static ColumnFamilyDescriptor getColFamilyDescriptor(String colFamilyName) {
     byte[] columnFamilyNameBytes = colFamilyName.getBytes(StandardCharsets.UTF_8);
     return new ColumnFamilyDescriptor(columnFamilyNameBytes);
   }
