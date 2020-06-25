@@ -40,25 +40,33 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
   public JsonElement serialize(DBColumnFamilyDefinition dbDef, Type typeOfDBDef,
                                JsonSerializationContext context) {
 
-    // Get the column family descriptor using its name.
-    String columnFamilyName = dbDef.getTableName();
-    byte[] columnFamilyNameBytes = columnFamilyName.getBytes(StandardCharsets.UTF_8);
-    ColumnFamilyDescriptor cfDescriptor = new ColumnFamilyDescriptor(columnFamilyNameBytes);
+    // Create the required column family descriptors.
+    String colFamilyName = dbDef.getTableName();
+    ColumnFamilyDescriptor cfDescriptor = getColFamilyDescriptor(colFamilyName);
+    ColumnFamilyDescriptor defaultDescriptor = getColFamilyDescriptor("default");
 
-    // Open only the desired column family in the RocksDB instance, and get a handle for it.
+    // Populated if the database is successfully opened.
     List<ColumnFamilyHandle> cfHandles = new ArrayList<>();
-
 
     RocksDB rocksDB;
     try {
-      rocksDB = RocksDB.openReadOnly(rocksDBPath, Arrays.asList(cfDescriptor), cfHandles);
+      DBOptions openOptions = new DBOptions();
+      openOptions.setCreateIfMissing(false);
+      openOptions.setCreateMissingColumnFamilies(false);
+
+      // Rocks requires the default column family to always be passed to open, even if we don't use it.
+      rocksDB = RocksDB.openReadOnly(openOptions, rocksDBPath,
+              Arrays.asList(cfDescriptor, defaultDescriptor), cfHandles);
     }
     catch (RocksDBException e) {
-      String errorMsg = "Failed to open column family " + columnFamilyName + " in database " + rocksDBPath;
+      // When gson encounters a JsonParseException, it will just display the message of the first exception in the chain.
+      // Therefore, add the message of the rocks exception for clarity.
+      String errorMsg = e.getMessage() + "\nFailed to open column family " + colFamilyName +
+              " in database " + rocksDBPath;
       throw new JsonParseException(errorMsg, e);
     }
 
-
+    // First handle is the caller specified column family.
     ColumnFamilyHandle cfHandle = cfHandles.get(0);
 
     // Serialize all key value pairs in the column family.
@@ -76,7 +84,7 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
         key = dbDef.getValueCodec().fromPersistedFormat(iterator.value());
       }
       catch (IOException e) {
-        throw new JsonParseException("Failed to key value with codec.", e);
+        throw new JsonParseException("Failed to parse value with codec.", e);
       }
 
       try {
@@ -95,13 +103,21 @@ public class DBColumnFamilySerializer implements JsonSerializer<DBColumnFamilyDe
       iterator.next();
     }
 
-    root.add(columnFamilyName, columnFamily);
+    root.add(colFamilyName, columnFamily);
 
     // Cleanup: column family handle must be closed before database.
     cfHandle.close();
     rocksDB.close();
 
     return root;
+  }
+
+  /**
+   * Helper method to get a column family descriptor from a String, instead of from a byte array.
+   */
+  private ColumnFamilyDescriptor getColFamilyDescriptor(String colFamilyName) {
+    byte[] columnFamilyNameBytes = colFamilyName.getBytes(StandardCharsets.UTF_8);
+    return new ColumnFamilyDescriptor(columnFamilyNameBytes);
   }
 }
 
