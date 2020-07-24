@@ -145,18 +145,22 @@ public class TestBlockDeletingService {
       data = (KeyValueContainerData) containerSet.getContainer(
           containerID).getContainerData();
 
+      // These are created first.
+      // Create 4 deleting blocks, two of which will be deleted.
+      final int numDeletingBlocks = 4;
+
       long blockLength = 100;
       try(ReferenceCountedDB metadata = BlockUtils.getDB(data, conf)) {
         for (int j = 0; j < numOfBlocksPerContainer; j++) {
           BlockID blockID =
               ContainerTestHelper.getTestBlockID(containerID);
-          // Create two deleting blocks, rest are regular blocks.
+          // Create deleting blocks
           String deleteStateName;
-          if (j < 2) {
-            deleteStateName = "" + blockID.getLocalID();
-          } else {
+          if (j < numDeletingBlocks) {
             deleteStateName = OzoneConsts.DELETING_KEY_PREFIX +
                     blockID.getLocalID();
+          } else {
+            deleteStateName = "" + blockID.getLocalID();
           }
           BlockData kd = new BlockData(blockID);
           List<ContainerProtos.ChunkInfo> chunks = Lists.newArrayList();
@@ -185,7 +189,7 @@ public class TestBlockDeletingService {
         metadata.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
             Longs.toByteArray(blockLength * numOfBlocksPerContainer));
         metadata.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
-            Longs.toByteArray(numOfBlocksPerContainer - 2));
+            Longs.toByteArray(numDeletingBlocks));
       }
     }
   }
@@ -264,6 +268,7 @@ public class TestBlockDeletingService {
       deleteAndWait(svc, 1);
 //      Assert.assertEquals(1, getUnderDeletionBlocksCount(meta));
 //      Assert.assertEquals(2, getDeletedBlocksCount(meta));
+
       System.out.println('f');
 
       deleteAndWait(svc, 2);
