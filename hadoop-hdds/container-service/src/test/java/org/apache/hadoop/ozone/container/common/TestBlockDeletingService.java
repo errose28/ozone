@@ -187,7 +187,8 @@ public class TestBlockDeletingService {
         metadata.getStore().put(DB_BLOCK_COUNT_KEY,
             Longs.toByteArray(numOfBlocksPerContainer));
         metadata.getStore().put(OzoneConsts.DB_CONTAINER_BYTES_USED_KEY,
-            Longs.toByteArray(blockLength * numOfBlocksPerContainer));
+            Longs.toByteArray(blockLength *
+                    (numOfBlocksPerContainer - numDeletingBlocks)));
         metadata.getStore().put(DB_PENDING_DELETE_BLOCK_COUNT_KEY,
             Longs.toByteArray(numDeletingBlocks));
       }
