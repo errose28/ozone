@@ -948,7 +948,21 @@ public class KeyManagerImpl implements KeyManager {
   @Override
   public void deleteExpiredOpenKey(String objectKeyName) throws IOException {
     Preconditions.checkNotNull(objectKeyName);
-    // TODO: Fix this in later patches.
+
+    // TODO : Determine what locking and logging is necessary.
+    Table<String, OmKeyInfo> openKeyTable = metadataManager.getOpenKeyTable();
+    Table<String, RepeatedOmKeyInfo> deletedKeyTable =
+            metadataManager.getDeletedTable();
+
+    OmKeyInfo keyInfo = openKeyTable.get(objectKeyName);
+    DBStore store = metadataManager.getStore();
+
+    BatchOperation batch = store.initBatchOperation();
+    openKeyTable.deleteWithBatch(batch, objectKeyName);
+    deletedKeyTable.putWithBatch(batch, objectKeyName,
+            new RepeatedOmKeyInfo(keyInfo));
+
+    store.commitBatchOperation(batch);
   }
 
   @Override
