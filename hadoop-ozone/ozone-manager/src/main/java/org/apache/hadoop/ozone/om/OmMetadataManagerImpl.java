@@ -19,6 +19,9 @@ package org.apache.hadoop.ozone.om;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -29,6 +32,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import com.google.common.base.FinalizablePhantomReference;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.db.DBStore;
@@ -85,6 +89,7 @@ import org.apache.ratis.util.ExitUtils;
 import org.eclipse.jetty.util.StringUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.jvm.hotspot.memory.OneContigSpaceCardGeneration;
 
 /**
  * Ozone metadata manager interface.
@@ -994,7 +999,32 @@ public class OmMetadataManagerImpl implements OMMetadataManager {
   @Override
   public List<BlockGroup> getExpiredOpenKeys() throws IOException {
     List<BlockGroup> keyBlocksList = Lists.newArrayList();
-    // TODO: Fix the getExpiredOpenKeys, Not part of this patch.
+
+    try (TableIterator<String, ? extends KeyValue<String, OmKeyInfo>>
+                 keyValueTableIterator = getOpenKeyTable().iterator()) {
+      while (keyValueTableIterator.hasNext()) {
+        KeyValue<String, OmKeyInfo> openKeyValue = keyValueTableIterator.next();
+        OmKeyInfo keyInfo = openKeyValue.getValue();
+
+        final Duration oneWeek = ChronoUnit.WEEKS.getDuration();
+        Duration age = Duration.between(Instant.now(),
+                        Instant.ofEpochMilli(keyInfo.getCreationTime()));
+
+        // TODO : Determine if this needs to be customizable parameter.
+        if (age.compareTo(oneWeek) > 0) {
+          OmKeyLocationInfoGroup latest = keyInfo.getLatestVersionLocations();
+          List<BlockID> blockIDs = latest.getLocationList().stream()
+                  .map(b -> new BlockID(b.getContainerID(), b.getLocalID()))
+                  .collect(Collectors.toList());
+          BlockGroup blockGroup = BlockGroup.newBuilder()
+                  .setKeyName(openKeyValue.getKey())
+                  .addAllBlockIDs(blockIDs)
+                  .build();
+          keyBlocksList.add(blockGroup);
+        }
+      }
+    }
+
     return keyBlocksList;
   }
 
