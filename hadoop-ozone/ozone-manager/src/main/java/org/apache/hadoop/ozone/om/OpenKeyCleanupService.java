@@ -51,7 +51,7 @@ public class OpenKeyCleanupService extends BackgroundService {
   private final ScmBlockLocationProtocol scmClient;
 
   public OpenKeyCleanupService(ScmBlockLocationProtocol scmClient,
-      KeyManager keyManager, int serviceInterval,
+      KeyManager keyManager, long serviceInterval,
       long serviceTimeout) {
     super("OpenKeyCleanupService", serviceInterval, TimeUnit.SECONDS,
         OPEN_KEY_DELETING_CORE_POOL_SIZE, serviceTimeout);

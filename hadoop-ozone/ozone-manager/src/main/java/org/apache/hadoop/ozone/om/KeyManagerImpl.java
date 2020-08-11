@@ -161,6 +161,7 @@ public class KeyManagerImpl implements KeyManager {
   private final boolean grpcBlockTokenEnabled;
 
   private BackgroundService keyDeletingService;
+  private BackgroundService openKeyCleanupService;
 
   private final KeyProviderCryptoExtension kmsProvider;
   private final PrefixManager prefixManager;
@@ -221,19 +222,26 @@ public class KeyManagerImpl implements KeyManager {
 
   @Override
   public void start(OzoneConfiguration configuration) {
+    long blockDeleteInterval = configuration.getTimeDuration(
+            OZONE_BLOCK_DELETING_SERVICE_INTERVAL,
+            OZONE_BLOCK_DELETING_SERVICE_INTERVAL_DEFAULT,
+            TimeUnit.MILLISECONDS);
+    long serviceTimeout = configuration.getTimeDuration(
+            OZONE_BLOCK_DELETING_SERVICE_TIMEOUT,
+            OZONE_BLOCK_DELETING_SERVICE_TIMEOUT_DEFAULT,
+            TimeUnit.MILLISECONDS);
     if (keyDeletingService == null) {
-      long blockDeleteInterval = configuration.getTimeDuration(
-          OZONE_BLOCK_DELETING_SERVICE_INTERVAL,
-          OZONE_BLOCK_DELETING_SERVICE_INTERVAL_DEFAULT,
-          TimeUnit.MILLISECONDS);
-      long serviceTimeout = configuration.getTimeDuration(
-          OZONE_BLOCK_DELETING_SERVICE_TIMEOUT,
-          OZONE_BLOCK_DELETING_SERVICE_TIMEOUT_DEFAULT,
-          TimeUnit.MILLISECONDS);
       keyDeletingService = new KeyDeletingService(ozoneManager,
           scmClient.getBlockClient(), this, blockDeleteInterval,
           serviceTimeout, configuration);
       keyDeletingService.start();
+    }
+
+    if (openKeyCleanupService == null) {
+      openKeyCleanupService = new OpenKeyCleanupService(
+              scmClient.getBlockClient(), this, blockDeleteInterval,
+              serviceTimeout);
+      openKeyCleanupService.start();
     }
   }
 
