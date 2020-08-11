@@ -238,6 +238,7 @@ public class KeyManagerImpl implements KeyManager {
     }
 
     if (openKeyCleanupService == null) {
+      // TODO : Determine service interval.
       openKeyCleanupService = new OpenKeyCleanupService(
               scmClient.getBlockClient(), this, blockDeleteInterval,
               serviceTimeout);
@@ -254,6 +255,11 @@ public class KeyManagerImpl implements KeyManager {
     if (keyDeletingService != null) {
       keyDeletingService.shutdown();
       keyDeletingService = null;
+    }
+
+    if (openKeyCleanupService != null) {
+      openKeyCleanupService.shutdown();
+      openKeyCleanupService = null;
     }
   }
 
@@ -981,6 +987,11 @@ public class KeyManagerImpl implements KeyManager {
   @Override
   public BackgroundService getDeletingService() {
     return keyDeletingService;
+  }
+
+  @Override
+  public BackgroundService getOpenKeyCleanupService() {
+    return openKeyCleanupService;
   }
 
   @Override
