@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * This is the background service to delete hanging open keys.
@@ -49,6 +50,8 @@ public class OpenKeyCleanupService extends BackgroundService {
 
   private final KeyManager keyManager;
   private final ScmBlockLocationProtocol scmClient;
+  private final AtomicLong purgedOpenKeyCount;
+  private final AtomicLong runCount;
 
   public OpenKeyCleanupService(ScmBlockLocationProtocol scmClient,
       KeyManager keyManager, long serviceInterval,
@@ -57,6 +60,8 @@ public class OpenKeyCleanupService extends BackgroundService {
         OPEN_KEY_DELETING_CORE_POOL_SIZE, serviceTimeout);
     this.keyManager = keyManager;
     this.scmClient = scmClient;
+    this.purgedOpenKeyCount = new AtomicLong(0L);
+    this.runCount = new AtomicLong(0L);
   }
 
   @Override
@@ -76,6 +81,7 @@ public class OpenKeyCleanupService extends BackgroundService {
 
     @Override
     public BackgroundTaskResult call() throws Exception {
+      runCount.incrementAndGet();
       try {
         List<BlockGroup> keyBlocksList = keyManager.getExpiredOpenKeys();
         if (keyBlocksList.size() > 0) {
@@ -105,6 +111,7 @@ public class OpenKeyCleanupService extends BackgroundService {
           }
           LOG.info("Found {} expired open key entries, successfully " +
               "cleaned up {} entries", toDeleteSize, deletedSize);
+          purgedOpenKeyCount.addAndGet(deletedSize);
           return results::size;
         } else {
           LOG.debug("No hanging open key found in OM");
@@ -115,5 +122,13 @@ public class OpenKeyCleanupService extends BackgroundService {
       }
       return BackgroundTaskResult.EmptyTaskResult.newResult();
     }
+  }
+
+  public AtomicLong getPurgedOpenKeyCount() {
+    return purgedOpenKeyCount;
+  }
+
+  public AtomicLong getRunCount() {
+    return runCount;
   }
 }
