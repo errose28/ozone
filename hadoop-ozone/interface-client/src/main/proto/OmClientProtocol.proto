@@ -316,6 +316,8 @@ enum Status {
 
     PARTIAL_RENAME = 65;
 
+    QUOTA_EXCEEDED = 66;
+
 }
 
 /**
