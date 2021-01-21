@@ -47,6 +47,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.scm.ByteStringConversion;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.common.ChunkBuffer;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
@@ -116,11 +117,14 @@ public class KeyValueHandler extends Handler {
 
   public KeyValueHandler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volSet, ContainerMetrics metrics,
+      HDDSLayoutVersionManager versionManager,
       Consumer<ContainerReplicaProto> icrSender) {
-    super(config, datanodeId, contSet, volSet, metrics, icrSender);
+    super(config, datanodeId, contSet, volSet, metrics,
+        versionManager, icrSender);
     containerType = ContainerType.KeyValueContainer;
     blockManager = new BlockManagerImpl(config);
     chunkManager = ChunkManagerFactory.createChunkManager(config, blockManager);
+    this.versionManager
     try {
       volumeChoosingPolicy = conf.getClass(
           HDDS_DATANODE_VOLUME_CHOOSING_POLICY, RoundRobinVolumeChoosingPolicy
@@ -255,7 +259,8 @@ public class KeyValueHandler extends Handler {
     boolean created = false;
     try (AutoCloseableLock l = containerCreationLock.acquire()) {
       if (containerSet.getContainer(containerID) == null) {
-        newContainer.create(volumeSet, volumeChoosingPolicy, scmID);
+        newContainer.create(volumeSet, volumeChoosingPolicy, scmID,
+            versionManager);
         created = containerSet.addContainer(newContainer);
       } else {
         // The create container request for an already existing container can

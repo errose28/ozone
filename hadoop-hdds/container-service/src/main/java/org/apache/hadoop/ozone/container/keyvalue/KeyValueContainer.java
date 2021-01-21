@@ -36,6 +36,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerD
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerType;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.io.nativeio.NativeIO;
@@ -97,7 +98,8 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
 
   @Override
   public void create(VolumeSet volumeSet, VolumeChoosingPolicy
-      volumeChoosingPolicy, String scmId) throws StorageContainerException {
+      volumeChoosingPolicy, String scmId,
+      HDDSLayoutVersionManager versionManager) throws StorageContainerException {
     Preconditions.checkNotNull(volumeChoosingPolicy, "VolumeChoosingPolicy " +
         "cannot be null");
     Preconditions.checkNotNull(volumeSet, "VolumeSet cannot be null");
@@ -128,8 +130,12 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
       File dbFile = getContainerDBFile();
 
       // This method is only called when creating new containers.
-      // Therefore, always use the newest schema version.
-      containerData.setSchemaVersion(OzoneConsts.SCHEMA_LATEST);
+      if (versionManager.getMetadataLayoutVersion() < 1) {
+        containerData.setSchemaVersion(OzoneConsts.SCHEMA_V1);
+      } else {
+        containerData.setSchemaVersion(OzoneConsts.SCHEMA_V2);
+      }
+
       KeyValueContainerUtil.createContainerMetaData(containerID,
               containerMetaDataPath, chunksPath, dbFile,
               containerData.getSchemaVersion(), config);

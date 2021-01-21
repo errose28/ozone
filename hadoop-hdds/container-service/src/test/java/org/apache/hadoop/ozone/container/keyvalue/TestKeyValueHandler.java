@@ -279,7 +279,7 @@ public class TestKeyValueHandler {
       Mockito.when(context.getParent()).thenReturn(stateMachine);
       KeyValueHandler keyValueHandler = new KeyValueHandler(conf,
           context.getParent().getDatanodeDetails().getUuidString(), cset,
-          volumeSet, metrics, c -> {
+          volumeSet, metrics, , c -> {
       });
       assertEquals("org.apache.hadoop.ozone.container.common" +
           ".volume.RoundRobinVolumeChoosingPolicy",
@@ -292,7 +292,7 @@ public class TestKeyValueHandler {
       try {
         new KeyValueHandler(conf,
             context.getParent().getDatanodeDetails().getUuidString(),
-            cset, volumeSet, metrics, c->{});
+            cset, volumeSet, metrics, , c->{});
       } catch (RuntimeException ex) {
         GenericTestUtils.assertExceptionContains("class org.apache.hadoop" +
             ".ozone.container.common.impl.HddsDispatcher not org.apache" +
@@ -370,7 +370,7 @@ public class TestKeyValueHandler {
       final AtomicInteger icrReceived = new AtomicInteger(0);
 
       final KeyValueHandler kvHandler = new KeyValueHandler(conf,
-          UUID.randomUUID().toString(), containerSet, volumeSet, metrics,
+          UUID.randomUUID().toString(), containerSet, volumeSet, metrics, ,
           c -> icrReceived.incrementAndGet());
       kvHandler.setScmID(UUID.randomUUID().toString());
 

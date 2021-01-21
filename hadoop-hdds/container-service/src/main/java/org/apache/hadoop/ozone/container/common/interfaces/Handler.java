@@ -29,6 +29,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerC
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerType;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerReplicaProto;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.hadoop.ozone.container.common.helpers.ContainerMetrics;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
@@ -51,17 +52,20 @@ public abstract class Handler {
   protected String scmID;
   protected final ContainerMetrics metrics;
   protected String datanodeId;
+  protected final HDDSLayoutVersionManager versionManager;
   private Consumer<ContainerReplicaProto> icrSender;
 
   protected Handler(ConfigurationSource config, String datanodeId,
       ContainerSet contSet, VolumeSet volumeSet,
       ContainerMetrics containerMetrics,
+      HDDSLayoutVersionManager versionManager,
       Consumer<ContainerReplicaProto> icrSender) {
     this.conf = config;
     this.containerSet = contSet;
     this.volumeSet = volumeSet;
     this.metrics = containerMetrics;
     this.datanodeId = datanodeId;
+    this.versionManager = versionManager;
     this.icrSender = icrSender;
   }
 
@@ -69,11 +73,12 @@ public abstract class Handler {
       final ContainerType containerType, final ConfigurationSource config,
       final String datanodeId, final ContainerSet contSet,
       final VolumeSet volumeSet, final ContainerMetrics metrics,
+      HDDSLayoutVersionManager versionManager,
       Consumer<ContainerReplicaProto> icrSender) {
     switch (containerType) {
     case KeyValueContainer:
       return new KeyValueHandler(config,
-          datanodeId, contSet, volumeSet, metrics,
+          datanodeId, contSet, volumeSet, metrics, versionManager,
           icrSender);
     default:
       throw new IllegalArgumentException("Handler for ContainerType: " +

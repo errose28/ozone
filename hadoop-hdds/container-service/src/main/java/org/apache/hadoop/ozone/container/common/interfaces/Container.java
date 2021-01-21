@@ -31,6 +31,7 @@ import org.apache.hadoop.hdds.protocol.proto
 import org.apache.hadoop.hdds.scm.container.common.helpers
     .StorageContainerException;
 
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdfs.util.Canceler;
 import org.apache.hadoop.hdfs.util.DataTransferThrottler;
 import org.apache.hadoop.hdfs.util.RwLock;
@@ -48,7 +49,8 @@ public interface Container<CONTAINERDATA extends ContainerData> extends RwLock {
    * @throws StorageContainerException
    */
   void create(VolumeSet volumeSet, VolumeChoosingPolicy volumeChoosingPolicy,
-              String scmId) throws StorageContainerException;
+      String scmId, HDDSLayoutVersionManager versionManager)
+      throws StorageContainerException;
 
   /**
    * Deletes the container.

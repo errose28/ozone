@@ -151,7 +151,7 @@ public class TestKeyValueHandlerWithUnhealthyContainer {
         stateMachine.getDatanodeDetails().getUuidString(),
         mock(ContainerSet.class),
         mock(MutableVolumeSet.class),
-        mock(ContainerMetrics.class), TestHddsDispatcher.NO_OP_ICR_SENDER);
+        mock(ContainerMetrics.class), , TestHddsDispatcher.NO_OP_ICR_SENDER);
   }
 
   private KeyValueContainer getMockUnhealthyContainer() {

@@ -242,7 +242,7 @@ public class TestSchemaOneBackwardsCompatibility {
     ContainerMetrics metrics = ContainerMetrics.create(conf);
     KeyValueHandler keyValueHandler =
         new KeyValueHandler(conf, datanodeUuid, containerSet, volumeSet,
-            metrics, c -> {
+            metrics, , c -> {
         });
     long initialTotalSpace = newKvData().getBytesUsed();
     long blockSpace = initialTotalSpace / TestDB.KEY_COUNT;
@@ -300,7 +300,7 @@ public class TestSchemaOneBackwardsCompatibility {
     ContainerMetrics metrics = ContainerMetrics.create(conf);
     KeyValueHandler keyValueHandler =
         new KeyValueHandler(conf, datanodeUuid, containerSet, volumeSet,
-            metrics, c -> {
+            metrics, , c -> {
         });
     try(ReferenceCountedDB refCountedDB = BlockUtils.getDB(newKvData(), conf)) {
       // Read blocks that were already deleted before the upgrade.

@@ -121,7 +121,8 @@ public class OzoneContainer {
           Handler.getHandlerForContainerType(
               containerType, conf,
               context.getParent().getDatanodeDetails().getUuidString(),
-              containerSet, volumeSet, metrics, icrSender));
+              containerSet, volumeSet, metrics,
+              context.getParent().getDataNodeVersionManager(), icrSender));
     }
 
     SecurityConfig secConf = new SecurityConfig(conf);
