@@ -31,7 +31,9 @@ import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachin
  */
 public enum DataNodeLayoutAction {
   DataNodeUpgradeFirstAction(FIRST_UPGRADE_VERSION,
-      new DataNodeUpgradeActionFirstUpgradeVersion());
+      new DataNodeUpgradeActionFirstUpgradeVersion()),
+  DataNodeUpgradeActionSchemaV1ToV2ToV2(FIRST_UPGRADE_VERSION,
+      new DataNodeUpgradeActionSchemaV1ToV2());
 
   //////////////////////////////  //////////////////////////////
 
