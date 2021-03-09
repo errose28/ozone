@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdds.upgrade;
 
+import apple.laf.JRSUIConstants;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.HddsConfigKeys;
@@ -56,8 +57,10 @@ import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -78,8 +81,6 @@ public class TestContainerSchemaVersions {
   @Rule
   public TemporaryFolder tempFolder = new TemporaryFolder();
 
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TestHDDSUpgrade.class);
   private static final int NUM_DATA_NODES = 3;
 
   private OzoneConfiguration conf;
@@ -104,9 +105,12 @@ public class TestContainerSchemaVersions {
 
   @Test
   public void testSchemaVersionField() throws Exception {
-    // Pre finalized cluster
-    cluster = createNewCluster(HDDSLayoutFeature.INITIAL_VERSION);
+    // Pre finalized cluster (Current code using older metadata layout version).
+    createNewCluster(HDDSLayoutFeature.INITIAL_VERSION);
+    Set<Long> oldContainers = new HashSet<>();
 
+    // When using old MLV, the new schema version field should not be
+    // persisted to the container files.
     writeKey("old");
     assertReadKey("old");
 
@@ -114,29 +118,59 @@ public class TestContainerSchemaVersions {
     Assert.assertEquals(dnList.size(), NUM_DATA_NODES);
 
     for(HddsDatanodeService dn: dnList) {
-      Iterator<Container<?>> contIter =
-          dn.getDatanodeStateMachine().getContainer().getContainerSet().getContainerIterator();
+      Iterator<Container<?>> contIter = dn.getDatanodeStateMachine()
+          .getContainer().getContainerSet().getContainerIterator();
 
+      // With 3 DNs and rep factor of 3, each DN should have at least one
+      // container.
       Assert.assertTrue(contIter.hasNext());
 
       while(contIter.hasNext()) {
         Container<?> cont = contIter.next();
         assertSchemaVersion(cont, null);
+        oldContainers.add(cont.getContainerData().getContainerID());
+        // Simulate an upgrade, where all containers are closed first.
+        cont.close();
       }
     }
 
-    // Create client
-    // write data to container1
-    // new cluster and client
-    //    MiniOzoneCluster cluster = createNewCluster(HDDSLayoutFeature.DATANODE_SCHEMA_V2);
-    // read data from container1
-    // write data to container1
-    // write data to container2
+    // When using new MLV, the new schema version field should be
+    // persisted to container files for new container only.
+    // Old container files should not be updated.
+    createNewCluster(HDDSLayoutFeature.DATANODE_SCHEMA_V2);
 
+    // When using old MLV, the new schema version field should not be
+    // persisted to the container files.
+    assertReadKey("old");
+    writeKey("new");
+    assertReadKey("new");
 
+    dnList = cluster.getHddsDatanodes();
+    Assert.assertEquals(dnList.size(), NUM_DATA_NODES);
+
+    for(HddsDatanodeService dn: dnList) {
+      Iterator<Container<?>> contIter = dn.getDatanodeStateMachine()
+          .getContainer().getContainerSet().getContainerIterator();
+
+      Assert.assertTrue(contIter.hasNext());
+      boolean hasNewContainer = false;
+
+      while(contIter.hasNext()) {
+        Container<?> cont = contIter.next();
+        if (oldContainers.contains(cont.getContainerData().getContainerID())) {
+          assertSchemaVersion(cont, null);
+        } else {
+          assertSchemaVersion(cont, OzoneConsts.SCHEMA_V2);
+          hasNewContainer = true;
+        }
+      }
+
+      // Each DN should have created a container for the new key.
+      Assert.assertTrue(hasNewContainer);
+    }
   }
 
-  // Pass null schema version to indicate it should no be in the file.
+  // Pass null schema version to indicate it should not be in the file.
   private void assertSchemaVersion(Container<?> container,
      String schemaVersion) throws Exception {
     File contFile = container.getContainerFile();
@@ -153,36 +187,43 @@ public class TestContainerSchemaVersions {
     }
   }
 
-  private void writeKey(String prefix) throws Exception {
+  /**
+   * Creates a volume, bucket and key all with name {@code content}, whose
+   * data is also {@code content}.
+   */
+  private void writeKey(String content) throws Exception {
     ObjectStore store = cluster.getClient().getObjectStore();
-    store.createVolume(prefix + "vol");
-    store.getVolume(prefix + "vol").createBucket(prefix + "bucket");
+    store.createVolume(content);
+    store.getVolume(content).createBucket(content);
     OzoneOutputStream stream =
-        store.getVolume(prefix + "vol").getBucket(prefix +
-        "bucket")
-        .createKey(prefix + "key", 10, ReplicationType.RATIS,
+        store.getVolume(content).getBucket(content)
+        .createKey(content, 10, ReplicationType.RATIS,
             ReplicationFactor.THREE, new HashMap<>());
 
-    stream.write(prefix.getBytes());
+    stream.write(content.getBytes(UTF_8));
     stream.close();
   }
 
-  private void assertReadKey(String prefix) throws Exception {
+  /**
+   * Reads a volume, bucket and key all with the name {@code content},
+   * and checks that the key's data matches {@code content}.
+   */
+  private void assertReadKey(String content) throws Exception {
     ObjectStore store = cluster.getClient().getObjectStore();
     OzoneInputStream stream =
-        store.getVolume(prefix + "vol").getBucket(prefix +
-        "bucket")
-        .readKey(prefix + "key");
+        store.getVolume(content).getBucket(content).readKey(content);
 
-    byte[] bytes = new byte[prefix.length()];
+    byte[] bytes = new byte[content.length()];
     int numRead = stream.read(bytes);
-    Assert.assertEquals(prefix.length(), numRead);
-    Assert.assertEquals(prefix, new String(bytes, UTF_8));
+    Assert.assertEquals(content.length(), numRead);
+    Assert.assertEquals(content, new String(bytes, UTF_8));
   }
 
-  private MiniOzoneCluster createNewCluster(HDDSLayoutFeature layoutVersion)
+  private void createNewCluster(HDDSLayoutFeature layoutVersion)
       throws Exception {
-    MiniOzoneCluster cluster = MiniOzoneCluster.newBuilder(conf)
+    // Clean up old cluster if necessary.
+    shutdown();
+    cluster = MiniOzoneCluster.newBuilder(conf)
         .setNumDatanodes(NUM_DATA_NODES)
         // allow only one FACTOR THREE pipeline.
         .setTotalPipelineNumLimit(NUM_DATA_NODES + 1)
@@ -200,7 +241,5 @@ public class TestContainerSchemaVersions {
           scmPipelineManager.getPipelines(RATIS, THREE, OPEN);
       return pipelines.size() == 1;
     });
-
-    return cluster;
   }
 }
