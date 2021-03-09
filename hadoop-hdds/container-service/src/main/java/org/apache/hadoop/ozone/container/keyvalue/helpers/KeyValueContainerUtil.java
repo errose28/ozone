@@ -181,12 +181,6 @@ public final class KeyValueContainerUtil {
     }
     kvContainerData.setDbFile(dbFile);
 
-    if (kvContainerData.getSchemaVersion() == null) {
-      // If this container has not specified a schema version, it is in the old
-      // format with one default column family.
-      kvContainerData.setSchemaVersion(OzoneConsts.SCHEMA_V1);
-    }
-
     boolean isBlockMetadataSet = false;
     ReferenceCountedDB cachedDB = null;
     DatanodeStore store = null;

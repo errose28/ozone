@@ -17,51 +17,37 @@
  */
 package org.apache.hadoop.hdds.upgrade;
 
-import apple.laf.JRSUIConstants;
 import org.apache.commons.codec.CharEncoding;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
-import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
-import org.apache.hadoop.hdds.scm.pipeline.SCMPipelineManager;
 import org.apache.hadoop.ozone.HddsDatanodeService;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
+import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.client.ObjectStore;
-import org.apache.hadoop.ozone.client.OzoneClient;
 import org.apache.hadoop.ozone.client.io.OzoneInputStream;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
-import org.apache.hadoop.ozone.container.ContainerTestHelper;
-import org.apache.hadoop.ozone.container.common.TestSchemaOneBackwardsCompatibility;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
-import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
-import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerUtil;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.test.LambdaTestUtils;
-import org.apache.ratis.thirdparty.com.google.protobuf.compiler.PluginProtos;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import sun.awt.image.BytePackedRaster;
 
 import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -70,7 +56,6 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT;
 import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.OPEN;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature.INITIAL_VERSION;
 
 /**
  * Tests that DataNode will throw an exception on creation when it reads in a
@@ -79,7 +64,9 @@ import static org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature.INITIAL_VERSION;
  */
 public class TestContainerSchemaVersions {
   @Rule
-  public TemporaryFolder tempFolder = new TemporaryFolder();
+  public TemporaryFolder hddsMetadataDir = new TemporaryFolder();
+  public TemporaryFolder omMetadataDir = new TemporaryFolder();
+  public TemporaryFolder ozoneMetadataDir = new TemporaryFolder();
 
   private static final int NUM_DATA_NODES = 3;
 
@@ -92,7 +79,9 @@ public class TestContainerSchemaVersions {
     conf.setTimeDuration(HDDS_PIPELINE_REPORT_INTERVAL, 1000,
         TimeUnit.MILLISECONDS);
     conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
-    conf.set(HddsConfigKeys.HDDS_METADATA_DIR_NAME, tempFolder.toString());
+//    conf.set(HddsConfigKeys.HDDS_METADATA_DIR_NAME, hddsMetadataDir.toString());
+//    conf.set(OMConfigKeys.OZONE_OM_DB_DIRS, omMetadataDir.toString());
+    conf.set(OzoneConfigKeys.OZONE_METADATA_DIRS, ozoneMetadataDir.toString());
     cluster = null;
   }
 

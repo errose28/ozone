@@ -38,7 +38,7 @@ public final class DatanodeMetadataFeatures {
     versionManager = manager;
   }
 
-  public static synchronized String getSchemaVersion() throws IOException {
+  public static synchronized String getSchemaVersion() {
     if (versionManager == null) {
       // version manager can be null for testing. Use the latest version in
       // this case.
