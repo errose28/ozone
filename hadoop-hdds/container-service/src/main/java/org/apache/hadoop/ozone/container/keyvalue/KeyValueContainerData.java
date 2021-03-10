@@ -29,15 +29,18 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos
     .ContainerDataProto;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
 import org.apache.hadoop.hdds.utils.db.Table;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.common.impl.ChunkLayOutVersion;
 import org.apache.hadoop.ozone.container.common.impl.ContainerData;
 import org.apache.hadoop.ozone.container.common.utils.ReferenceCountedDB;
+import org.apache.hadoop.ozone.container.upgrade.DatanodeMetadataFeatures;
 import org.yaml.snakeyaml.nodes.Tag;
 
 
 import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.Math.max;
@@ -45,6 +48,7 @@ import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE_ROCKSDB;
 import static org.apache.hadoop.ozone.OzoneConsts.CHUNKS_PATH;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_DB_TYPE;
 import static org.apache.hadoop.ozone.OzoneConsts.METADATA_PATH;
+import static org.apache.hadoop.ozone.OzoneConsts.SCHEMA_V1;
 import static org.apache.hadoop.ozone.OzoneConsts.SCHEMA_VERSION;
 import static org.apache.hadoop.ozone.OzoneConsts.CONTAINER_BYTES_USED;
 import static org.apache.hadoop.ozone.OzoneConsts.BLOCK_COUNT;
@@ -72,6 +76,9 @@ public class KeyValueContainerData extends ContainerData {
   private File dbFile = null;
 
   private String schemaVersion;
+  // If no schema version is specified, the container was created with schema
+  // version 1.
+  private static final String DEFAULT_SCHEMA_VERSION = SCHEMA_V1;
 
   /**
    * Number of pending deletion blocks in KeyValueContainer.
@@ -89,7 +96,14 @@ public class KeyValueContainerData extends ContainerData {
     KV_YAML_FIELDS.add(METADATA_PATH);
     KV_YAML_FIELDS.add(CHUNKS_PATH);
     KV_YAML_FIELDS.add(CONTAINER_DB_TYPE);
-    KV_YAML_FIELDS.add(SCHEMA_VERSION);
+
+    // If using the first metadata layout version, do not write the new schema
+    // version field to the yaml file, as this will break backwards
+    // compatibility on downgrade.
+    // Instead this layout version will always use the default schema version.
+    if (!DatanodeMetadataFeatures.getSchemaVersion().equals(SCHEMA_V1)) {
+      KV_YAML_FIELDS.add(SCHEMA_VERSION);
+    }
   }
 
   /**
@@ -104,6 +118,7 @@ public class KeyValueContainerData extends ContainerData {
         size, originPipelineId, originNodeId);
     this.numPendingDeletionBlocks = new AtomicLong(0);
     this.deleteTransactionId = 0;
+    this.schemaVersion = DEFAULT_SCHEMA_VERSION;
   }
 
   public KeyValueContainerData(ContainerData source) {
@@ -112,14 +127,16 @@ public class KeyValueContainerData extends ContainerData {
         == ContainerProtos.ContainerType.KeyValueContainer);
     this.numPendingDeletionBlocks = new AtomicLong(0);
     this.deleteTransactionId = 0;
+    this.schemaVersion = DEFAULT_SCHEMA_VERSION;
   }
 
   /**
    * @param version The schema version indicating the table layout of the
-   * container's database.
+   * container's database. If {@code null} is passed, the default schema
+   * version will be used.
    */
   public void setSchemaVersion(String version) {
-    schemaVersion = version;
+    schemaVersion = Optional.ofNullable(version).orElse(DEFAULT_SCHEMA_VERSION);
   }
 
   /**
