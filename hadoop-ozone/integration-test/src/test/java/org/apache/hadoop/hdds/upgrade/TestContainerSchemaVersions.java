@@ -24,6 +24,7 @@ import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocolPB.SCMSecurityProtocolClientSideTranslatorPB;
 import org.apache.hadoop.hdds.scm.cli.ContainerOperationClient;
 import org.apache.hadoop.hdds.scm.cli.ScmOption;
@@ -58,14 +59,15 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_PIPELINE_REPORT_INTERVAL;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.STAND_ALONE;
+//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
+//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
+//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.STAND_ALONE;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT;
 import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.OPEN;
 
@@ -73,6 +75,13 @@ public class TestContainerSchemaVersions {
   private static final int NUM_DATA_NODES = 1;
   private static final Logger LOG =
       LoggerFactory.getLogger(TestContainerSchemaVersions.class);
+
+  private static final HddsProtos.ReplicationFactor PROTO_REP_FACTOR =
+      HddsProtos.ReplicationFactor.ONE;
+  private static final HddsProtos.ReplicationType PROTO_REP_TYPE =
+      HddsProtos.ReplicationType.RATIS;
+  private static final ReplicationFactor REP_FACTOR = ReplicationFactor.ONE;
+  private static final ReplicationType REP_TYPE = ReplicationType.RATIS;
 
   private OzoneConfiguration conf;
   private MiniOzoneCluster cluster;
@@ -84,8 +93,21 @@ public class TestContainerSchemaVersions {
     conf = new OzoneConfiguration();
     conf.setTimeDuration(HDDS_PIPELINE_REPORT_INTERVAL, 1000,
         TimeUnit.MILLISECONDS);
-    conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
-    cluster = null;
+//    conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
+
+    // Pre finalized cluster (Current code using older metadata layout version).
+    cluster = MiniOzoneCluster.newBuilder(conf)
+        .setNumDatanodes(NUM_DATA_NODES)
+//        .setTotalPipelineNumLimit(NUM_DATA_NODES)
+        .setHbInterval(1000)
+        .setHbProcessorInterval(1000)
+        .setScmLayoutVersion(HDDSLayoutFeature.INITIAL_VERSION.layoutVersion())
+        .setDnLayoutVersion(HDDSLayoutFeature.INITIAL_VERSION.layoutVersion())
+        .build();
+    cluster.waitForClusterToBeReady();
+
+    scmClient = new ContainerOperationClient(conf);
+    scmClientID = UUID.randomUUID().toString();
   }
 
   @After
@@ -97,8 +119,6 @@ public class TestContainerSchemaVersions {
 
   @Test
   public void testSchemaVersionField() throws Exception {
-    // Pre finalized cluster (Current code using older metadata layout version).
-    createNewCluster(HDDSLayoutFeature.INITIAL_VERSION);
     Set<Long> oldContainers = new HashSet<>();
 
     // When using old MLV, the new schema version field should not be
@@ -129,12 +149,7 @@ public class TestContainerSchemaVersions {
     // When using new MLV, the new schema version field should be
     // persisted to container files for new container only.
     // Old container files should not be updated.
-//    createNewCluster(HDDSLayoutFeature.DATANODE_SCHEMA_V2);
-    // TODO: Move to init.
-    scmClient = new ContainerOperationClient(conf);
-    scmClientID = "baz";
     finalizeUpgrade();
-
 
     // When using old MLV, the new schema version field should not be
     // persisted to the container files.
@@ -194,8 +209,8 @@ public class TestContainerSchemaVersions {
     store.getVolume(content).createBucket(content);
     OzoneOutputStream stream =
         store.getVolume(content).getBucket(content)
-        .createKey(content, 10, ReplicationType.STAND_ALONE,
-            ReplicationFactor.ONE, new HashMap<>());
+        .createKey(content, 10, REP_TYPE,
+            REP_FACTOR, new HashMap<>());
 
     stream.write(content.getBytes(UTF_8));
     stream.close();
@@ -216,42 +231,28 @@ public class TestContainerSchemaVersions {
     Assert.assertEquals(content, new String(bytes, UTF_8));
   }
 
-  private void createNewCluster(HDDSLayoutFeature layoutVersion)
-      throws Exception {
-    // Clean up old cluster if necessary.
-    shutdown();
-    cluster = MiniOzoneCluster.newBuilder(conf)
-        .setNumDatanodes(NUM_DATA_NODES)
-        .setTotalPipelineNumLimit(NUM_DATA_NODES)
-        .setHbInterval(1000)
-        .setHbProcessorInterval(1000)
-        .setScmLayoutVersion(layoutVersion.layoutVersion())
-        .setDnLayoutVersion(layoutVersion.layoutVersion())
-        .build();
-    cluster.waitForClusterToBeReady();
-
-//    PipelineManager scmPipelineManager = cluster.getStorageContainerManager().getPipelineManager();
-//    LambdaTestUtils.await(10000, 2000, () -> {
-//      List<Pipeline> pipelines =
-//          scmPipelineManager.getPipelines(STAND_ALONE, ONE, OPEN);
-//      return pipelines.size() == NUM_DATA_NODES;
-//    });
+  private void waitForPipeline() throws Exception {
+    PipelineManager scmPipelineManager = cluster.getStorageContainerManager().getPipelineManager();
+    LambdaTestUtils.await(10000, 2000, () -> {
+      List<Pipeline> pipelines =
+          scmPipelineManager.getPipelines(PROTO_REP_TYPE, PROTO_REP_FACTOR, OPEN);
+      return pipelines.size() == NUM_DATA_NODES;
+    });
   }
 
   private void finalizeUpgrade()
-      throws TimeoutException, InterruptedException, IOException {
+      throws Exception {
     scmClient.finalizeScmUpgrade(scmClientID);
 
-    GenericTestUtils.waitFor(() -> {
-      try {
+    LambdaTestUtils.await(20000, 2000, () -> {
         UpgradeFinalizer.StatusAndMessages statusAndMessages =
             scmClient.queryUpgradeFinalizationProgress(scmClientID, false);
         LOG.info("Finalization Messages : " + statusAndMessages.msgs());
         return statusAndMessages.status().equals(UpgradeFinalizer.Status.FINALIZATION_DONE);
-      } catch (IOException e) {
-        Assert.fail(e.getMessage());
-      }
-      return false;
-    }, 2000, 20000);
+    });
+
+    // TODO: Not necessary after HDDS-4828.
+//    waitForPipeline();
+    Thread.sleep(60000);
   }
 }
