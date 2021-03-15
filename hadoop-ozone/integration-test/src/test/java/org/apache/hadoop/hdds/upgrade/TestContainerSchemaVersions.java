@@ -19,78 +19,48 @@ package org.apache.hadoop.hdds.upgrade;
 
 import org.apache.commons.codec.CharEncoding;
 import org.apache.commons.io.FileUtils;
-import org.apache.derby.impl.store.raw.data.ContainerOperation;
-import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
 import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
-import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
-import org.apache.hadoop.hdds.protocolPB.SCMSecurityProtocolClientSideTranslatorPB;
-import org.apache.hadoop.hdds.scm.cli.ContainerOperationClient;
-import org.apache.hadoop.hdds.scm.cli.ScmOption;
-import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
-import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.ozone.HddsDatanodeService;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
-import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.io.OzoneInputStream;
 import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.interfaces.Container;
-import org.apache.hadoop.ozone.om.OMConfigKeys;
-import org.apache.hadoop.ozone.om.ScmClient;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalizer;
-import org.apache.hadoop.test.GenericTestUtils;
-import org.apache.hadoop.test.LambdaTestUtils;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_PIPELINE_REPORT_INTERVAL;
-//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationFactor.ONE;
-//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.RATIS;
-//import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.ReplicationType.STAND_ALONE;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT;
-import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.OPEN;
 
+/**
+ * Creates a MiniOzoneCluster in a pre-finalized state using
+ * {@code HDDSLayoutFeature.INITIAL_VERSION}, and write data to it.
+ * Make sure that the container file created does not write the
+ * `schemaVersion` field, so it will be backwards compatible after a downgrade.
+ */
 public class TestContainerSchemaVersions {
   private static final int NUM_DATA_NODES = 1;
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TestContainerSchemaVersions.class);
 
-  private static final HddsProtos.ReplicationFactor PROTO_REP_FACTOR =
-      HddsProtos.ReplicationFactor.ONE;
-  private static final HddsProtos.ReplicationType PROTO_REP_TYPE =
-      HddsProtos.ReplicationType.RATIS;
   private static final ReplicationFactor REP_FACTOR = ReplicationFactor.ONE;
   private static final ReplicationType REP_TYPE = ReplicationType.RATIS;
 
-  private OzoneConfiguration conf;
   private MiniOzoneCluster cluster;
-  private ContainerOperationClient scmClient;
-  private String scmClientID;
 
   @Before
   public void setup() throws Exception {
-    conf = new OzoneConfiguration();
+    OzoneConfiguration conf = new OzoneConfiguration();
     conf.setTimeDuration(HDDS_PIPELINE_REPORT_INTERVAL, 1000,
         TimeUnit.MILLISECONDS);
     conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
@@ -105,9 +75,6 @@ public class TestContainerSchemaVersions {
         .setDnLayoutVersion(HDDSLayoutFeature.INITIAL_VERSION.layoutVersion())
         .build();
     cluster.waitForClusterToBeReady();
-
-    scmClient = new ContainerOperationClient(conf);
-    scmClientID = UUID.randomUUID().toString();
   }
 
   @After
@@ -119,8 +86,6 @@ public class TestContainerSchemaVersions {
 
   @Test
   public void testSchemaVersionField() throws Exception {
-    Set<Long> oldContainers = new HashSet<>();
-
     // When using old MLV, the new schema version field should not be
     // persisted to the container files.
     writeKey("old");
@@ -133,52 +98,12 @@ public class TestContainerSchemaVersions {
       Iterator<Container<?>> contIter = dn.getDatanodeStateMachine()
           .getContainer().getContainerSet().getContainerIterator();
 
-      // With 3 DNs and rep factor of 3, each DN should have at least one
-      // container.
       Assert.assertTrue(contIter.hasNext());
 
       while(contIter.hasNext()) {
         Container<?> cont = contIter.next();
         assertSchemaVersion(cont, null);
-        oldContainers.add(cont.getContainerData().getContainerID());
-        // Simulate an upgrade, where all containers are closed first.
-        cont.close();
       }
-    }
-
-    // When using new MLV, the new schema version field should be
-    // persisted to container files for new container only.
-    // Old container files should not be updated.
-    finalizeUpgrade();
-
-    // When using old MLV, the new schema version field should not be
-    // persisted to the container files.
-    assertReadKey("old");
-    writeKey("new");
-    assertReadKey("new");
-
-    dnList = cluster.getHddsDatanodes();
-    Assert.assertEquals(dnList.size(), NUM_DATA_NODES);
-
-    for(HddsDatanodeService dn: dnList) {
-      Iterator<Container<?>> contIter = dn.getDatanodeStateMachine()
-          .getContainer().getContainerSet().getContainerIterator();
-
-      Assert.assertTrue(contIter.hasNext());
-      boolean hasNewContainer = false;
-
-      while(contIter.hasNext()) {
-        Container<?> cont = contIter.next();
-        if (oldContainers.contains(cont.getContainerData().getContainerID())) {
-          assertSchemaVersion(cont, null);
-        } else {
-          assertSchemaVersion(cont, OzoneConsts.SCHEMA_V2);
-          hasNewContainer = true;
-        }
-      }
-
-      // Each DN should have created a container for the new key.
-      Assert.assertTrue(hasNewContainer);
     }
   }
 
@@ -189,10 +114,8 @@ public class TestContainerSchemaVersions {
     String fileContent = FileUtils.readFileToString(contFile,
         CharEncoding.UTF_8);
 
-    final String schemaField =
-        OzoneConsts.SCHEMA_VERSION + ": " + schemaVersion;
-
     if (schemaVersion != null) {
+      String schemaField = OzoneConsts.SCHEMA_VERSION + ": " + schemaVersion;
       Assert.assertTrue(fileContent.contains(schemaField));
     } else {
       Assert.assertFalse(fileContent.contains(OzoneConsts.SCHEMA_VERSION));
@@ -229,30 +152,5 @@ public class TestContainerSchemaVersions {
     int numRead = stream.read(bytes);
     Assert.assertEquals(content.length(), numRead);
     Assert.assertEquals(content, new String(bytes, UTF_8));
-  }
-
-  private void waitForPipeline() throws Exception {
-    PipelineManager scmPipelineManager = cluster.getStorageContainerManager().getPipelineManager();
-    LambdaTestUtils.await(10000, 2000, () -> {
-      List<Pipeline> pipelines =
-          scmPipelineManager.getPipelines(PROTO_REP_TYPE, PROTO_REP_FACTOR, OPEN);
-      return pipelines.size() == NUM_DATA_NODES;
-    });
-  }
-
-  private void finalizeUpgrade()
-      throws Exception {
-    scmClient.finalizeScmUpgrade(scmClientID);
-
-    LambdaTestUtils.await(20000, 2000, () -> {
-        UpgradeFinalizer.StatusAndMessages statusAndMessages =
-            scmClient.queryUpgradeFinalizationProgress(scmClientID, false);
-        LOG.info("Finalization Messages : " + statusAndMessages.msgs());
-        return statusAndMessages.status().equals(UpgradeFinalizer.Status.FINALIZATION_DONE);
-    });
-
-    // TODO: Not necessary after HDDS-4828.
-    waitForPipeline();
-    Thread.sleep(60000);
   }
 }
