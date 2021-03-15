@@ -93,12 +93,12 @@ public class TestContainerSchemaVersions {
     conf = new OzoneConfiguration();
     conf.setTimeDuration(HDDS_PIPELINE_REPORT_INTERVAL, 1000,
         TimeUnit.MILLISECONDS);
-//    conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
+    conf.set(OZONE_DATANODE_PIPELINE_LIMIT, "1");
 
     // Pre finalized cluster (Current code using older metadata layout version).
     cluster = MiniOzoneCluster.newBuilder(conf)
         .setNumDatanodes(NUM_DATA_NODES)
-//        .setTotalPipelineNumLimit(NUM_DATA_NODES)
+        .setTotalPipelineNumLimit(NUM_DATA_NODES)
         .setHbInterval(1000)
         .setHbProcessorInterval(1000)
         .setScmLayoutVersion(HDDSLayoutFeature.INITIAL_VERSION.layoutVersion())
@@ -252,7 +252,7 @@ public class TestContainerSchemaVersions {
     });
 
     // TODO: Not necessary after HDDS-4828.
-//    waitForPipeline();
+    waitForPipeline();
     Thread.sleep(60000);
   }
 }
