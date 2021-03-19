@@ -37,32 +37,34 @@ setup() {
 }
 
 with_old_version() {
-  generate old1
-  validate old1
+  true
+  #generate old1
+  #validate old1
 }
 
 with_new_version_pre_finalized() {
   _check_all_mlvs 0
-  validate old1
+  #validate old1
 
-  generate new1
-  validate new1
+  #generate new1
+  #validate new1
 }
 
 with_old_version_downgraded() {
-  validate old1
-  validate new1
+  true
+  #validate old1
+  #validate new1
 
-  generate old2
-  validate old2
+  #generate old2
+  #validate old2
 }
 
 with_new_version_finalized() {
   _check_all_mlvs 1
-  validate old1
-  validate new1
-  validate old2
+  #validate old1
+  #validate new1
+  #validate old2
 
-  generate new2
-  validate new2
+  #generate new2
+  #validate new2
 }
