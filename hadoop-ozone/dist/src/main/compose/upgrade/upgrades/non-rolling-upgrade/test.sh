@@ -81,6 +81,9 @@ stop_docker_env
 prepare_for_image "$OZONE_UPGRADE_FROM"
 set_downgrade_om_args
 
+# HACK: To make downgrades work.
+"$TEST_DIR"/../../libexec/upgrade/1.0.0-downgrade.sh
+
 echo "--- RUNNING WITH OLD VERSION $OZONE_UPGRADE_FROM AFTER DOWNGRADE ---"
 OUTPUT_NAME="$OZONE_UPGRADE_FROM"-downgraded
 OZONE_KEEP_RESULTS=true start_docker_env
