@@ -18,12 +18,18 @@
 
 package org.apache.hadoop.ozone.recon;
 
+import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.deser.impl.NullsAsEmptyProvider;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.ozone.OzoneConfigKeys;
+import org.apache.hadoop.ozone.recon.api.AdminOnly;
 import org.glassfish.hk2.api.ServiceLocator;
 import org.glassfish.jersey.internal.inject.InjectionManager;
 import org.glassfish.jersey.server.ResourceConfig;
@@ -38,6 +44,22 @@ import org.slf4j.LoggerFactory;
 import com.google.inject.Injector;
 import com.google.inject.Scopes;
 import com.google.inject.servlet.ServletModule;
+
+import javax.annotation.Priority;
+import javax.inject.Inject;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.ws.rs.Priorities;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
+import javax.ws.rs.container.ResourceInfo;
+import javax.ws.rs.core.Context;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.ext.Provider;
 
 /**
  * Class to scan API Service classes and bind them to the injector.
@@ -99,6 +121,29 @@ public abstract class ReconRestServletModule extends ServletModule {
       for (String path : paths) {
         serve(path).with(ServletContainer.class, params);
       }
+    }
+  }
+}
+
+@Priority(Priorities.AUTHENTICATION)
+@Provider
+@AdminOnly
+class AdminFilter implements ContainerRequestFilter {
+  @Context
+  private ResourceInfo resourceInfo;
+
+  @Inject
+  private OzoneConfiguration conf;
+
+  @Override
+  public void filter(ContainerRequestContext context) {
+    String name = context.getSecurityContext().getUserPrincipal().getName();
+    Collection<String> admins = conf
+        .getTrimmedStringCollection(OzoneConfigKeys.OZONE_ADMINISTRATORS);
+
+    if (!admins.contains(name) &&
+        resourceInfo.getResourceClass().isAnnotationPresent(AdminOnly.class)) {
+      context.abortWith(Response.status(Response.Status.UNAUTHORIZED).build());
     }
   }
 }
