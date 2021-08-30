@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.deser.impl.NullsAsEmptyProvider;
+import okhttp3.Interceptor;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.recon.api.AdminOnly;
@@ -53,12 +54,14 @@ import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.Priorities;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ResourceInfo;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.SecurityContext;
 import javax.ws.rs.ext.Provider;
 
 /**
@@ -121,29 +124,6 @@ public abstract class ReconRestServletModule extends ServletModule {
       for (String path : paths) {
         serve(path).with(ServletContainer.class, params);
       }
-    }
-  }
-}
-
-@Priority(Priorities.AUTHENTICATION)
-@Provider
-@AdminOnly
-class AdminFilter implements ContainerRequestFilter {
-  @Context
-  private ResourceInfo resourceInfo;
-
-  @Inject
-  private OzoneConfiguration conf;
-
-  @Override
-  public void filter(ContainerRequestContext context) {
-    String name = context.getSecurityContext().getUserPrincipal().getName();
-    Collection<String> admins = conf
-        .getTrimmedStringCollection(OzoneConfigKeys.OZONE_ADMINISTRATORS);
-
-    if (!admins.contains(name) &&
-        resourceInfo.getResourceClass().isAnnotationPresent(AdminOnly.class)) {
-      context.abortWith(Response.status(Response.Status.UNAUTHORIZED).build());
     }
   }
 }
