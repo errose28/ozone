@@ -29,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.http.auth.BasicUserPrincipal;
@@ -56,7 +58,7 @@ public class RangerClientMultiTenantAccessController implements
   private final Map<String, IAccessAuthorizer.ACLType> stringToAcl;
   private final String omPrincipal;
 
-  public RangerClientMultiTenantAccessController(OzoneConfiguration conf) {
+  public RangerClientMultiTenantAccessController(ConfigurationSource conf) {
     aclToString = MultiTenantAccessController.getRangerAclStrings();
     stringToAcl = new HashMap<>();
     aclToString.forEach((type, string) -> stringToAcl.put(string, type));
@@ -66,6 +68,12 @@ public class RangerClientMultiTenantAccessController implements
     rangerServiceName = conf.get(OZONE_RANGER_SERVICE);
     omPrincipal = conf.get(OZONE_OM_KERBEROS_PRINCIPAL_KEY);
     String keytabPath = conf.get(OZONE_OM_KERBEROS_KEYTAB_FILE_KEY);
+
+    LOG.info("Loaded ranger https address: {}", rangerHttpsAddress);
+    LOG.info("Loaded service name: {}", rangerServiceName);
+    LOG.info("Loaded om principal: {}", omPrincipal);
+    LOG.info("Loaded om keytab path: {}", keytabPath);
+
     client = new RangerClient(rangerHttpsAddress,
         "kerberos", omPrincipal, keytabPath, rangerServiceName, "ozone");
   }

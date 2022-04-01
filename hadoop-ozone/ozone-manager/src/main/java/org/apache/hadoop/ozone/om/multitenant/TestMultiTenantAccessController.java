@@ -1,6 +1,6 @@
 package org.apache.hadoop.ozone.om.multitenant;
 
-import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.ozone.om.multitenant.MultiTenantAccessController.Acl;
 import org.apache.hadoop.ozone.om.multitenant.MultiTenantAccessController.Policy;
 import org.apache.hadoop.ozone.om.multitenant.MultiTenantAccessController.Role;
@@ -22,6 +22,11 @@ import java.util.stream.Collectors;
 public class TestMultiTenantAccessController {
   private MultiTenantAccessController controller;
   private List<BasicUserPrincipal> users;
+  private static ConfigurationSource conf = null;
+
+  public static void setConfiguration(ConfigurationSource config) {
+    conf = config;
+  }
 
   @Before
   public void setupUsers() {
@@ -34,7 +39,7 @@ public class TestMultiTenantAccessController {
   /**
    * Use this setup to test against a mock Ranger instance.
    */
-   @Before
+//   @Before
    public void setupUnitTest() {
      controller = new DummyMultiTenantAccessController();
    }
@@ -42,7 +47,7 @@ public class TestMultiTenantAccessController {
   /**
    * Use this setup to test against a live Ranger instance.
    */
-  //  @Before
+  @Before
   public void setupClusterTest() {
     // These config keys must be set when the test is run:
     // OZONE_RANGER_HTTPS_ADDRESS_KEY
@@ -50,7 +55,6 @@ public class TestMultiTenantAccessController {
     // These config keys must be set in a secure cluster.
     // OZONE_OM_KERBEROS_PRINCIPAL_KEY
     // OZONE_OM_KERBEROS_KEYTAB_FILE_KEY
-    OzoneConfiguration conf = new OzoneConfiguration();
     controller = new RangerClientMultiTenantAccessController(conf);
   }
 

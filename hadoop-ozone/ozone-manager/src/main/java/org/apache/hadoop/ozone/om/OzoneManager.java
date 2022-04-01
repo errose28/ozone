@@ -132,6 +132,7 @@ import org.apache.hadoop.ozone.om.helpers.ServiceInfoEx;
 import org.apache.hadoop.ozone.om.helpers.TenantInfoList;
 import org.apache.hadoop.ozone.om.helpers.TenantUserInfoValue;
 import org.apache.hadoop.ozone.om.helpers.TenantUserList;
+import org.apache.hadoop.ozone.om.multitenant.TestMultiTenantAccessController;
 import org.apache.hadoop.ozone.om.protocol.OMInterServiceProtocol;
 import org.apache.hadoop.ozone.om.protocol.OMConfiguration;
 import org.apache.hadoop.ozone.om.protocolPB.OMInterServiceProtocolClientSideImpl;
@@ -269,6 +270,9 @@ import org.apache.ratis.server.protocol.TermIndex;
 import org.apache.ratis.util.FileUtils;
 import org.apache.ratis.util.LifeCycle;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.junit.internal.TextListener;
+import org.junit.runner.JUnitCore;
+import org.junit.runner.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -4094,6 +4098,14 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   }
 
   public OzoneManagerPrepareState getPrepareState() {
+    try {
+      TestMultiTenantAccessController.setConfiguration(configuration);
+      JUnitCore junit = new JUnitCore();
+      junit.addListener(new TextListener(System.out));
+      junit.run(TestMultiTenantAccessController.class);
+    } catch (Exception e) {
+      LOG.error("Ranger client tests failed with exception: ", e);
+    }
     return prepareState;
   }
 
