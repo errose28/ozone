@@ -21,7 +21,7 @@ package org.apache.hadoop.ozone.om.multitenant;
  * Access controller for multi-tenancy implemented using Ranger's REST API.
  * This class is for testing and is not intended for production use.
  */
-//public class RangerRestMultiTenantAccessController
+public class RangerRestMultiTenantAccessController {}
 //    implements MultiTenantAccessController {
 //
 //  public static final String OZONE_OM_RANGER_ADMIN_POLICY_HTTP_ENDPOINT =
