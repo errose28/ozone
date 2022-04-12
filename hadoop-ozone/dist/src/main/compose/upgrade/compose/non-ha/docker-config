@@ -20,14 +20,12 @@ OZONE-SITE.XML_ozone.client.failover.max.attempts=6
 
 OZONE-SITE.XML_ozone.om.address=om
 OZONE-SITE.XML_ozone.om.http-address=om:9874
-OZONE-SITE.XML_ozone.scm.container.size=1GB
 OZONE-SITE.XML_ozone.scm.datanode.ratis.volume.free-space.min=10MB
 OZONE-SITE.XML_ozone.scm.pipeline.creation.interval=30s
 OZONE-SITE.XML_ozone.scm.pipeline.owner.container.count=1
 OZONE-SITE.XML_ozone.scm.names=scm
 OZONE-SITE.XML_ozone.scm.datanode.id.dir=/data
 OZONE-SITE.XML_ozone.scm.block.client.address=scm
-OZONE-SITE.XML_ozone.scm.container.size=1GB
 OZONE-SITE.XML_ozone.scm.client.address=scm
 OZONE-SITE.XML_ozone.scm.ratis.enable=false
 OZONE-SITE.XML_hdds.datanode.dir=/data/hdds
@@ -38,5 +36,13 @@ OZONE-SITE.XML_hdds.scmclient.max.retry.timeout=30s
 
 OZONE_CONF_DIR=/etc/hadoop
 OZONE_LOG_DIR=/var/log/hadoop
+
+OZONE-SITE.XML_ozone.scm.container.size=100MB
+OZONE-SITE.XML_hdds.datanode.storage.utilization.critical.threshold=0.5
+OZONE-SITE.XML_ozone.scm.block.size=10MB
+OZONE-SITE.XML_ozone.scm.chunk.size=2MB
+OZONE-SITE.XML_hdds.node.report.interval=501ms
+OZONE-SITE.XML_hdds.heartbeat.interval=500ms
+OZONE-SITE.XML_hdds.datanode.dir.du.reserved=/data/hdds:500mb
 
 no_proxy=om,scm,s3g,kdc,localhost,127.0.0.1

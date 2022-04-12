@@ -80,7 +80,10 @@ services:
       net:
         ipv4_address: 10.9.0.13
     volumes:
-      - ${OZONE_VOLUME}/dn1:/data
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          size: 1G
       - *ozone-dir
       - *transformation
   dn2:
@@ -89,7 +92,10 @@ services:
       net:
         ipv4_address: 10.9.0.14
     volumes:
-      - ${OZONE_VOLUME}/dn2:/data
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          size: 1G
       - *ozone-dir
       - *transformation
   dn3:
@@ -98,7 +104,10 @@ services:
       net:
         ipv4_address: 10.9.0.15
     volumes:
-      - ${OZONE_VOLUME}/dn3:/data
+      - type: tmpfs
+        target: /data
+        tmpfs:
+          size: 1G
       - *ozone-dir
       - *transformation
   recon:

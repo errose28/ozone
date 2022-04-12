@@ -193,13 +193,24 @@ public abstract class SCMCommonPlacementPolicy implements PlacementPolicy {
 
     if (dataSizeRequired > 0) {
       for (StorageReportProto reportProto : datanodeInfo.getStorageReports()) {
+        LOG.info("Datanode {} volume {} has\n{} bytes remaining\n{} scm " +
+                "used\n{} capacity",
+            datanodeInfo.getUuidString(),
+            reportProto.getStorageLocation(),
+            reportProto.getRemaining(),
+            reportProto.getScmUsed(),
+            reportProto.getCapacity());
         if (reportProto.getRemaining() > dataSizeRequired) {
+          LOG.info("Datanode {} meets minimum data size requirement of {}",
+              datanodeInfo.getUuidString(), dataSizeRequired);
           enoughForData = true;
           break;
         }
       }
     } else {
       enoughForData = true;
+      LOG.info("Datanode {} meets minimum data size requirement of {}",
+          datanodeInfo.getUuidString(), dataSizeRequired);
     }
 
     if (!enoughForData) {

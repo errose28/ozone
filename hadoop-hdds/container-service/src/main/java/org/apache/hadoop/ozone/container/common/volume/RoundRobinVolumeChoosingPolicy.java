@@ -18,10 +18,10 @@
 
 package org.apache.hadoop.ozone.container.common.volume;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.ozone.container.common.interfaces.VolumeChoosingPolicy;
 import org.apache.hadoop.util.DiskChecker.DiskOutOfSpaceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class RoundRobinVolumeChoosingPolicy implements VolumeChoosingPolicy {
 
-  public static final Log LOG = LogFactory.getLog(
+  private static final Logger LOG = LoggerFactory.getLogger(
       RoundRobinVolumeChoosingPolicy.class);
 
   // Stores the index of the next volume to be returned.
@@ -64,8 +64,17 @@ public class RoundRobinVolumeChoosingPolicy implements VolumeChoosingPolicy {
 
       currentVolumeIndex = (currentVolumeIndex + 1) % volumes.size();
 
+      LOG.info("Volume {} has\n{} available bytes\n{} reserved bytes",
+          volume.getHddsRootDir().getAbsolutePath(),
+          availableVolumeSize,
+          volume.getVolumeInfo().getReservedInBytes());
+
       if (availableVolumeSize > maxContainerSize) {
         nextVolumeIndex.compareAndSet(nextIndex, currentVolumeIndex);
+        LOG.info("Volume {} with {} bytes available chosen for minimum size " +
+                "requirement {}",
+            volume.getHddsRootDir().getAbsolutePath(), availableVolumeSize,
+            maxContainerSize);
         return volume;
       }
 
