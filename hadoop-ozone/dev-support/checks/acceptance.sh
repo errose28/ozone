@@ -38,8 +38,9 @@ mkdir -p "$REPORT_DIR"
 
 export OZONE_ACCEPTANCE_SUITE
 
-cd "$DIST_DIR/compose" || exit 1
-./test-all.sh 2>&1 | tee "${REPORT_DIR}/output.log"
+cd "$DIST_DIR/compose/upgrade" || exit 1
+# ./test-all.sh 2>&1 | tee "${REPORT_DIR}/output.log"
+./test.sh 2>&1 | tee "${REPORT_DIR}/output.log"
 RES=$?
 cp -rv result/* "$REPORT_DIR/"
 cp "$REPORT_DIR/log.html" "$REPORT_DIR/summary.html"
