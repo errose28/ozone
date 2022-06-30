@@ -319,7 +319,6 @@ jobs:
         i: [ a, b, c, d, e, f, g, h, i, j ]
         j: [ 1, 2, 3, 4, 5 ]
       fail-fast: false
-      fail-fast: false
     steps:
       - name: Checkout project
         uses: actions/checkout@v2
