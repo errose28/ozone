@@ -21,12 +21,20 @@ package org.apache.hadoop.hdds.scm.server.upgrade;
 import static org.apache.hadoop.hdds.scm.pipeline.Pipeline.PipelineState.CLOSED;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
+import org.apache.hadoop.hdds.scm.node.NodeManager;
+import org.apache.hadoop.hdds.scm.node.NodeStatus;
+import org.apache.hadoop.hdds.scm.node.SCMNodeManager;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
+import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
@@ -73,6 +81,7 @@ public class SCMUpgradeFinalizer extends
       }
       logCheckpointCrossed(FinalizationCheckpoint.FINALIZATION_STARTED);
 
+      // TODO no action here.
       if (!stateManager.crossedCheckpoint(
           FinalizationCheckpoint.MLV_EQUALS_SLV)) {
         closePipelinesBeforeFinalization(context.getPipelineManager());
@@ -118,12 +127,15 @@ public class SCMUpgradeFinalizer extends
       throws IOException {
     // If we reached this phase of finalization, all layout features should
     // be finalized.
+    // TODO nodes should not be instructed to finalize once this checkpoint
+    //  is crossed.
     logCheckpointCrossed(FinalizationCheckpoint.MLV_EQUALS_SLV);
     FinalizationStateManager stateManager =
         context.getFinalizationStateManager();
     if (!stateManager.crossedCheckpoint(
         FinalizationCheckpoint.FINALIZATION_COMPLETE)) {
-      createPipelinesAfterFinalization(context);
+//      createPipelinesAfterFinalization(context);
+      finalizeDatanodes(context);
       // @Replicate methods are required to throw TimeoutException.
       try {
         stateManager.removeFinalizingMark();
