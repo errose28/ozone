@@ -544,8 +544,8 @@ public abstract class ContainerData {
     return isEmpty;
   }
 
-  public void setEmpty(boolean isEmpty) {
-    this.isEmpty = isEmpty;
+  public void markAsEmpty() {
+    this.isEmpty = true;
   }
 
   /**

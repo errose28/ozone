@@ -353,6 +353,18 @@ public final class KeyValueContainerUtil {
     kvData.setBlockCount(blockCount);
   }
 
+  /**
+   * Check if the container has blocks by checking its block
+   * table. This method works regardless of schema version.
+   */
+  public static boolean hasBlocks(DatanodeStore store, long containerID)
+      throws IOException {
+    try (BlockIterator<BlockData> blockIterator =
+             store.getBlockIterator(containerID)) {
+      return blockIterator.hasNext();
+    }
+  }
+
   public static long getBlockLength(BlockData block) throws IOException {
     long blockLen = 0;
     List<ContainerProtos.ChunkInfo> chunkInfoList = block.getChunks();
