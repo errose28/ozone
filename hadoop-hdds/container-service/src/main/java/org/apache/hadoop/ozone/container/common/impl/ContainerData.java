@@ -544,6 +544,10 @@ public abstract class ContainerData {
     return isEmpty;
   }
 
+  /**
+   * Indicates that this container has no more data, and is eligible for
+   * deletion. Once this flag is set on a container, it cannot leave this state.
+   */
   public void markAsEmpty() {
     this.isEmpty = true;
   }
