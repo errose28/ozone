@@ -197,6 +197,9 @@ public class HddsVolume extends StorageVolume {
   @Override
   public VolumeCheckResult check(@Nullable Boolean unused) throws Exception {
     VolumeCheckResult result = super.check(unused);
+
+    // TODO trigger compaction outside of volume check. Then the exception
+    //  can be removed.
     if (!isDbLoaded()) {
       return result;
     }
