@@ -68,6 +68,9 @@ public abstract class StorageVolume
 
   // The name of the directory used for temporary files on the volume.
   private static final String TMP_DIR_NAME = "tmp";
+  // The name of the directory where temporary files used to check disk
+  // health are written to. This will go inside the tmp directory.
+  private static final String TMP_DISK_CHECK_DIR_NAME = "disk-check";
 
   /**
    * Type for StorageVolume.
@@ -112,7 +115,8 @@ public abstract class StorageVolume
 
   private final File storageDir;
   private String workingDirName;
-  private Path tmpDir;
+  private File tmpDir;
+  private File tmpDiskCheckDir;
 
   private final Optional<VolumeInfo> volumeInfo;
 
@@ -223,7 +227,8 @@ public abstract class StorageVolume
           " for datanode.");
     }
     this.workingDirName = workingDirName;
-    this.tmpDir = new File(idDir, TMP_DIR_NAME).toPath();
+    this.tmpDir = new File(idDir, TMP_DIR_NAME);
+    this.tmpDiskCheckDir = new File(tmpDir, TMP_DISK_CHECK_DIR_NAME);
   }
 
   private VolumeState analyzeVolumeState() {
@@ -427,7 +432,7 @@ public abstract class StorageVolume
     return this.workingDirName;
   }
 
-  public Path getTmpDir() {
+  public File getTmpDir() {
     return this.tmpDir;
   }
 
@@ -517,15 +522,15 @@ public abstract class StorageVolume
         DiskCheckUtil.checkExistence(LOG, storageDir) &&
         DiskCheckUtil.checkPermissions(LOG, storageDir);
     // If the directory is not present or has incorrect permissions, fail the
-    // volume immediately since this is not an intermittent error.
+    // volume immediately. This is not an intermittent error.
     if (!directoryChecksPassed) {
       return VolumeCheckResult.FAILED;
     }
 
-    // TODO get correct tmp dir.
-    // TODO configure num bytes to write.
+    // Since IO errors may be intermittent, volume remains healthy until the
+    // threshold of consecutive failures is crossed.
     boolean diskChecksPassed = DiskCheckUtil.checkReadWrite(
-        LOG, storageDir, storageDir, healthCheckFileSize);
+        LOG, storageDir, tmpDiskCheckDir, healthCheckFileSize);
     if (diskChecksPassed) {
       // Reset consecutive IO failure count when IO succeeds.
       // Volume remains healthy.
@@ -536,8 +541,6 @@ public abstract class StorageVolume
         // After too many repeated IO failures, the volume should be failed.
         return VolumeCheckResult.FAILED;
       }
-      // Volume remains healthy until the threshold of consecutive failures
-      // is crossed.
     }
 
     return VolumeCheckResult.HEALTHY;

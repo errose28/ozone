@@ -159,7 +159,8 @@ public class HddsVolume extends StorageVolume {
    * This ensures container delete is atomic at the file system level.
    */
   private void createDeleteServiceDir() {
-    deleteServiceDirPath = getTmpDir().resolve(TMP_CONTAINER_DELETE_DIR_NAME);
+    deleteServiceDirPath =
+        new File(getTmpDir(), TMP_CONTAINER_DELETE_DIR_NAME).toPath();
 
     if (Files.notExists(deleteServiceDirPath)) {
       try {
