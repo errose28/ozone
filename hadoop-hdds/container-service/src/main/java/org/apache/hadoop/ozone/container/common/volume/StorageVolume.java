@@ -127,6 +127,7 @@ public abstract class StorageVolume
    */
   private int consecutiveIOFailureCount;
   private int consecutiveIOFailureTolerance;
+  private int healthCheckFileSize;
 
   protected StorageVolume(Builder<?> b) throws IOException {
     if (!b.failedVolume) {
@@ -143,9 +144,12 @@ public abstract class StorageVolume
       this.datanodeUuid = b.datanodeUuid;
       this.conf = b.conf;
       this.consecutiveIOFailureCount = 0;
+      DatanodeConfiguration dnConf =
+          conf.getObject(DatanodeConfiguration.class);
       this.consecutiveIOFailureTolerance =
-          conf.getObject(DatanodeConfiguration.class)
-          .getConsecutiveVolumeIOFailuresTolerated();
+          dnConf.getConsecutiveVolumeIOFailuresTolerated();
+      this.healthCheckFileSize =
+          dnConf.getVolumeHealthCheckFileSize();
     } else {
       storageDir = new File(b.volumeRootStr);
       this.volumeInfo = Optional.empty();
@@ -509,8 +513,8 @@ public abstract class StorageVolume
 
     // TODO get correct tmp dir.
     // TODO configure num bytes to write.
-    boolean diskChecksPassed =
-        DiskCheckUtil.checkReadWrite(LOG, storageDir, storageDir, 100);
+    boolean diskChecksPassed = DiskCheckUtil.checkReadWrite(
+        LOG, storageDir, storageDir, healthCheckFileSize);
     if (diskChecksPassed) {
       // Reset consecutive IO failure count when IO succeeds.
       // Volume remains healthy.
