@@ -30,23 +30,18 @@ import org.apache.hadoop.ozone.container.common.helpers.DatanodeVersionFile;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
 import org.apache.hadoop.ozone.container.common.utils.DiskCheckUtil;
 import org.apache.hadoop.ozone.container.common.utils.StorageVolumeUtil;
-import org.apache.hadoop.util.DiskChecker;
+import org.apache.hadoop.ozone.container.upgrade.VersionedDatanodeFeatures;
 import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.SyncFailedException;
-import java.util.Arrays;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.Random;
 import java.util.UUID;
 
 import static org.apache.hadoop.ozone.container.common.HDDSVolumeLayoutVersion.getLatestVersion;
@@ -70,6 +65,12 @@ public abstract class StorageVolume
 
   private static final Logger LOG =
       LoggerFactory.getLogger(StorageVolume.class);
+
+  // The name of the directory used for temporary files on the volume.
+  private static final String TMP_DIR_NAME = "tmp";
+  // The name of the directory where temporary files used to check disk
+  // health are written to. This will go inside the tmp directory.
+  private static final String TMP_DISK_CHECK_DIR_NAME = "disk-check";
 
   /**
    * Type for StorageVolume.
@@ -113,12 +114,14 @@ public abstract class StorageVolume
   private ConfigurationSource conf;
 
   private final File storageDir;
+  private String workingDirName;
+  private File tmpDir;
+  private File tmpDiskCheckDir;
 
   private final Optional<VolumeInfo> volumeInfo;
 
   private final VolumeSet volumeSet;
 
-  private String workingDir;
 
   /*
   The number of consecutive times this volume encountered an IO error
@@ -204,19 +207,28 @@ public abstract class StorageVolume
   }
 
   /**
-   * Create working directory for cluster io loads.
-   * @param workingDirName scmID or clusterID according to SCM HA config
-   * @param dbVolumeSet optional dbVolumes
+   * Create the working directory for the volume at
+   * <volume>/<hdds>/<workingDirName>.
+   * Creates necessary subdirectories of the working directory as well. This
+   * includes the tmp directory at <volume>/<hdds>/<workingDirName>/tmp.
+   * Child classes may override this method to add volume specific
+   * subdirectories, but they should call the parent method first to make
+   * sure initial directories are constructed.
+   *
+   * @param workingDirName scmID or clusterID according to SCM HA
+   *    layout feature upgrade finalization status.
    * @throws IOException
    */
-  public void createWorkingDir(String workingDirName,
+  public void createWorkingDirs(String workingDirName,
       MutableVolumeSet dbVolumeSet) throws IOException {
     File idDir = new File(getStorageDir(), workingDirName);
     if (!idDir.mkdir()) {
       throw new IOException("Unable to create ID directory " + idDir +
           " for datanode.");
     }
-    this.workingDir = workingDirName;
+    this.workingDirName = workingDirName;
+    this.tmpDir = new File(idDir, TMP_DIR_NAME);
+    this.tmpDiskCheckDir = new File(tmpDir, TMP_DISK_CHECK_DIR_NAME);
   }
 
   private VolumeState analyzeVolumeState() {
@@ -416,8 +428,12 @@ public abstract class StorageVolume
     return this.storageDir;
   }
 
-  public String getWorkingDir() {
-    return this.workingDir;
+  public String getWorkingDirName() {
+    return this.workingDirName;
+  }
+
+  public File getTmpDir() {
+    return this.tmpDir;
   }
 
   public void refreshVolumeInfo() {
@@ -506,15 +522,15 @@ public abstract class StorageVolume
         DiskCheckUtil.checkExistence(LOG, storageDir) &&
         DiskCheckUtil.checkPermissions(LOG, storageDir);
     // If the directory is not present or has incorrect permissions, fail the
-    // volume immediately since this is not an intermittent error.
+    // volume immediately. This is not an intermittent error.
     if (!directoryChecksPassed) {
       return VolumeCheckResult.FAILED;
     }
 
-    // TODO get correct tmp dir.
-    // TODO configure num bytes to write.
+    // Since IO errors may be intermittent, volume remains healthy until the
+    // threshold of consecutive failures is crossed.
     boolean diskChecksPassed = DiskCheckUtil.checkReadWrite(
-        LOG, storageDir, storageDir, healthCheckFileSize);
+        LOG, storageDir, tmpDiskCheckDir, healthCheckFileSize);
     if (diskChecksPassed) {
       // Reset consecutive IO failure count when IO succeeds.
       // Volume remains healthy.
@@ -525,8 +541,6 @@ public abstract class StorageVolume
         // After too many repeated IO failures, the volume should be failed.
         return VolumeCheckResult.FAILED;
       }
-      // Volume remains healthy until the threshold of consecutive failures
-      // is crossed.
     }
 
     return VolumeCheckResult.HEALTHY;
