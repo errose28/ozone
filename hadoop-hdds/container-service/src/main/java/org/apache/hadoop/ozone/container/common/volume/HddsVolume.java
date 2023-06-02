@@ -206,6 +206,7 @@ public class HddsVolume extends StorageVolume {
       volumeInfoMetrics.unregister();
     }
     closeDbStore();
+    // TODO clear delete dir here.
   }
 
   @Override
