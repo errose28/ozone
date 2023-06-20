@@ -26,13 +26,13 @@ jobs:
       GITHUB_CONTEXT: ${{ toJson(github) }}
     outputs:
       basic-checks: ${{ steps.selective-checks.outputs.basic-checks }}
-      needs-basic-checks: ${{ steps.selective-checks.outputs.needs-basic-checks }}
-      needs-build: ${{ steps.selective-checks.outputs.needs-build }}
-      needs-compile: ${{ steps.selective-checks.outputs.needs-compile }}
-      needs-compose-tests: ${{ steps.selective-checks.outputs.needs-compose-tests }}
-      needs-dependency-check: ${{ steps.selective-checks.outputs.needs-dependency-check }}
-      needs-integration-tests: ${{ steps.selective-checks.outputs.needs-integration-tests }}
-      needs-kubernetes-tests: ${{ steps.selective-checks.outputs.needs-kubernetes-tests }}
+      needs-basic-checks: false
+      needs-build: true
+      needs-compile: false
+      needs-compose-tests: false
+      needs-dependency-check: false
+      needs-integration-tests: true
+      needs-kubernetes-tests: false
     steps:
       - name: "Checkout ${{ github.ref }} ( ${{ github.sha }} )"
         uses: actions/checkout@v3
@@ -123,17 +123,9 @@ jobs:
     if: needs.build-info.outputs.needs-integration-tests == 'true'
     strategy:
       matrix:
-        profile:
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-          - 6
-          - 7
-          - 8
-          - 9
-          - 10
+        profile: [ hdds ]
+        i: [ a, b, c, d, e, f, g, h, i, j ]
+        j: [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
       fail-fast: false
     steps:
       - name: Checkout project
@@ -153,8 +145,6 @@ jobs:
           distribution: 'temurin'
           java-version: 8
       - name: Execute tests
-        env:
-          ITERATIONS=10
         run: hadoop-ozone/dev-support/checks/integration.sh -Dtest=org.apache.hadoop.ozone.dn.scanner.TestBackgroundContainerDataScannerIntegration -Dtest=org.apache.hadoop.ozone.dn.scanner.TestOnDemandContainerDataScannerIntegration -Dtest=org.apache.hadoop.ozone.dn.scanner.TestBackgroundContainerMetadataScannerIntegration
         if: always()
       - name: Summary of failures
