@@ -20,6 +20,8 @@ package org.apache.hadoop.ozone;
 
 import org.apache.hadoop.hdds.DFSConfigKeysLegacy;
 import org.apache.hadoop.hdds.HddsConfigKeys;
+import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.StorageSize;
@@ -30,29 +32,48 @@ import org.apache.hadoop.hdds.scm.XceiverClientGrpc;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
+import org.apache.hadoop.ozone.client.BucketArgs;
+import org.apache.hadoop.ozone.client.ObjectStore;
+import org.apache.hadoop.ozone.client.OzoneBucket;
+import org.apache.hadoop.ozone.client.OzoneClient;
+import org.apache.hadoop.ozone.client.OzoneVolume;
+import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
+import org.apache.hadoop.ozone.client.protocol.ClientProtocol;
 import org.apache.hadoop.ozone.container.common.SCMTestUtils;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.EndpointStateMachine;
 import org.apache.hadoop.ozone.container.common.volume.StorageVolume;
 import org.apache.hadoop.ozone.container.ozoneimpl.TestOzoneContainer;
+import org.apache.hadoop.ozone.om.OMConfigKeys;
+import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.om.helpers.BucketLayout;
+import org.apache.hadoop.ozone.om.service.AbstractKeyDeletingService;
+import org.apache.hadoop.ozone.om.service.KeyDeletingService;
 import org.apache.hadoop.test.PathUtils;
 import org.apache.hadoop.test.TestGenericTestUtils;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.tag.Flaky;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.apache.hadoop.hdds.protocol.DatanodeDetails.Port;
 import static org.apache.hadoop.hdds.protocol.MockDatanodeDetails.randomDatanodeDetails;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.DFS_CONTAINER_RATIS_IPC_RANDOM_PORT;
+import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_DIR_DELETING_SERVICE_INTERVAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -69,6 +90,9 @@ public class TestMiniOzoneCluster {
 
   private static final File TEST_ROOT = TestGenericTestUtils.getTestDir();
 
+  private static final Logger LOG =
+      LoggerFactory.getLogger(TestMiniOzoneCluster.class);
+
   @BeforeAll
   public static void setup() {
     conf = new OzoneConfiguration();
@@ -83,6 +107,57 @@ public class TestMiniOzoneCluster {
     if (cluster != null) {
       cluster.shutdown();
     }
+  }
+
+  @Test
+  public void testKeyRenameDirDelete() throws Exception {
+    conf.setTimeDuration(OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL, 1, TimeUnit.SECONDS);
+    conf.setTimeDuration(OZONE_DIR_DELETING_SERVICE_INTERVAL, 1, TimeUnit.SECONDS);
+//    conf.setBoolean(OMConfigKeys.OZONE_OM_ENABLE_FILESYSTEM_PATHS, true);
+    cluster = MiniOzoneCluster.newBuilder(conf)
+        .setNumDatanodes(3)
+        .build();
+    cluster.waitForClusterToBeReady();
+
+    try (OzoneClient client = cluster.newClient()) {
+      ObjectStore store = client.getObjectStore();
+      // ofs://ozone1/testozonevol/testozonebucket/inputTera/part-m-00000
+      String volumeName = "testozonevol";
+      String bucketName = "testozonebucket";
+      store.createVolume(volumeName);
+      OzoneVolume volume = store.getVolume(volumeName);
+      volume.createBucket(bucketName,
+          BucketArgs.newBuilder().setBucketLayout(BucketLayout.FILE_SYSTEM_OPTIMIZED).build());
+      OzoneBucket bucket = volume.getBucket(bucketName);
+      Assertions.assertTrue(bucket.getBucketLayout().isFileSystemOptimized());
+
+      // Loop until test failure.
+      long runCount = 0;
+      while (AbstractKeyDeletingService.testLatch.getCount() >= 1) {
+        LOG.info("Starting test run {}", runCount++);
+        String keyTemp = "inputTera/_temporary/1/_temporary/attempt_1691047336995_0006_m_000001_0/part-m-00001";
+        String data = "random data";
+        ReplicationConfig replicationConfig =
+            ReplicationConfig.fromTypeAndFactor(ReplicationType.RATIS,
+                org.apache.hadoop.hdds.client.ReplicationFactor.THREE);
+        try (OzoneOutputStream outputStream = bucket.createKey(
+            keyTemp, data.length(), replicationConfig, new HashMap<>())) {
+          outputStream.write(data.getBytes(StandardCharsets.UTF_8), 0,
+              data.length());
+          outputStream.flush();
+          // COMMIT_KEY when output stream is auto-closed.
+        }
+
+        // RENAME_KEY
+        String keyPerm = "inputTera/part-m-" + runCount;
+        bucket.renameKey(keyTemp, keyPerm);
+
+        // DELETE_KEY
+        bucket.deleteDirectory("inputTera/_temporary", true);
+      }
+    }
+
+    Assertions.fail();
   }
 
   @Test

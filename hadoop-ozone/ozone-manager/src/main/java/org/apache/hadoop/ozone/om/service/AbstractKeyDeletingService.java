@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.om.service;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.ServiceException;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.fs.shell.Count;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.scm.protocol.ScmBlockLocationProtocol;
 import org.apache.hadoop.hdds.utils.BackgroundService;
@@ -51,6 +52,7 @@ import org.apache.ratis.protocol.ClientId;
 import org.apache.ratis.protocol.Message;
 import org.apache.ratis.protocol.RaftClientRequest;
 import org.apache.ratis.util.Preconditions;
+import org.checkerframework.checker.units.qual.C;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +60,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -83,6 +86,10 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
   private final BootstrapStateHandler.Lock lock =
       new BootstrapStateHandler.Lock();
 
+  // Used to communicate failure to the test. Stopping this thread may not
+  // stop the test.
+  public static final CountDownLatch testLatch = new CountDownLatch(1);
+
   public AbstractKeyDeletingService(String serviceName, long interval,
       TimeUnit unit, int threadPoolSize, long serviceTimeout,
       OzoneManager ozoneManager, ScmBlockLocationProtocol scmClient) {
@@ -99,6 +106,11 @@ public abstract class AbstractKeyDeletingService extends BackgroundService
       KeyManager manager,
       HashMap<String, RepeatedOmKeyInfo> keysToModify,
       String snapTableKey) throws IOException {
+
+    if (!keyBlocksList.isEmpty()) {
+      LOG.error("No blocks should have been deleted in this test");
+      testLatch.countDown();
+    }
 
     long startTime = Time.monotonicNow();
     int delCount = 0;
