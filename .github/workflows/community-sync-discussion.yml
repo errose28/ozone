@@ -8,6 +8,7 @@ name: start-community-sync-discussion
 # This should override the current comment if it exists.
 
 env:
+  GH_TOKEN: ${{ github.token }}
   leader: errose28
   title: Test Community Discussion for <date>
   leader_template: <leader>
