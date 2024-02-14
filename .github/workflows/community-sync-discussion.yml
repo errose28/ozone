@@ -20,7 +20,7 @@ env:
 on:
   push
 jobs:
-  start-communtiy-sync-discussion:
+  start-community-sync-discussion:
     runs-on: ubuntu-latest
     steps:
       - name: Get repo ID
@@ -49,7 +49,7 @@ jobs:
           echo BODY_WITH_NAME="$body_with_name" >> $GITHUB_ENV
 
           date="$(date '+%a %b %-e %-l:%M%#p')"
-          title_with_date="$(echo '${{ env.title }}' | sed "s/${{ env.title_template }}/$date/g")"
+          title_with_date="$(echo '${{ env.title }}' | sed "s/${{ env.date_template }}/$date/g")"
           echo TITLE_WITH_DATE="$title_with_date" >> $GITHUB_ENV
       - name: Post discussion
         run: |
