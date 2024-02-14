@@ -45,7 +45,7 @@ jobs:
           echo CATEGORY_ID="$category_id" >> $GITHUB_ENV
       - name: Substitute current leader and date
         run: |
-          body_with_name="$(echo '${{ env.body }' | sed 's/${{ env.leader_template }}/${{ env.leader }}/g')"
+          body_with_name="$(echo '${{ env.body }}' | sed 's/${{ env.leader_template }}/${{ env.leader }}/g')"
           echo BODY_WITH_NAME="$body_with_name" >> $GITHUB_ENV
 
           date="$(date '+%a %b %-e %-l:%M%#p')"
