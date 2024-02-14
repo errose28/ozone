@@ -14,7 +14,7 @@ env:
   leader_template: <leader>
   date_template: <date>
   body: |
-    Hi <leader>
+    Hi @<leader>
     This is a test discussion for a community sync.
 
 on:
