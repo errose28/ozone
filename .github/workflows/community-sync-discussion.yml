@@ -45,11 +45,11 @@ jobs:
           echo CATEGORY_ID="$category_id" >> $GITHUB_ENV
       - name: Substitute current leader and date
         run: |
-          body_with_name="$(echo ${{ env.body }} | sed -i 's/${{ env.leader_template }}/${{ env.leader }}/g')"
+          body_with_name="$(echo '${{ env.body }' | sed 's/${{ env.leader_template }}/${{ env.leader }}/g')"
           echo BODY_WITH_NAME="$body_with_name" >> $GITHUB_ENV
 
           date="$(date '+%a %b %-e %-l:%M%#p')"
-          title_with_date="$(echo ${{ env.title }} | sed -i "s/${{ env.title_template }}/$date/g")"
+          title_with_date="$(echo '${{ env.title }}' | sed "s/${{ env.title_template }}/$date/g")"
           echo TITLE_WITH_DATE="$title_with_date" >> $GITHUB_ENV
       - name: Post discussion
         run: |
