@@ -35,8 +35,7 @@ jobs:
       - name: Get category ID
         run: |
           category_id="$(gh api graphql --jq='.data.repository.discussionCategories.nodes[] |
-            select(.name == "Community Sync Meetings") | .id'
-          -f query='query { repository(owner: "errose28", name: "ozone") {
+            select(.name == "Community Sync Meetings") | .id' -f query='query { repository(owner: "errose28", name: "ozone") {
               discussionCategories(first: 100) {
                 nodes {id name}
               }
