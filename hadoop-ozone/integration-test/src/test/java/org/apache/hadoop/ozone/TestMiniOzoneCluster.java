@@ -19,6 +19,8 @@
 package org.apache.hadoop.ozone;
 
 import org.apache.hadoop.hdds.HddsConfigKeys;
+import org.apache.hadoop.hdds.client.ReplicationConfig;
+import org.apache.hadoop.hdds.client.ReplicationType;
 import org.apache.hadoop.hdds.client.StandaloneReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.StorageSize;
@@ -29,6 +31,11 @@ import org.apache.hadoop.hdds.scm.XceiverClientGrpc;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
+import org.apache.hadoop.ozone.client.ObjectStore;
+import org.apache.hadoop.ozone.client.OzoneBucket;
+import org.apache.hadoop.ozone.client.OzoneClient;
+import org.apache.hadoop.ozone.client.OzoneVolume;
+import org.apache.hadoop.ozone.client.io.OzoneOutputStream;
 import org.apache.hadoop.ozone.container.common.SCMTestUtils;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.container.common.statemachine.EndpointStateMachine;
@@ -39,13 +46,18 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
+import org.rocksdb.util.SizeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 
+import static org.apache.hadoop.hdds.client.ReplicationFactor.THREE;
 import static org.apache.hadoop.hdds.protocol.DatanodeDetails.Port;
 import static org.apache.hadoop.hdds.protocol.MockDatanodeDetails.randomDatanodeDetails;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.HDDS_CONTAINER_RATIS_IPC_RANDOM_PORT;
@@ -57,11 +69,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Test cases for mini ozone cluster.
  */
-@Timeout(300)
+// Allow the test to spin indefinitely. Test timeout may mask the stall.
+//@Timeout(300)
 public class TestMiniOzoneCluster {
 
   private MiniOzoneCluster cluster;
   private static OzoneConfiguration conf;
+
+  static final Logger LOG = LoggerFactory.getLogger(TestMiniOzoneCluster.class);
 
   @BeforeAll
   static void setup(@TempDir File testDir) {
@@ -70,6 +85,7 @@ public class TestMiniOzoneCluster {
     conf.setInt(ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT, 1);
     conf.setBoolean(HDDS_CONTAINER_RATIS_IPC_RANDOM_PORT, true);
     conf.set(ScmConfigKeys.OZONE_SCM_STALENODE_INTERVAL, "1s");
+    conf.setInt(ScmConfigKeys.OZONE_DATANODE_PIPELINE_LIMIT, 3);
   }
 
   @AfterEach
@@ -78,6 +94,69 @@ public class TestMiniOzoneCluster {
       cluster.shutdown();
     }
   }
+
+  @Test
+  public void testPipelineRetry() throws Exception {
+    // TEST TUNING
+    final int numRuns = 1;
+    final int sectionSize = (int)(10 * SizeUnit.KB);
+    final long keySizeBytes = 10 * sectionSize;
+
+    cluster = MiniOzoneCluster.newBuilder(conf)
+        .setNumDatanodes(6)
+        .build();
+    cluster.waitForClusterToBeReady();
+
+    // Make sure we have enough Ratis 3 pipelines so that after we break one,
+    // the client should be able to retry on different ones if it was working
+    // correctly.
+    List<Pipeline> pipelines =
+        cluster.getStorageContainerLocationClient().listPipelines();
+    ReplicationConfig ratisThree =
+        ReplicationConfig.fromTypeAndFactor(ReplicationType.RATIS,
+            THREE);
+    GenericTestUtils.waitFor(() -> {
+      int ratisThreeCount = 0;
+      for (Pipeline pipeline: pipelines) {
+        if (pipeline.getReplicationConfig().equals(ratisThree)) {
+          ratisThreeCount++;
+        }
+      }
+      LOG.info("Test found {} Ratis THREE pipelines.", ratisThreeCount);
+      return ratisThreeCount > 2;
+    }, 1_000, 60_000);
+
+    try (OzoneClient client = cluster.newClient()) {
+      ObjectStore store = client.getObjectStore();
+      store.createVolume("testvol");
+      OzoneVolume volume = store.getVolume("testvol");
+      volume.createBucket("testbucket");
+      OzoneBucket bucket = volume.getBucket("testbucket");
+
+      for (int i = 0; i < numRuns; i++) {
+        LOG.info("Beginning key write of size {} bytes", keySizeBytes);
+        OzoneOutputStream stream = bucket.createKey("testkey", keySizeBytes);
+
+        for (int written = 0; written < keySizeBytes; written += sectionSize) {
+          LOG.info("Beginning write of next {} bytes. Already written {} " +
+              "bytes", sectionSize, written);
+          byte[] bytes = new byte[sectionSize];
+          new Random().nextBytes(bytes);
+          stream.write(bytes);
+          LOG.info("Finished write of {} bytes. Already written {} " +
+              "bytes", sectionSize, written + sectionSize);
+        }
+        LOG.info("Closing stream");
+        // CLIENT STALLS INDEFINITELY HERE
+        stream.close();
+        LOG.info("Stream closed");
+      }
+
+      long writtenDataSize = bucket.getKey("testkey").getDataSize();
+      assertEquals(keySizeBytes, writtenDataSize);
+    }
+  }
+
 
   @Test
   public void testStartMultipleDatanodes() throws Exception {

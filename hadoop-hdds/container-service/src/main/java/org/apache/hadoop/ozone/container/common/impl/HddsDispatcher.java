@@ -35,6 +35,7 @@ import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.ContainerT
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Result;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.Type;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.ContainerAction;
+import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ContainerNotOpenException;
 import org.apache.hadoop.hdds.scm.container.common.helpers.InvalidContainerStateException;
 import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
@@ -228,6 +229,16 @@ public class HddsDispatcher implements ContainerDispatcher, Auditor {
         (cmdType == Type.WriteChunk && dispatcherContext != null
             && dispatcherContext.getStage()
             == DispatcherContext.WriteChunkStage.COMMIT_DATA);
+
+    // Inject failure
+    if (containerID == 1 &&
+        (cmdType == Type.WriteChunk || cmdType == Type.ReadChunk)) {
+      StorageContainerException sce = new StorageContainerException(
+          "[TEST] Injecting failure to container " + containerID + " for " +
+              "operation " + cmdType,
+          Result.CONTAINER_INTERNAL_ERROR);
+      return ContainerUtils.logAndReturnError(LOG, sce, msg);
+    }
 
     try {
       if (DispatcherContext.op(dispatcherContext).validateToken()) {

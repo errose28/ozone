@@ -62,8 +62,10 @@ public class PipelineActionHandler
   public void onMessage(PipelineActionsFromDatanode report,
       EventPublisher publisher) {
 
-    report.getReport().getPipelineActionsList().forEach(action ->
-        processPipelineAction(report.getDatanodeDetails(), action, publisher));
+    // Simulate the pipeline close command from the datanode being lost, so
+    // the bad pipeline remains in the system.
+// report.getReport().getPipelineActionsList().forEach(action ->
+//        processPipelineAction(report.getDatanodeDetails(), action, publisher));
   }
 
   /**
