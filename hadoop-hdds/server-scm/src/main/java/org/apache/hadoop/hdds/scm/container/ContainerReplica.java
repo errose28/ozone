@@ -27,6 +27,7 @@ import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 
 /**
  * In-memory state of a container replica.
@@ -43,8 +44,7 @@ public final class ContainerReplica implements Comparable<ContainerReplica> {
   private final long keyCount;
   private final long bytesUsed;
   private final boolean isEmpty;
-  // TODO Use a dedicated checksum class for this if required later.
-  private final String dataChecksum;
+  private final ByteString dataChecksum;
 
   private ContainerReplica(ContainerReplicaBuilder b) {
     containerID = b.containerID;
@@ -56,7 +56,7 @@ public final class ContainerReplica implements Comparable<ContainerReplica> {
     replicaIndex = b.replicaIndex;
     isEmpty = b.isEmpty;
     sequenceId = b.sequenceId;
-    dataChecksum = Optional.ofNullable(b.dataChecksum).orElse("");
+    dataChecksum = null;
   }
 
   /**
@@ -117,7 +117,7 @@ public final class ContainerReplica implements Comparable<ContainerReplica> {
     return isEmpty;
   }
 
-  public String getDataChecksum() {
+  public ByteString getDataChecksum() {
     return dataChecksum;
   }
 
@@ -208,7 +208,7 @@ public final class ContainerReplica implements Comparable<ContainerReplica> {
     private long keyCount;
     private int replicaIndex;
     private boolean isEmpty;
-    private String dataChecksum;
+    private ByteString dataChecksum;
 
     /**
      * Set Container Id.
@@ -283,7 +283,7 @@ public final class ContainerReplica implements Comparable<ContainerReplica> {
       return this;
     }
 
-    public ContainerReplicaBuilder setDataChecksum(String dataChecksum) {
+    public ContainerReplicaBuilder setDataChecksum(ByteString dataChecksum) {
       this.dataChecksum = dataChecksum;
       return this;
     }
