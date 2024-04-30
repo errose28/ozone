@@ -46,6 +46,7 @@ import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
 import org.apache.hadoop.ozone.container.common.SCMTestUtils;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -1080,7 +1081,7 @@ public class TestContainerReportHandler {
     // datanode ID.
     int numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createUniqueDataChecksumForReplica(
+      ByteString expectedChecksum = createUniqueDataChecksumForReplica(
           contID, replica.getDatanodeDetails().getUuidString());
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
@@ -1107,7 +1108,7 @@ public class TestContainerReportHandler {
     // Since the containers don't have any data in this test, the matching checksums are based on container ID only.
     numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createMatchingDataChecksumForReplica(contID);
+      ByteString expectedChecksum = createMatchingDataChecksumForReplica(contID);
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
     }
@@ -1117,15 +1118,15 @@ public class TestContainerReportHandler {
   /**
    * Generates a placeholder data checksum for testing that is specific to a container replica.
    */
-  protected static String createUniqueDataChecksumForReplica(ContainerID containerID, String datanodeID) {
-    return Integer.toString((datanodeID + containerID).hashCode());
+  protected static ByteString createUniqueDataChecksumForReplica(ContainerID containerID, String datanodeID) {
+    return ByteString.copyFrom((datanodeID + containerID).getBytes());
   }
 
   /**
    * Generates a placeholder data checksum for testing that is the same for all container replicas.
    */
-  protected static String createMatchingDataChecksumForReplica(ContainerID containerID) {
-    return Integer.toString(Objects.hashCode(containerID));
+  protected static ByteString createMatchingDataChecksumForReplica(ContainerID containerID) {
+    return ByteString.copyFrom(containerID.toString().getBytes());
   }
 
   private ContainerReportFromDatanode getContainerReportFromDatanode(

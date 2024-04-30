@@ -26,8 +26,10 @@ import org.apache.hadoop.ozone.container.common.volume.HddsVolume;
 import org.apache.hadoop.ozone.container.keyvalue.ContainerTestVersionInfo;
 import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.upgrade.VersionedDatanodeFeatures;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 import java.util.UUID;
@@ -84,8 +86,9 @@ public class TestKeyValueContainerData {
     assertEquals(val.get(), kvData.getBlockCount());
     assertEquals(val.get(), kvData.getNumPendingDeletionBlocks());
     assertEquals(MAXSIZE, kvData.getMaxSize());
-    assertEquals("", kvData.getDataChecksum());
+    assertNull(kvData.getDataChecksum());
 
+    final ByteString placeholderChecksum = ByteString.copyFrom("1234".getBytes());
     kvData.setState(state);
     kvData.setContainerDBType(containerDBType);
     kvData.setChunksPath(path);
@@ -99,7 +102,7 @@ public class TestKeyValueContainerData {
     kvData.incrPendingDeletionBlocks(1);
     kvData.setSchemaVersion(
         VersionedDatanodeFeatures.SchemaV3.chooseSchemaVersion(conf));
-    kvData.setDataChecksum("1234");
+    kvData.setDataChecksum(placeholderChecksum);
 
     assertEquals(state, kvData.getState());
     assertEquals(containerDBType, kvData.getContainerDBType());
@@ -116,8 +119,7 @@ public class TestKeyValueContainerData {
     assertEquals(datanodeId.toString(), kvData.getOriginNodeId());
     assertEquals(VersionedDatanodeFeatures.SchemaV3.chooseSchemaVersion(conf),
         kvData.getSchemaVersion());
-    assertEquals("1234", kvData.getDataChecksum());
-
+    assertEquals(placeholderChecksum, kvData.getDataChecksum());
     KeyValueContainerData newKvData = new KeyValueContainerData(kvData);
     assertEquals(kvData.getReplicaIndex(), newKvData.getReplicaIndex());
     assertEquals(0, newKvData.getNumPendingDeletionBlocks());

@@ -54,6 +54,7 @@ import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -683,7 +684,7 @@ public class TestIncrementalContainerReportHandler {
     // datanode ID.
     int numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createUniqueDataChecksumForReplica(
+      ByteString expectedChecksum = createUniqueDataChecksumForReplica(
           contID, replica.getDatanodeDetails().getUuidString());
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
@@ -711,7 +712,7 @@ public class TestIncrementalContainerReportHandler {
     // Since the containers don't have any data in this test, the matching checksums are based on container ID only.
     numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createMatchingDataChecksumForReplica(contID);
+      ByteString expectedChecksum = createMatchingDataChecksumForReplica(contID);
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
     }
