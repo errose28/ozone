@@ -1156,7 +1156,7 @@ public class KeyValueHandler extends Handler {
     // TODO Just a deterministic placeholder hash for testing until actual implementation is finished.
     ContainerData data = container.getContainerData();
     String dataChecksum = ContainerUtils.getChecksum(Long.toString(data.getContainerID()));
-    data.setDataChecksum(dataChecksum);
+    data.setDataChecksum(ByteString.copyFrom(dataChecksum.getBytes()));
     sendICR(container);
   }
 

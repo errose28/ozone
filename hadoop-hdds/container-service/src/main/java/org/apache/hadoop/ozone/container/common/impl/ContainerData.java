@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.
     ContainerType;
@@ -101,9 +102,7 @@ public abstract class ContainerData {
 
   private String containerFileChecksum;
 
-  // TODO This should have type Checksum once we decide on the checksum implementation to use.
-  //  Currently this is just a placeholder to save data for testing.
-  private String dataChecksum;
+  private ByteString dataChecksum;
 
   private boolean isEmpty;
 
@@ -164,7 +163,7 @@ public abstract class ContainerData {
     this.originNodeId = originNodeId;
     this.isEmpty = false;
     this.containerFileChecksum = ZERO_CHECKSUM;
-    this.dataChecksum = "";
+    this.dataChecksum = null;
   }
 
   protected ContainerData(ContainerData source) {
@@ -648,11 +647,11 @@ public abstract class ContainerData {
     this.containerFileChecksum = ContainerUtils.getChecksum(containerDataYamlStr);
   }
 
-  public void setDataChecksum(String checksum) {
+  public void setDataChecksum(ByteString checksum) {
     dataChecksum = checksum;
   }
 
-  public String getDataChecksum() {
+  public ByteString getDataChecksum() {
     return dataChecksum;
   }
 

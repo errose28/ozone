@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdds.scm.container;
 
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 
@@ -35,7 +36,7 @@ public final class ContainerReplicaInfo {
   private long keyCount;
   private long bytesUsed;
   private int replicaIndex = -1;
-  private String dataChecksum;
+  private ByteString dataChecksum;
 
   public static ContainerReplicaInfo fromProto(
       HddsProtos.SCMContainerReplicaProto proto) {
@@ -89,7 +90,7 @@ public final class ContainerReplicaInfo {
     return replicaIndex;
   }
 
-  public String getDataChecksum() {
+  public ByteString getDataChecksum() {
     return dataChecksum;
   }
 
@@ -140,7 +141,7 @@ public final class ContainerReplicaInfo {
       return this;
     }
 
-    public Builder setDataChecksum(String dataChecksum) {
+    public Builder setDataChecksum(ByteString dataChecksum) {
       subject.dataChecksum = dataChecksum;
       return this;
     }
