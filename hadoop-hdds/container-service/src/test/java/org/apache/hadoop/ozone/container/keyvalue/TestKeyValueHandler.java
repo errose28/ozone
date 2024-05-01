@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.commons.io.FileUtils;
 import org.apache.hadoop.conf.StorageUnit;
 import org.apache.hadoop.fs.FileUtil;
@@ -459,8 +460,9 @@ public class TestKeyValueHandler {
       long reportedID = report.getContainerID();
       Assertions.assertEquals(container.getContainerData().getContainerID(), reportedID);
 
-      String reportDataChecksum = report.getDataChecksum();
-      String expectedDataChecksum = ContainerUtils.getChecksum(Long.toString(reportedID));
+      ByteString reportDataChecksum = report.getDataChecksum();
+      ByteString expectedDataChecksum =
+          ByteString.copyFrom(ContainerUtils.getChecksum(Long.toString(reportedID)).getBytes());
       Assertions.assertEquals(expectedDataChecksum, reportDataChecksum,
           "Checksum mismatch in report of container " + reportedID);
       icrCount.incrementAndGet();

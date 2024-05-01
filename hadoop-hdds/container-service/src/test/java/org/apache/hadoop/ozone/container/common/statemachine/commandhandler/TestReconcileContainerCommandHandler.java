@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.ozone.container.common.statemachine.commandhandler;
 
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
@@ -194,9 +195,10 @@ public class TestReconcileContainerCommandHandler {
       ContainerID id = entry.getKey();
       assertNotNull(containerSet.getContainer(id.getId()));
 
-      String sentDataChecksum = entry.getValue().getDataChecksum();
+      ByteString sentDataChecksum = entry.getValue().getDataChecksum();
       // Current implementation is incomplete, and uses this as a mocked checksum.
-      String expectedDataChecksum = ContainerUtils.getChecksum(Long.toString(id.getId()));
+      ByteString expectedDataChecksum =
+          ByteString.copyFrom(ContainerUtils.getChecksum(Long.toString(id.getId())).getBytes());
       assertEquals(expectedDataChecksum, sentDataChecksum, "Checksum mismatch in report of container " + id);
     }
   }
