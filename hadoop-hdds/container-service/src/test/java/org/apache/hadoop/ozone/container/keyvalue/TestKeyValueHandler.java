@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.container.keyvalue;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -459,8 +460,9 @@ public class TestKeyValueHandler {
       long reportedID = report.getContainerID();
       Assertions.assertEquals(container.getContainerData().getContainerID(), reportedID);
 
-      String reportDataChecksum = report.getDataChecksum();
-      String expectedDataChecksum = ContainerUtils.getChecksum(Long.toString(reportedID));
+      ByteBuffer reportDataChecksum = report.getDataChecksum().asReadOnlyByteBuffer();
+      ByteBuffer expectedDataChecksum =
+          ByteBuffer.wrap(ContainerUtils.getChecksum(Long.toString(reportedID)).getBytes());
       Assertions.assertEquals(expectedDataChecksum, reportDataChecksum,
           "Checksum mismatch in report of container " + reportedID);
       icrCount.incrementAndGet();

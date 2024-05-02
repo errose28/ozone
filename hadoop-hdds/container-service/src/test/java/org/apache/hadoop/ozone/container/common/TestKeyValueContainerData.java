@@ -28,8 +28,10 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueContainerData;
 import org.apache.hadoop.ozone.container.upgrade.VersionedDatanodeFeatures;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
+import java.nio.ByteBuffer;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -84,7 +86,8 @@ public class TestKeyValueContainerData {
     assertEquals(val.get(), kvData.getBlockCount());
     assertEquals(val.get(), kvData.getNumPendingDeletionBlocks());
     assertEquals(MAXSIZE, kvData.getMaxSize());
-    assertEquals("", kvData.getDataChecksum());
+    assertNull(kvData.getDataChecksum());
+    assertNull(kvData.getDataChecksumByteString());
 
     kvData.setState(state);
     kvData.setContainerDBType(containerDBType);
@@ -99,7 +102,8 @@ public class TestKeyValueContainerData {
     kvData.incrPendingDeletionBlocks(1);
     kvData.setSchemaVersion(
         VersionedDatanodeFeatures.SchemaV3.chooseSchemaVersion(conf));
-    kvData.setDataChecksum("1234");
+    final ByteBuffer expectedDataChecksum = ByteBuffer.wrap("1234".getBytes());
+    kvData.setDataChecksum(expectedDataChecksum);
 
     assertEquals(state, kvData.getState());
     assertEquals(containerDBType, kvData.getContainerDBType());
@@ -116,7 +120,8 @@ public class TestKeyValueContainerData {
     assertEquals(datanodeId.toString(), kvData.getOriginNodeId());
     assertEquals(VersionedDatanodeFeatures.SchemaV3.chooseSchemaVersion(conf),
         kvData.getSchemaVersion());
-    assertEquals("1234", kvData.getDataChecksum());
+    assertEquals(expectedDataChecksum, kvData.getDataChecksum());
+    assertEquals(expectedDataChecksum, kvData.getDataChecksumByteString().asReadOnlyByteBuffer());
 
     KeyValueContainerData newKvData = new KeyValueContainerData(kvData);
     assertEquals(kvData.getReplicaIndex(), newKvData.getReplicaIndex());

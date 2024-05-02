@@ -45,6 +45,7 @@ import org.apache.ozone.test.GenericTestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -194,9 +195,10 @@ public class TestReconcileContainerCommandHandler {
       ContainerID id = entry.getKey();
       assertNotNull(containerSet.getContainer(id.getId()));
 
-      String sentDataChecksum = entry.getValue().getDataChecksum();
+      ByteBuffer sentDataChecksum = entry.getValue().getDataChecksum().asReadOnlyByteBuffer();
       // Current implementation is incomplete, and uses this as a mocked checksum.
-      String expectedDataChecksum = ContainerUtils.getChecksum(Long.toString(id.getId()));
+      ByteBuffer expectedDataChecksum =
+          ByteBuffer.wrap(ContainerUtils.getChecksum(Long.toString(id.getId())).getBytes());
       assertEquals(expectedDataChecksum, sentDataChecksum, "Checksum mismatch in report of container " + id);
     }
   }

@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.scm.container;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 /**
@@ -35,7 +36,7 @@ public final class ContainerReplicaInfo {
   private long keyCount;
   private long bytesUsed;
   private int replicaIndex = -1;
-  private String dataChecksum;
+  private ByteBuffer dataChecksum;
 
   public static ContainerReplicaInfo fromProto(
       HddsProtos.SCMContainerReplicaProto proto) {
@@ -50,7 +51,7 @@ public final class ContainerReplicaInfo {
         .setBytesUsed(proto.getBytesUsed())
         .setReplicaIndex(
             proto.hasReplicaIndex() ? (int)proto.getReplicaIndex() : -1)
-        .setDataChecksum(proto.getDataChecksum());
+        .setDataChecksum(proto.getDataChecksum().asReadOnlyByteBuffer());
     return builder.build();
   }
 
@@ -89,7 +90,7 @@ public final class ContainerReplicaInfo {
     return replicaIndex;
   }
 
-  public String getDataChecksum() {
+  public ByteBuffer getDataChecksum() {
     return dataChecksum;
   }
 
@@ -140,7 +141,7 @@ public final class ContainerReplicaInfo {
       return this;
     }
 
-    public Builder setDataChecksum(String dataChecksum) {
+    public Builder setDataChecksum(ByteBuffer dataChecksum) {
       subject.dataChecksum = dataChecksum;
       return this;
     }

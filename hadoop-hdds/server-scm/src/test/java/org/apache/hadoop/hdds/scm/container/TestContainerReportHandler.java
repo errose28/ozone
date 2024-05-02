@@ -16,6 +16,7 @@
  */
 package org.apache.hadoop.hdds.scm.container;
 
+import com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -27,6 +28,7 @@ import org.apache.hadoop.hdds.protocol.proto
 import org.apache.hadoop.hdds.protocol.proto
     .StorageContainerDatanodeProtocolProtos.ContainerReplicaProto;
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
+import org.apache.hadoop.hdds.scm.container.common.helpers.StorageContainerException;
 import org.apache.hadoop.hdds.scm.container.replication.ContainerReplicaPendingOps;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManagerStub;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
@@ -45,6 +47,7 @@ import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
 import org.apache.hadoop.ozone.container.common.SCMTestUtils;
+import org.apache.hadoop.ozone.container.common.helpers.ContainerUtils;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,6 +56,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -60,7 +64,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -1008,7 +1011,7 @@ public class TestContainerReportHandler {
 
     // All replicas should start with an empty data checksum in SCM.
     boolean contOneDataChecksumsEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(contOneDataChecksumsEmpty, "Replicas of container one should not yet have any data checksums.");
 
     // Send a report to SCM from one datanode that still does not have a data checksum.
@@ -1025,7 +1028,7 @@ public class TestContainerReportHandler {
     // Regardless of which datanode sent the report, none of them have checksums, so all replica's data checksums
     // should remain empty.
     boolean containerDataChecksumEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(containerDataChecksumEmpty, "Replicas of the container should not have any data checksums.");
   }
 
@@ -1057,7 +1060,7 @@ public class TestContainerReportHandler {
 
     // All replicas should start with an empty data checksum in SCM.
     boolean dataChecksumsEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(dataChecksumsEmpty, "Replicas of container one should not yet have any data checksums.");
 
     // For each datanode, send a container report with a mismatched checksum.
@@ -1065,7 +1068,7 @@ public class TestContainerReportHandler {
       ContainerReportsProto dnReportProto = getContainerReportsProto(
           contID, ContainerReplicaProto.State.CLOSED, dn.getUuidString());
       ContainerReplicaProto replicaWithChecksum = dnReportProto.getReports(0).toBuilder()
-          .setDataChecksum(createUniqueDataChecksumForReplica(contID, dn.getUuidString()))
+          .setDataChecksum(ByteString.copyFrom(createUniqueDataChecksumForReplica(contID, dn.getUuidString())))
           .build();
       ContainerReportsProto reportWithChecksum = dnReportProto.toBuilder()
           .clearReports()
@@ -1080,7 +1083,7 @@ public class TestContainerReportHandler {
     // datanode ID.
     int numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createUniqueDataChecksumForReplica(
+      ByteBuffer expectedChecksum = createUniqueDataChecksumForReplica(
           contID, replica.getDatanodeDetails().getUuidString());
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
@@ -1093,7 +1096,7 @@ public class TestContainerReportHandler {
       ContainerReportsProto dnReportProto = getContainerReportsProto(
           contID, ContainerReplicaProto.State.CLOSED, dn.getUuidString());
       ContainerReplicaProto replicaWithChecksum = dnReportProto.getReports(0).toBuilder()
-          .setDataChecksum(createMatchingDataChecksumForReplica(contID))
+          .setDataChecksum(ByteString.copyFrom(createMatchingDataChecksumForReplica(contID)))
           .build();
       ContainerReportsProto reportWithChecksum = dnReportProto.toBuilder()
           .clearReports()
@@ -1107,7 +1110,7 @@ public class TestContainerReportHandler {
     // Since the containers don't have any data in this test, the matching checksums are based on container ID only.
     numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createMatchingDataChecksumForReplica(contID);
+      ByteBuffer expectedChecksum = createMatchingDataChecksumForReplica(contID);
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
     }
@@ -1117,15 +1120,17 @@ public class TestContainerReportHandler {
   /**
    * Generates a placeholder data checksum for testing that is specific to a container replica.
    */
-  protected static String createUniqueDataChecksumForReplica(ContainerID containerID, String datanodeID) {
-    return Integer.toString((datanodeID + containerID).hashCode());
+  protected static ByteBuffer createUniqueDataChecksumForReplica(ContainerID containerID, String datanodeID)
+      throws StorageContainerException {
+    return ByteBuffer.wrap(ContainerUtils.getChecksum(containerID.toString() + datanodeID).getBytes());
   }
 
   /**
    * Generates a placeholder data checksum for testing that is the same for all container replicas.
    */
-  protected static String createMatchingDataChecksumForReplica(ContainerID containerID) {
-    return Integer.toString(Objects.hashCode(containerID));
+  protected static ByteBuffer createMatchingDataChecksumForReplica(ContainerID containerID)
+      throws StorageContainerException {
+    return ByteBuffer.wrap(ContainerUtils.getChecksum(containerID.toString()).getBytes());
   }
 
   private ContainerReportFromDatanode getContainerReportFromDatanode(

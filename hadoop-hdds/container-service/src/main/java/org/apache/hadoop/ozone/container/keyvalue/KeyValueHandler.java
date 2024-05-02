@@ -1155,8 +1155,8 @@ public class KeyValueHandler extends Handler {
   public void reconcileContainer(Container<?> container, List<DatanodeDetails> peers) throws IOException {
     // TODO Just a deterministic placeholder hash for testing until actual implementation is finished.
     ContainerData data = container.getContainerData();
-    String dataChecksum = ContainerUtils.getChecksum(Long.toString(data.getContainerID()));
-    data.setDataChecksum(dataChecksum);
+    String placeholderChecksum = ContainerUtils.getChecksum(Long.toString(data.getContainerID()));
+    data.setDataChecksum(ByteBuffer.wrap(placeholderChecksum.getBytes()));
     sendICR(container);
   }
 

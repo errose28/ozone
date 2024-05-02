@@ -26,6 +26,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 import com.google.protobuf.BlockingService;
+import com.google.protobuf.ByteString;
 import com.google.protobuf.ProtocolMessageEnum;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.CommonConfigurationKeys;
@@ -339,7 +340,7 @@ public class SCMClientProtocolServer implements
               .setKeyCount(r.getKeyCount())
               .setSequenceID(r.getSequenceId())
               .setReplicaIndex(r.getReplicaIndex())
-              .setDataChecksum(r.getDataChecksum())
+              .setDataChecksum(ByteString.copyFrom(r.getDataChecksum()))
               .build()
       );
     }

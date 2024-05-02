@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.protobuf.ByteString;
 import org.apache.hadoop.fs.FileAlreadyExistsException;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.hdds.HddsUtils;
@@ -886,7 +887,7 @@ public class KeyValueContainer implements Container<KeyValueContainerData> {
         .setBlockCommitSequenceId(containerData.getBlockCommitSequenceId())
         .setOriginNodeId(containerData.getOriginNodeId())
         .setIsEmpty(containerData.isEmpty())
-        .setDataChecksum(containerData.getDataChecksum());
+        .setDataChecksum(containerData.getDataChecksumByteString());
     return ciBuilder.build();
   }
 

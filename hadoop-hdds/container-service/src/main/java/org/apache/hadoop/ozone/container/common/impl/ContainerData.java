@@ -21,11 +21,13 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 
+import com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos.
     ContainerType;
@@ -101,9 +103,8 @@ public abstract class ContainerData {
 
   private String containerFileChecksum;
 
-  // TODO This should have type Checksum once we decide on the checksum implementation to use.
-  //  Currently this is just a placeholder to save data for testing.
-  private String dataChecksum;
+  // Store protobuf type so that container reports can be created without an extra memory copy.
+  private ByteString dataChecksum;
 
   private boolean isEmpty;
 
@@ -164,7 +165,7 @@ public abstract class ContainerData {
     this.originNodeId = originNodeId;
     this.isEmpty = false;
     this.containerFileChecksum = ZERO_CHECKSUM;
-    this.dataChecksum = "";
+    this.dataChecksum = null;
   }
 
   protected ContainerData(ContainerData source) {
@@ -648,11 +649,30 @@ public abstract class ContainerData {
     this.containerFileChecksum = ContainerUtils.getChecksum(containerDataYamlStr);
   }
 
-  public void setDataChecksum(String checksum) {
-    dataChecksum = checksum;
+  /**
+   * Set the data checksum of the container, calculated by the container scanner.
+   * Here we will do a memory copy to store the checksum as a ByteString internally.
+   * This allows the copy to happen at the time of the scan, instead of at the time of container report generation,
+   * which would otherwise need to copy checksums for all datanode containers at once.
+   */
+  public void setDataChecksum(ByteBuffer checksum) {
+    dataChecksum = ByteString.copyFrom(checksum);
   }
 
-  public String getDataChecksum() {
+  /**
+   * @return A read-only view of the container checksum bytes. Data is not copied.
+   */
+  public ByteBuffer getDataChecksum() {
+    if (dataChecksum == null) {
+      return null;
+    }
+    return dataChecksum.asReadOnlyByteBuffer();
+  }
+
+  /**
+   * @return The checksum in protobuf format in order to generate a container report without copying.
+   */
+  public ByteString getDataChecksumByteString() {
     return dataChecksum;
   }
 

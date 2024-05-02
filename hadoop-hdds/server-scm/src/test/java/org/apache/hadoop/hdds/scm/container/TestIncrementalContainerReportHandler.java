@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.hdds.scm.container;
 
+import com.google.protobuf.ByteString;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
@@ -61,6 +62,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Clock;
@@ -610,7 +612,7 @@ public class TestIncrementalContainerReportHandler {
 
     // All replicas should start with an empty data checksum in SCM.
     boolean contOneDataChecksumsEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(contOneDataChecksumsEmpty, "Replicas of container one should not yet have any data checksums.");
 
     // Send a report to SCM from one datanode that still does not have a data checksum.
@@ -625,7 +627,7 @@ public class TestIncrementalContainerReportHandler {
     // Regardless of which datanode sent the report, none of them have checksums, so all replica's data checksums
     // should remain empty.
     boolean containerDataChecksumEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(containerDataChecksumEmpty, "Replicas of the container should not have any data checksums.");
   }
 
@@ -659,7 +661,7 @@ public class TestIncrementalContainerReportHandler {
 
     // All replicas should start with an empty data checksum in SCM.
     boolean dataChecksumsEmpty = containerManager.getContainerReplicas(contID).stream()
-        .allMatch(r -> r.getDataChecksum().isEmpty());
+        .allMatch(r -> r.getDataChecksum() == null);
     assertTrue(dataChecksumsEmpty, "Replicas of container one should not yet have any data checksums.");
 
     // For each datanode, send a container report with a mismatched checksum.
@@ -667,7 +669,7 @@ public class TestIncrementalContainerReportHandler {
       IncrementalContainerReportProto dnReportProto = getIncrementalContainerReportProto(
           contID, ContainerReplicaProto.State.CLOSED, dn.getUuidString());
       ContainerReplicaProto replicaWithChecksum = dnReportProto.getReport(0).toBuilder()
-          .setDataChecksum(createUniqueDataChecksumForReplica(contID, dn.getUuidString()))
+          .setDataChecksum(ByteString.copyFrom(createUniqueDataChecksumForReplica(contID, dn.getUuidString())))
           .build();
       IncrementalContainerReportProto reportWithChecksum = dnReportProto.toBuilder()
           .clearReport()
@@ -683,7 +685,7 @@ public class TestIncrementalContainerReportHandler {
     // datanode ID.
     int numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createUniqueDataChecksumForReplica(
+      ByteBuffer expectedChecksum = createUniqueDataChecksumForReplica(
           contID, replica.getDatanodeDetails().getUuidString());
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
@@ -696,7 +698,7 @@ public class TestIncrementalContainerReportHandler {
       IncrementalContainerReportProto dnReportProto = getIncrementalContainerReportProto(
           contID, ContainerReplicaProto.State.CLOSED, dn.getUuidString());
       ContainerReplicaProto replicaWithChecksum = dnReportProto.getReport(0).toBuilder()
-          .setDataChecksum(createMatchingDataChecksumForReplica(contID))
+          .setDataChecksum(ByteString.copyFrom(createMatchingDataChecksumForReplica(contID)))
           .build();
       IncrementalContainerReportProto reportWithChecksum = dnReportProto.toBuilder()
           .clearReport()
@@ -711,7 +713,7 @@ public class TestIncrementalContainerReportHandler {
     // Since the containers don't have any data in this test, the matching checksums are based on container ID only.
     numReplicasChecked = 0;
     for (ContainerReplica replica: containerManager.getContainerReplicas(contID)) {
-      String expectedChecksum = createMatchingDataChecksumForReplica(contID);
+      ByteBuffer expectedChecksum = createMatchingDataChecksumForReplica(contID);
       assertEquals(expectedChecksum, replica.getDataChecksum());
       numReplicasChecked++;
     }
