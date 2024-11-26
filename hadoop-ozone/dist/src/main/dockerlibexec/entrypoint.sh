@@ -109,6 +109,12 @@ fi
 set -e
 
 "$DIR"/envtoconf.py --destination "$CONF_DESTINATION_DIR"
+# HACK envtoconf does not handle duplicate config keys.
+config_file="$CONF_DESTINATION_DIR/ozone-site.xml"
+sed -i '$ d' "$config_file"
+echo '<property><name>hdds.datanode.dir</name><value>/data/hdds2</value></property>' >> "$config_file"
+echo '</configuration>' >> "$config_file"
+
 
 if [ -n "$ENSURE_SCM_INITIALIZED" ]; then
   if [ ! -f "$ENSURE_SCM_INITIALIZED" ]; then
