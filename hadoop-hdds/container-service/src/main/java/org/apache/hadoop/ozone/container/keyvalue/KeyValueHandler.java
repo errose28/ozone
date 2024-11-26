@@ -1488,8 +1488,8 @@ public class KeyValueHandler extends Handler {
              getBlockIterator(containerData.getContainerID())) {
       while (blockIterator.hasNext()) {
         BlockData blockData = blockIterator.nextBlock();
-        List<ContainerProtos.ChunkInfo> chunkInfos = blockData.getChunks();
-        merkleTree.addChunks(blockData.getLocalID(), chunkInfos);
+        merkleTree.addChunks(blockData.getLocalID(), true,
+            blockData.getChunks().toArray(new ContainerProtos.ChunkInfo[]{}));
       }
     }
     checksumManager.writeContainerDataTree(containerData, merkleTree);
