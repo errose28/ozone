@@ -15,9 +15,11 @@
 # limitations under the License.
 
 # Added for reconciliation testing
-OZONE-SITE.XML_hdds.container.report.interval=10s
+# OZONE-SITE.XML_hdds.container.report.interval=10s
 OZONE-SITE.XML_hdds.container.scrub.data.scan.interval=10s
 OZONE-SITE.XML_hdds.scm.replication.thread.interval=10s
+OZONE-SITE.XML_hdds.heartbeat.interval=5s
+OZONE-SITE.XML_hdds.container.scrub.min.gap=1s
 
 OZONE-SITE.XML_ozone.metadata.dirs=/data/metadata
 
