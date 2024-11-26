@@ -1076,7 +1076,7 @@ public class KeyValueHandler extends Handler {
     // To be set from the Replica's BCSId
     blockData.setBlockCommitSequenceId(blockCommitSequenceId);
 
-    blockManager.putBlock(kvContainer, blockData, false);
+    blockManager.putBlock(kvContainer, blockData, true);
     ContainerProtos.BlockData blockDataProto = blockData.getProtoBufMessage();
     final long numBytes = blockDataProto.getSerializedSize();
     // Increment write stats for PutBlock after write.
