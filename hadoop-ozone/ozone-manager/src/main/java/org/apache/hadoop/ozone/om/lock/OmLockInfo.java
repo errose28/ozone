@@ -32,6 +32,9 @@ import org.apache.hadoop.ozone.OzoneConsts;
  * {@link org.apache.hadoop.ozone.om.request.OMClientRequest} adds a required method {@code getLockInfo} which returns
  * an instance of this class. All OM requests then implement this method and return an instance of this class to define
  * their locking requirements.
+ *
+ * Note that this class defines the interface for each of the ~100 OM requests to communicate their requirements to the
+ * gatekeeper. Any breaking changes to this interface will have a large ripple effect.
  */
 public final class OmLockInfo {
   private final LockInfo volumeLock;

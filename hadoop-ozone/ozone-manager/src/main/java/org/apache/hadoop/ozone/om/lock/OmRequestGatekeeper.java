@@ -36,6 +36,10 @@ import org.apache.hadoop.hdds.utils.LockInfo;
  * Sample Usage:
  * {@link org.apache.hadoop.ozone.om.execution.OMExecutionFlow} instantiates this class and calls {@code lock} with the
  * {@link OmLockInfo} of each request it is processing.
+ *
+ * Note that this class only provides one public method and will only be consumed by the OMExecutionFlow. Although this
+ * implementation uses 3 bins of striped locks, We can change the lock management implementation later as needed with
+ * little to no effect on any other classes.
  */
 public class OmRequestGatekeeper {
   private final Striped<ReadWriteLock> volumeLocks;
@@ -107,7 +111,7 @@ public class OmRequestGatekeeper {
   We can make the parameter a list of objects that wrap the Lock with information about its type.
 
   Note that logging the specific volume, bucket or keys this lock was trying to acquire is not helpful and
-  misleading because collisions within the stripe lock might we are blocked on a request for a completely
+  misleading because collisions within the stripe lock might mean we are blocked on a request for a completely
   different part of the namespace.
   Obtaining the thread ID that we were waiting on would be more useful, but there is no easy way to do that.
    */
