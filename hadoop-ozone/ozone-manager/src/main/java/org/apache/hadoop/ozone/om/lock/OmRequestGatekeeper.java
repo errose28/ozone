@@ -98,6 +98,15 @@ public class OmRequestGatekeeper {
     return () -> releaseLocks(locks);
   }
 
+  /*
+  Optional: If we want more diagnostic info on the type of lock that failed to be acquired (volume, bucket, or key),
+  We can make the parameter a list of objects that wrap the Lock with information about its type.
+
+  Note that logging the specific volume, bucket or keys this lock was trying to acquire is not helpful and
+  misleading because collisions within the stripe lock might we are blocked on a request for a completely
+  different part of the namespace.
+  Obtaining the thread ID that we were waiting on would be more useful, but there is no easy way to do that.
+   */
   private void acquireLocks(List<Lock> locks) throws TimeoutException, InterruptedException {
     List<Lock> acquiredLocks = new ArrayList<>(locks.size());
     for (Lock lock: locks) {
