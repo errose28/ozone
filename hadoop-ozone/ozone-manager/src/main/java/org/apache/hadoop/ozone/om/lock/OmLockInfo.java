@@ -27,6 +27,11 @@ import org.apache.hadoop.ozone.OzoneConsts;
  * This class represents the locking information that is required by an OM request.
  * Requests can define whether they need volume, bucket, or key locks of read or write types.
  * A request gatekeeper can handle these requirements to identify conflicting requests.
+ *
+ * Sample usage:
+ * {@link org.apache.hadoop.ozone.om.request.OMClientRequest} adds a required method {@code getLockInfo} which returns
+ * an instance of this class. All OM requests then implement this method and return an instance of this class to define
+ * their locking requirements.
  */
 public final class OmLockInfo {
   private final LockInfo volumeLock;

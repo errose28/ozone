@@ -32,6 +32,10 @@ import org.apache.hadoop.hdds.utils.LockInfo;
 /**
  * This class allows acquiring and releasing locks defined in an {@link OmLockInfo} instance.
  * This can be used to allow non-conflicting OM requests to be executed in parallel.
+ *
+ * Sample Usage:
+ * {@link org.apache.hadoop.ozone.om.execution.OMExecutionFlow} instantiates this class and calls {@code lock} with the
+ * {@link OmLockInfo} of each request it is processing.
  */
 public class OmRequestGatekeeper {
   private final Striped<ReadWriteLock> volumeLocks;
