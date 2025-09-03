@@ -25,6 +25,7 @@ import java.util.function.Supplier;
 import org.apache.hadoop.hdds.protocol.datanode.proto.ContainerProtos;
 import org.apache.hadoop.ozone.common.ChecksumByteBuffer;
 import org.apache.hadoop.ozone.common.ChecksumByteBufferFactory;
+import org.apache.hadoop.ozone.container.common.helpers.BlockData;
 import org.apache.ratis.thirdparty.com.google.protobuf.ByteString;
 
 /**
@@ -56,21 +57,6 @@ public class ContainerMerkleTreeWriter {
   }
 
   /**
-   * Constructs a writer for a container merkle tree which initially contains all the information from the specified
-   * proto.
-   */
-  public ContainerMerkleTreeWriter(ContainerProtos.ContainerMerkleTree fromTree) {
-    id2Block = new TreeMap<>();
-    for (ContainerProtos.BlockMerkleTree blockTree: fromTree.getBlockMerkleTreeList()) {
-      long blockID = blockTree.getBlockID();
-      addBlock(blockID);
-      for (ContainerProtos.ChunkMerkleTree chunkTree: blockTree.getChunkMerkleTreeList()) {
-        addChunks(blockID, chunkTree);
-      }
-    }
-  }
-
-  /**
    * Adds chunks to a block in the tree. The block entry will be created if it is the first time adding chunks to it.
    * If the block entry already exists, the chunks will be added to the existing chunks for that block.
    *
@@ -81,19 +67,13 @@ public class ContainerMerkleTreeWriter {
    */
   public void addChunks(long blockID, boolean checksumMatches, Collection<ContainerProtos.ChunkInfo> chunks) {
     for (ContainerProtos.ChunkInfo chunk: chunks) {
-      addChunks(blockID, checksumMatches, chunk);
+      addChunks(blockID, new ChunkMerkleTreeWriter(chunk, checksumMatches));
     }
   }
 
   public void addChunks(long blockID, boolean checksumMatches, ContainerProtos.ChunkInfo... chunks) {
     for (ContainerProtos.ChunkInfo chunk: chunks) {
       addChunks(blockID, new ChunkMerkleTreeWriter(chunk, checksumMatches));
-    }
-  }
-
-  private void addChunks(long blockID, ContainerProtos.ChunkMerkleTree... chunks) {
-    for (ContainerProtos.ChunkMerkleTree chunkTree: chunks) {
-      addChunks(blockID, new ChunkMerkleTreeWriter(chunkTree));
     }
   }
 
@@ -111,13 +91,93 @@ public class ContainerMerkleTreeWriter {
     id2Block.computeIfAbsent(blockID, BlockMerkleTreeWriter::new);
   }
 
+  // Used when reconciling deleted blocks
+  public void setDeletedBlock(long blockID, long dataChecksum) {
+    BlockMerkleTreeWriter blockWriter = new BlockMerkleTreeWriter(blockID);
+    blockWriter.markDeleted(dataChecksum);
+    id2Block.put(blockID, blockWriter);
+  }
+
+  // Used by block deleting service
+  public void setDeletedBlock(long blockID, BlockData blockData) {
+    BlockMerkleTreeWriter blockWriter = new BlockMerkleTreeWriter(blockID);
+    for (ContainerProtos.ChunkInfo chunkInfo: blockData.getChunks()) {
+      blockWriter.addChunks(new ChunkMerkleTreeWriter(chunkInfo, true));
+    }
+    blockWriter.markDeleted();
+    id2Block.put(blockID, blockWriter);
+  }
+
+  public ContainerProtos.ContainerMerkleTree update(
+      ContainerProtos.ContainerMerkleTree existingTree) {
+    return merge(existingTree, false);
+  }
+
+  public ContainerProtos.ContainerMerkleTree merge(ContainerProtos.ContainerMerkleTree existingTree) {
+    return merge(existingTree, true);
+  }
+
+  /**
+   * Merges the content from the provided tree with this tree writer.
+   * Conflicts where this tree writer and the incoming existingTree parameter have an entry for the same block are
+   * resolved in the following manner:
+   * - A deleted block supersedes a live block
+   *   - Data cannot be un-deleted, so if a delete is ever witnessed, that is the state the block should converge to.
+   * - If both blocks are either deleted or live, the value in this writer supersedes the value in the existingTree
+   * parameter.
+   *   - Our writer has the last witnessed information that is going to be persisted after this merge.
+   *
+   * For example, consider the case where a peer has deleted a block and we have a corrupt copy that has not yet been
+   * deleted. When we reconcile with this peer, we will mark the block as deleted and use the peer's checksum in our
+   * merkle tree to make the trees converge. The "fix" for corrupted data that is supposed to be deleted is to delete
+   * it. After this, if the scanner runs again before the block is deleted, we don't want to update the tree with the
+   * scanner's value because it would again diverge from the peer due to data that is expected to be deleted.
+   * This would cause the checksum to oscillate back and forth until the block is deleted, instead of converging.
+   */
+  private ContainerProtos.ContainerMerkleTree merge(ContainerProtos.ContainerMerkleTree existingTree,
+      boolean mergeLiveBlocks) {
+    for (ContainerProtos.BlockMerkleTree existingBlockTree: existingTree.getBlockMerkleTreeList()) {
+      long blockID = existingBlockTree.getBlockID();
+      BlockMerkleTreeWriter ourBlockTree = id2Block.get(blockID);
+      if (ourBlockTree != null) {
+        // both trees contain the block. We will only consider the incoming/existing value if it does not match our
+        // current state
+        if (!ourBlockTree.isDeleted() && existingBlockTree.getDeleted()) {
+          setDeletedBlock(blockID, existingBlockTree.getDataChecksum());
+        }
+        // In all other cases, keep using our writer's value over the existing one because either:
+        // - The deleted states match between the two blocks OR
+        // - Our block is deleted and the existing one is not, so we have the latest value to use.
+      } else {
+        // Our tree does not have this block.
+        if (existingBlockTree.getDeleted()) {
+          setDeletedBlock(blockID, existingBlockTree.getDataChecksum());
+        } else if (mergeLiveBlocks) {
+          addBlock(blockID);
+          for (ContainerProtos.ChunkMerkleTree otherChunkTree: existingBlockTree.getChunkMerkleTreeList()) {
+            addChunks(blockID, new ChunkMerkleTreeWriter(otherChunkTree));
+          }
+        }
+      }
+    }
+
+    // If the other tree did not have a data checksum present, it means the scanner did not run on it yet.
+    // The only entries were written by the block deleting service, so they are an incomplete view of the container.
+    // We should preserve this property in the merged tree proto.
+    ContainerProtos.ContainerMerkleTree.Builder protoBuilder = toProtoBuilder();
+    if (!existingTree.hasDataChecksum()) {
+      protoBuilder.clearDataChecksum();
+    }
+    return protoBuilder.build();
+  }
+
   /**
    * Uses chunk hashes to compute all remaining hashes in the tree, and returns it as a protobuf object. No checksum
    * computation for the tree happens outside of this method.
    *
    * @return A complete protobuf object representation of this tree.
    */
-  public ContainerProtos.ContainerMerkleTree toProto() {
+  private ContainerProtos.ContainerMerkleTree.Builder toProtoBuilder() {
     // Compute checksums and return the result.
     ContainerProtos.ContainerMerkleTree.Builder containerTreeBuilder = ContainerProtos.ContainerMerkleTree.newBuilder();
     ChecksumByteBuffer checksumImpl = CHECKSUM_BUFFER_SUPPLIER.get();
@@ -133,8 +193,11 @@ public class ContainerMerkleTreeWriter {
     checksumImpl.update(containerChecksumBuffer);
 
     return containerTreeBuilder
-        .setDataChecksum(checksumImpl.getValue())
-        .build();
+        .setDataChecksum(checksumImpl.getValue());
+  }
+
+  private ContainerProtos.ContainerMerkleTree toProto() {
+    return toProtoBuilder().build();
   }
 
   /**
@@ -145,10 +208,23 @@ public class ContainerMerkleTreeWriter {
     // Chunk order in the checksum is determined by their offset.
     private final SortedMap<Long, ChunkMerkleTreeWriter> offset2Chunk;
     private final long blockID;
+    private boolean deleted;
+    private long dataChecksum;
 
     BlockMerkleTreeWriter(long blockID) {
       this.blockID = blockID;
       this.offset2Chunk = new TreeMap<>();
+      this.deleted = false;
+      this.dataChecksum = 0;
+    }
+
+    public void markDeleted(long deletedDataChecksum) {
+      this.deleted = true;
+      this.dataChecksum = deletedDataChecksum;
+    }
+
+    public void markDeleted() {
+      this.deleted = true;
     }
 
     /**
@@ -163,6 +239,16 @@ public class ContainerMerkleTreeWriter {
       }
     }
 
+    public void addChunks(Collection<ChunkMerkleTreeWriter> chunks) {
+      for (ChunkMerkleTreeWriter chunk: chunks) {
+        offset2Chunk.put(chunk.getOffset(), chunk);
+      }
+    }
+
+    public boolean isDeleted() {
+      return deleted;
+    }
+
     /**
      * Uses chunk hashes to compute a block hash for this tree, and returns it as a protobuf object. All block checksum
      * computation for the tree happens within this method.
@@ -171,6 +257,23 @@ public class ContainerMerkleTreeWriter {
      */
     public ContainerProtos.BlockMerkleTree toProto() {
       ContainerProtos.BlockMerkleTree.Builder blockTreeBuilder = ContainerProtos.BlockMerkleTree.newBuilder();
+      if (offset2Chunk.isEmpty()) {
+        blockTreeBuilder.setDataChecksum(dataChecksum);
+      } else {
+        setDataChecksumFromChunks(blockTreeBuilder);
+      }
+
+      if (deleted) {
+        blockTreeBuilder.clearChunkMerkleTree();
+      }
+
+      return blockTreeBuilder
+          .setBlockID(blockID)
+          .setDeleted(deleted)
+          .build();
+    }
+
+    private void setDataChecksumFromChunks(ContainerProtos.BlockMerkleTree.Builder blockTreeBuilder) {
       ChecksumByteBuffer checksumImpl = CHECKSUM_BUFFER_SUPPLIER.get();
       // Allocate space for block ID + all chunk checksums
       ByteBuffer blockChecksumBuffer = ByteBuffer.allocate(Long.BYTES * (1 + offset2Chunk.size()));
@@ -189,11 +292,7 @@ public class ContainerMerkleTreeWriter {
       }
       blockChecksumBuffer.flip();
       checksumImpl.update(blockChecksumBuffer);
-
-      return blockTreeBuilder
-          .setBlockID(blockID)
-          .setDataChecksum(checksumImpl.getValue())
-          .build();
+      blockTreeBuilder.setDataChecksum(checksumImpl.getValue());
     }
   }
 
