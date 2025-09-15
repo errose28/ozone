@@ -219,32 +219,7 @@ jobs:
       timeout-minutes: 30
       with-coverage: ${{ fromJSON(needs.build-info.outputs.with-coverage) }}
 
-  acceptance:
-    needs:
-      - build-info
-      - build
-      - basic
-      - dependency
-      - license
-    if: false
-    uses: ./.github/workflows/check.yml
-    secrets: inherit
-    with:
-      java-version: 11 # Hadoop may not work with newer Java
-      needs-ozone-binary-tarball: true
-      ratis-args: ${{ inputs.ratis_args }}
-      script: acceptance
-      script-args: ${{ matrix.suite }}
-      sha: ${{ needs.build-info.outputs.sha }}
-      split: ${{ matrix.suite }}
-      timeout-minutes: 150
-      with-coverage: ${{ fromJSON(needs.build-info.outputs.with-coverage) }}
-    strategy:
-      matrix:
-        suite: []
-      fail-fast: false
-  # acceptance job disabled per request: do not run acceptance tests
-  # (Removed the job definition)
+  # acceptance job removed per request: do not run acceptance tests
 
   kubernetes:
     needs:
