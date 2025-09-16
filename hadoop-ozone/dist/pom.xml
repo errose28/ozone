@@ -165,7 +165,7 @@
             <goals>
               <goal>copy-dependencies</goal>
             </goals>
-            <phase>prepare-package</phase>
+            <phase>package</phase>
             <configuration>
               <outputDirectory>target/ozone-${ozone.version}/share/ozone/lib</outputDirectory>
               <includeScope>runtime</includeScope>
