@@ -242,7 +242,6 @@ jobs:
   integration:
     needs:
       - build-info
-      - build
       - basic
       - dependency
       - license
@@ -254,7 +253,7 @@ jobs:
       pre-script: sudo hostname localhost
       ratis-args: ${{ inputs.ratis_args }}
       script: integration
-      script-args: -Ptest-${{ matrix.profile }} -Drocks_tools_native
+      script-args: -Ptest-${{ matrix.profile }} -Drocks_tools_native -Djavac.version=${{ matrix.java }}
       sha: ${{ needs.build-info.outputs.sha }}
       split: ${{ format('{0} (jdk{1})', matrix.profile, matrix.java) }}
       timeout-minutes: 90
