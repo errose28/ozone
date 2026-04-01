@@ -28,7 +28,6 @@ import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isInprogress;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isStarting;
 
 import java.io.IOException;
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -68,10 +67,9 @@ public class FinalizeUpgradeSubCommand implements Callable<Void> {
 
   @Override
   public Void call() throws Exception {
-    String upgradeClientID = "Upgrade-Client-" + UUID.randomUUID();
     try (OzoneManagerProtocol client = omAddressOptions.newClient()) {
       UpgradeFinalization.StatusAndMessages finalizationResponse =
-          client.finalizeUpgrade(upgradeClientID);
+          client.finalizeUpgrade();
       if (isFinalized(finalizationResponse.status())) {
         System.out.println("Upgrade has already been finalized.");
         emitExitMsg();
@@ -83,18 +81,17 @@ public class FinalizeUpgradeSubCommand implements Callable<Void> {
         );
         throw new IOException("Exiting...");
       }
-      monitorAndWaitFinalization(client, upgradeClientID);
+      monitorAndWaitFinalization(client);
     } catch (UpgradeException e) {
       handleInvalidRequestAfterInitiatingFinalization(force, e);
     }
     return null;
   }
 
-  private void monitorAndWaitFinalization(OzoneManagerProtocol client,
-      String upgradeClientID) throws ExecutionException {
+  private void monitorAndWaitFinalization(OzoneManagerProtocol client)
+      throws ExecutionException {
     ExecutorService exec = Executors.newSingleThreadExecutor();
-    Future<?> monitor =
-        exec.submit(new UpgradeMonitor(client, upgradeClientID, force));
+    Future<?> monitor = exec.submit(new UpgradeMonitor(client));
     try {
       monitor.get();
       emitFinishedMsg("Ozone Manager");
@@ -113,18 +110,10 @@ public class FinalizeUpgradeSubCommand implements Callable<Void> {
 
   private static class UpgradeMonitor implements Callable<Void> {
 
-    private OzoneManagerProtocol client;
-    private String upgradeClientID;
-    private boolean force;
+    private final OzoneManagerProtocol client;
 
-    UpgradeMonitor(
-        OzoneManagerProtocol client,
-        String upgradeClientID,
-        boolean force
-    ) {
+    UpgradeMonitor(OzoneManagerProtocol client) {
       this.client = client;
-      this.upgradeClientID = upgradeClientID;
-      this.force = force;
     }
 
     @Override
@@ -135,8 +124,7 @@ public class FinalizeUpgradeSubCommand implements Callable<Void> {
         // do not check for exceptions, if one happens during monitoring we
         // should report it and exit.
         UpgradeFinalization.StatusAndMessages progress =
-            client.queryUpgradeFinalizationProgress(upgradeClientID, force,
-                false);
+            client.queryUpgradeFinalizationProgress();
         // this can happen after trying to takeover the request after the fact
         // when there is already nothing to take over.
         if (isFinalized(progress.status())) {

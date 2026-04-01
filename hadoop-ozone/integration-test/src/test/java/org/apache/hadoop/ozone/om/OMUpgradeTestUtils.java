@@ -72,8 +72,7 @@ public final class OMUpgradeTestUtils {
     waitFor(() -> {
       try {
         UpgradeFinalization.StatusAndMessages statusAndMessages =
-            omClient.queryUpgradeFinalizationProgress("finalize-test", false,
-                false);
+            omClient.queryUpgradeFinalizationProgress();
         System.out.println("Finalization Messages : " +
             statusAndMessages.msgs());
         return statusAndMessages.status().equals(FINALIZATION_DONE);

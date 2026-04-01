@@ -474,7 +474,7 @@ public interface OzoneManagerProtocol
    * The leader Ozone Manager initiates finalization of the followers via
    * the Raft protocol in other Ozone Managers, and reports progress to the
    * client via the
-   * {@link #queryUpgradeFinalizationProgress(String, boolean, boolean)}
+   * {@link #queryUpgradeFinalizationProgress()}
    * call.
    *
    * The follower Ozone Managers reject this request and directs the client to

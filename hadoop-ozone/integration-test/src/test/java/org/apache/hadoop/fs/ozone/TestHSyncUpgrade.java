@@ -38,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -217,9 +216,8 @@ public class TestHSyncUpgrade {
     // Trigger OM upgrade finalization. Ref: FinalizeUpgradeSubCommand#call
     final OzoneManagerProtocol omClient = client.getObjectStore()
         .getClientProxy().getOzoneManagerClient();
-    final String upgradeClientID = "Test-Upgrade-Client-" + UUID.randomUUID();
     UpgradeFinalization.StatusAndMessages finalizationResponse =
-        omClient.finalizeUpgrade(upgradeClientID);
+        omClient.finalizeUpgrade();
 
     // The status should transition as soon as the client call above returns
     assertTrue(isStarting(finalizationResponse.status()));
@@ -227,8 +225,7 @@ public class TestHSyncUpgrade {
     // 10s timeout should be plenty.
     await(POLL_MAX_WAIT_MILLIS, POLL_INTERVAL_MILLIS, () -> {
       final UpgradeFinalization.StatusAndMessages progress =
-          omClient.queryUpgradeFinalizationProgress(
-              upgradeClientID, false, false);
+          omClient.queryUpgradeFinalizationProgress();
       return isDone(progress.status());
     });
   }

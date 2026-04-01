@@ -3597,8 +3597,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     }
   }
 
-  // TODO
-
   @Override
   public StatusAndMessages finalizeUpgrade() throws IOException {
     versionManager.finalizeUpgrade();

@@ -152,7 +152,7 @@ class TestOMBucketLayoutUpgrade {
   @Order(DURING_UPGRADE)
   void finalizeUpgrade() throws Exception {
     UpgradeFinalization.StatusAndMessages response =
-        omClient.finalizeUpgrade("finalize-test");
+        omClient.finalizeUpgrade();
     System.out.println("Finalization Messages : " + response.msgs());
 
     waitForFinalization(omClient);

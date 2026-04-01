@@ -24,9 +24,14 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
+import org.apache.hadoop.ozone.om.OMStorage;
+import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.upgrade.AbstractComponentVersionManagerTest;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.junit.jupiter.params.provider.Arguments;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link OMVersionManager}.
@@ -53,7 +58,11 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
 
   @Override
   protected ComponentVersionManager createManager(int serializedApparentVersion) throws IOException {
-    return new OMVersionManager(serializedApparentVersion);
+    OzoneManager mockOM = Mockito.mock(OzoneManager.class);
+    OMStorage mockOMStorage = Mockito.mock(OMStorage.class);
+    when(mockOM.getOmStorage()).thenReturn(mockOMStorage);
+    when(mockOMStorage.getApparentVersion()).thenReturn(serializedApparentVersion);
+    return new OMVersionManager(mockOM);
   }
 
   @Override

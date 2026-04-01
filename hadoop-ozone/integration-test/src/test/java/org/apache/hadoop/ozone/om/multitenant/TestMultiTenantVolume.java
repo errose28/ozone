@@ -146,9 +146,8 @@ public class TestMultiTenantVolume {
     // Trigger OM upgrade finalization. Ref: FinalizeUpgradeSubCommand#call
     final OzoneManagerProtocol omClient = client.getObjectStore()
         .getClientProxy().getOzoneManagerClient();
-    final String upgradeClientID = "Test-Upgrade-Client-" + UUID.randomUUID();
     UpgradeFinalization.StatusAndMessages finalizationResponse =
-        omClient.finalizeUpgrade(upgradeClientID);
+        omClient.finalizeUpgrade();
 
     // The status should transition as soon as the client call above returns
     assertTrue(isStarting(finalizationResponse.status()));
@@ -158,8 +157,7 @@ public class TestMultiTenantVolume {
     GenericTestUtils.waitFor(() -> {
       try {
         final UpgradeFinalization.StatusAndMessages progress =
-            omClient.queryUpgradeFinalizationProgress(
-                upgradeClientID, false, false);
+            omClient.queryUpgradeFinalizationProgress();
         return isDone(progress.status());
       } catch (IOException e) {
         fail("Unexpected exception while waiting for "

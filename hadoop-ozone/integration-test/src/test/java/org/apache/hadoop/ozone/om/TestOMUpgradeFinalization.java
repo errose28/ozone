@@ -89,8 +89,7 @@ class TestOMUpgradeFinalization {
 
         omClient.cancelOzoneManagerPrepare();
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_CANCEL, AuditEventStatus.SUCCESS);
-        StatusAndMessages response =
-            omClient.finalizeUpgrade("finalize-test");
+        StatusAndMessages response = omClient.finalizeUpgrade();
         System.out.println("Finalization Messages : " + response.msgs());
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_FINALIZE, AuditEventStatus.SUCCESS);
 

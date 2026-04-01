@@ -17,7 +17,6 @@
 
 package org.apache.hadoop.ozone.admin.om;
 
-import java.util.UUID;
 import java.util.concurrent.Callable;
 import org.apache.hadoop.hdds.cli.HddsVersionProvider;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
@@ -40,10 +39,9 @@ public class FinalizationStatusSubCommand implements Callable<Void> {
 
   @Override
   public Void call() throws Exception {
-    String upgradeClientID = "Upgrade-Client-" + UUID.randomUUID();
     try (OzoneManagerProtocol client = omAddressOptions.newClient()) {
       UpgradeFinalization.StatusAndMessages progress =
-          client.queryUpgradeFinalizationProgress(upgradeClientID, false, true);
+          client.queryUpgradeFinalizationProgress();
       System.out.println(progress.status());
     }
     return null;
