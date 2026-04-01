@@ -101,6 +101,8 @@ import static org.apache.hadoop.ozone.om.s3.S3SecretStoreConfigurationKeys.S3_SE
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerInterServiceProtocolProtos.OzoneManagerInterService;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneManagerService;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PrepareStatusResponse.PrepareStatus;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_REQUIRED_MSG;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZED_MSG;
 import static org.apache.hadoop.security.UserGroupInformation.getCurrentUser;
 import static org.apache.hadoop.util.ExitUtil.terminate;
 import static org.apache.hadoop.util.Time.monotonicNow;
@@ -289,6 +291,7 @@ import org.apache.hadoop.ozone.om.snapshot.defrag.SnapshotDefragService;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
 import org.apache.hadoop.ozone.om.upgrade.OMUpgradeFinalizer;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.OzoneManagerAdminService;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DBUpdatesRequest;
@@ -399,7 +402,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   private BucketManager bucketManager;
   private KeyManager keyManager;
   private PrefixManagerImpl prefixManager;
-  private final UpgradeFinalizer<OzoneManager> upgradeFinalizer;
   private ExecutorService edekCacheLoader = null;
 
   /**
@@ -449,7 +451,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   private List<RatisDropwizardExports.MetricReporter> ratisReporterList = null;
 
   private KeyProviderCryptoExtension kmsProvider;
-  private final OMLayoutVersionManager versionManager;
+  private final OMVersionManager versionManager;
 
   private final ReplicationConfigValidator replicationConfigValidator;
 
@@ -532,8 +534,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
 
     reconfigurationHandler.setReconfigurationCompleteCallback(reconfigurationHandler.defaultLoggingCallback());
 
-    versionManager = new OMLayoutVersionManager(omStorage.getLayoutVersion());
-    upgradeFinalizer = new OMUpgradeFinalizer(versionManager);
+    versionManager = new OMVersionManager(this);
     replicationConfigValidator =
         conf.getObject(ReplicationConfigValidator.class);
 
@@ -1545,13 +1546,13 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
             "OM initialization succeeded.Current cluster id for sd="
                 + omStorage.getStorageDir() + ";cid=" + omStorage
                 .getClusterID() + ";layoutVersion=" + omStorage
-                .getLayoutVersion());
+                .getApparentVersion());
       } else {
         System.out.println(
             "OM already initialized.Reusing existing cluster id for sd="
                 + omStorage.getStorageDir() + ";cid=" + omStorage
                 .getClusterID() + ";layoutVersion=" + omStorage
-                .getLayoutVersion());
+                .getApparentVersion());
       }
     } catch (IOException ioe) {
       LOG.error("Could not initialize OM version file", ioe);
@@ -3596,21 +3597,26 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     }
   }
 
+  // TODO
+
   @Override
-  public StatusAndMessages finalizeUpgrade(String upgradeClientID)
-      throws IOException {
-    return upgradeFinalizer.finalize(upgradeClientID, this);
+  public StatusAndMessages finalizeUpgrade() throws IOException {
+    versionManager.finalizeUpgrade();
+    // TODO Remove status and messages concept from finalization. Finalization succeeded if this method does not throw.
+    return FINALIZED_MSG;
   }
 
   @Override
-  public StatusAndMessages queryUpgradeFinalizationProgress(
-      String upgradeClientID, boolean takeover, boolean readonly
-  ) throws IOException {
-    if (readonly) {
-      return new StatusAndMessages(upgradeFinalizer.getStatus(),
-          Collections.emptyList());
+  public StatusAndMessages queryUpgradeFinalizationProgress() {
+    // TODO Remove status and messages concept from finalization. Finalization is one Ratis request and not an ongoing
+    //  operation. A component is either finalized or not.
+    //  The status call may also be changed to return software and apparent version as well so that rolling upgrade
+    //  status can be monitored.
+    if (versionManager.needsFinalization()) {
+      return FINALIZATION_REQUIRED_MSG;
+    } else {
+      return FINALIZED_MSG;
     }
-    return upgradeFinalizer.reportStatus(upgradeClientID, takeover);
   }
 
   /**

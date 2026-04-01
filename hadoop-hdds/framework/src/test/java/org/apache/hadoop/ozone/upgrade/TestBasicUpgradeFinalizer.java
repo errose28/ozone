@@ -222,12 +222,12 @@ public class TestBasicUpgradeFinalizer {
 
       super.finalizeLayoutFeature(lf, lf.action(), mockStorage);
 
-      inOrder.verify(mockStorage).setLayoutVersion(eq(lf.layoutVersion()));
+      inOrder.verify(mockStorage).setApparentVersion(eq(lf.layoutVersion()));
       try {
         inOrder.verify(mockStorage).persistCurrentState();
       } catch (IOException ex) {
         throw new UpgradeException(ex,
-            UpgradeException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED);
+            UpgradeException.ResultCodes.UPGRADE_FINALIZATION_FAILED);
       }
       finalizeCalled = true;
     }

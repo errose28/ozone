@@ -80,10 +80,7 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
       FinalizeUpgradeRequest request =
           getOmRequest().getFinalizeUpgradeRequest();
 
-      String upgradeClientID = request.getUpgradeClientId();
-
-      StatusAndMessages omStatus =
-          ozoneManager.finalizeUpgrade(upgradeClientID);
+      StatusAndMessages omStatus = ozoneManager.finalizeUpgrade();
 
       UpgradeFinalizationStatus.Status protoStatus =
           UpgradeFinalizationStatus.Status.valueOf(omStatus.status().name());

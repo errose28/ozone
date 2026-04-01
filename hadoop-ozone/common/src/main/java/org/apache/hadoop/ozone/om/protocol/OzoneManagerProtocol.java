@@ -480,7 +480,6 @@ public interface OzoneManagerProtocol
    * The follower Ozone Managers reject this request and directs the client to
    * the leader.
    *
-   * @param upgradeClientID String identifier of the upgrade finalizer client
    * @return the finalization status.
    * @throws IOException
    *            when finalization is failed, or this Ozone Manager is not the
@@ -488,7 +487,7 @@ public interface OzoneManagerProtocol
    * @throws OMException
    *            when finalization is already in progress.
    */
-  UpgradeFinalization.StatusAndMessages finalizeUpgrade(String upgradeClientID) throws IOException;
+  UpgradeFinalization.StatusAndMessages finalizeUpgrade() throws IOException;
 
   /**
    * Queries the current status of finalization.
@@ -509,18 +508,13 @@ public interface OzoneManagerProtocol
    *    unless the request is forced by a new client, in which case the new
    *    client takes over the old client and the old client should exit.
    *
-   * @param takeover set force takeover of output monitoring
-   * @param readonly set readonly of output
-   * @param upgradeClientID String identifier of the upgrade finalizer client
    * @return the finalization status and status messages.
    * @throws IOException
    *            if there was a problem during the query
    * @throws OMException
    *            if finalization is needed but not yet started
    */
-  UpgradeFinalization.StatusAndMessages queryUpgradeFinalizationProgress(
-      String upgradeClientID, boolean takeover, boolean readonly
-  ) throws IOException;
+  UpgradeFinalization.StatusAndMessages queryUpgradeFinalizationProgress() throws IOException;
 
   /*
    * S3 Specific functionality that is supported by Ozone Manager.
