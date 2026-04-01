@@ -91,6 +91,19 @@ public abstract class ComponentVersionManager implements Closeable {
     return !apparentVersion.equals(softwareVersion);
   }
 
+  public void finalizeUpgrade() throws UpgradeException {
+    for (ComponentVersion version : getUnfinalizedVersions()) {
+      validateForFinalization(version);
+      runUpgradeAction(version);
+      persistApparentVersion(version);
+
+      LOG.info("Version {} has been finalized.", version);
+      if (!needsFinalization()) {
+        LOG.info("Finalization is complete.");
+      }
+    }
+  }
+
   /**
    * @return An Iterable of all versions after the current apparent version which still need to be finalized. If this
    *    component is already finalized, the Iterable will be empty.
@@ -137,19 +150,6 @@ public abstract class ComponentVersionManager implements Closeable {
       } else if (newApparentVersion != nextVersion) {
         throw new IllegalArgumentException(
             "Finalize attempt on a version that is not the next feature to be finalized. " + versionMsg);
-      }
-    }
-  }
-
-  public void finalizeUpgrade() throws UpgradeException {
-    for (ComponentVersion version : getUnfinalizedVersions()) {
-      validateForFinalization(version);
-      runUpgradeAction(version);
-      persistApparentVersion(version);
-
-      LOG.info("Version {} has been finalized.", version);
-      if (!needsFinalization()) {
-        LOG.info("Finalization is complete.");
       }
     }
   }
