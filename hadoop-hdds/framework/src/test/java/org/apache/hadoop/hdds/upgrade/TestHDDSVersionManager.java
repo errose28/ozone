@@ -24,9 +24,13 @@ import java.util.List;
 import java.util.stream.Stream;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
+import org.apache.hadoop.ozone.common.Storage;
 import org.apache.hadoop.ozone.upgrade.AbstractComponentVersionManagerTest;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.junit.jupiter.params.provider.Arguments;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link HDDSVersionManager}.
@@ -54,7 +58,9 @@ class TestHDDSVersionManager extends AbstractComponentVersionManagerTest {
 
   @Override
   protected ComponentVersionManager createManager(int serializedApparentVersion) throws IOException {
-    return new HDDSVersionManager(serializedApparentVersion);
+    Storage mockStorage = Mockito.mock(Storage.class);
+    when(mockStorage.getApparentVersion()).thenReturn(serializedApparentVersion);
+    return new HDDSVersionManager(mockStorage);
   }
 
   @Override

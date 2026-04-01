@@ -106,7 +106,7 @@ public class UpgradeException extends IOException {
   public enum ResultCodes {
     OK,
     INVALID_REQUEST,
-    APPARENT_VERSION_FAILED,
+    APPARENT_VERSION_UPDATE_FAILED,
     UPGRADE_FINALIZATION_FAILED,
     FINALIZE_UPGRADE_ACTION_FAILED,
   }

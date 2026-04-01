@@ -20,14 +20,16 @@ package org.apache.hadoop.hdds.upgrade;
 import java.io.IOException;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
+import org.apache.hadoop.ozone.common.Storage;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
+import org.apache.hadoop.ozone.upgrade.UpgradeException;
 
 /**
  * Component version manager for HDDS (Datanodes and SCM).
  */
 public class HDDSVersionManager extends ComponentVersionManager {
-  public HDDSVersionManager(int serializedApparentVersion) throws IOException {
-    super(computeApparentVersion(serializedApparentVersion), HDDSVersion.SOFTWARE_VERSION);
+  public HDDSVersionManager(Storage storage) throws IOException {
+    super(storage, computeApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
   }
 
   /**
@@ -44,5 +46,9 @@ public class HDDSVersionManager extends ComponentVersionManager {
     }
   }
 
-  // TODO HDDS-14826: Register upgrade actions based on annotations
+  @Override
+  protected void runUpgradeAction(ComponentVersion componentVersion) throws UpgradeException {
+    // TODO HDDS-14826: Register upgrade actions based on annotations
+    //  This class will likely need an SCM and DN specific subclass to run the corresponding actions.
+  }
 }

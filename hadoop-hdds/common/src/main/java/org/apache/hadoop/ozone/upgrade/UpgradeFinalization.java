@@ -29,6 +29,20 @@ import org.apache.hadoop.hdds.annotation.InterfaceStability;
 @InterfaceAudience.Private
 @InterfaceStability.Evolving
 public final class UpgradeFinalization {
+
+  /**
+   * Default message can be used to indicate the starting of finalization.
+   */
+  public static final StatusAndMessages STARTING_MSG = new StatusAndMessages(
+      Status.STARTING_FINALIZATION,
+      Collections.singletonList("Starting Finalization")
+  );
+
+  public static final StatusAndMessages FINALIZATION_IN_PROGRESS_MSG = new StatusAndMessages(
+      Status.FINALIZATION_IN_PROGRESS,
+      Collections.singletonList("Finalization in progress")
+  );
+
   public static final StatusAndMessages FINALIZATION_REQUIRED_MSG = new StatusAndMessages(
       Status.FINALIZATION_REQUIRED,
       Collections.singletonList("Finalization required")
@@ -38,7 +52,7 @@ public final class UpgradeFinalization {
    * Default message to provide when the service is in ALREADY_FINALIZED state.
    */
   public static final StatusAndMessages FINALIZED_MSG = new StatusAndMessages(
-      Status.FINALIZATION_DONE, Collections.singletonList("Finalization done")
+      Status.FINALIZATION_DONE, Collections.emptyList()
   );
 
   /**
@@ -55,8 +69,13 @@ public final class UpgradeFinalization {
    * - or it can be {@code ALREADY_FINALIZED} if the finalization was successfully done.
    */
   public enum Status {
+    // TODO Only finalization done and required statuses will be used when all components move to the new
+    //  finalization flow.
+    ALREADY_FINALIZED,
+    STARTING_FINALIZATION,
+    FINALIZATION_IN_PROGRESS,
+    FINALIZATION_DONE,
     FINALIZATION_REQUIRED,
-    FINALIZATION_DONE
   }
 
   /**
@@ -121,7 +140,19 @@ public final class UpgradeFinalization {
   }
 
   public static boolean isFinalized(Status status) {
+    return Status.ALREADY_FINALIZED.equals(status);
+  }
+
+  public static boolean isDone(Status status) {
     return Status.FINALIZATION_DONE.equals(status);
+  }
+
+  public static boolean isInprogress(Status status) {
+    return Status.FINALIZATION_IN_PROGRESS.equals(status);
+  }
+
+  public static boolean isStarting(Status status) {
+    return Status.STARTING_FINALIZATION.equals(status);
   }
 
   public static void emitGeneralErrorMsg() {

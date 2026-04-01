@@ -107,7 +107,7 @@ public abstract class AbstractComponentVersionManagerTest {
       assertFalse(versionManager.needsFinalization());
       assertFalse(versionManager.getUnfinalizedVersions().iterator().hasNext());
 
-      versionManager.markFinalized(expectedSoftwareVersion());
+      versionManager.(expectedSoftwareVersion());
 
       assertApparentVersion(versionManager, expectedSoftwareVersion());
       assertFalse(versionManager.needsFinalization());

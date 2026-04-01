@@ -26,7 +26,7 @@ import org.apache.hadoop.ozone.common.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.hadoop.ozone.upgrade.UpgradeException.ResultCodes.APPARENT_VERSION_FAILED;
+import static org.apache.hadoop.ozone.upgrade.UpgradeException.ResultCodes.APPARENT_VERSION_UPDATE_FAILED;
 
 /**
  * Tracks information about the apparent version, software version, and finalization status of a component.
@@ -95,7 +95,7 @@ public abstract class ComponentVersionManager implements Closeable {
    * @return An Iterable of all versions after the current apparent version which still need to be finalized. If this
    *    component is already finalized, the Iterable will be empty.
    */
-  public Iterable<ComponentVersion> getUnfinalizedVersions() {
+  private Iterable<ComponentVersion> getUnfinalizedVersions() {
     return () -> new Iterator<ComponentVersion>() {
       private ComponentVersion currentVersion = apparentVersion;
 
@@ -163,7 +163,7 @@ public abstract class ComponentVersionManager implements Closeable {
     } catch (IOException e) {
       storage.setApparentVersion(prevVersion);
       logAndThrow(e, "Updating version in the VERSION file from " + prevVersion + " to " + version +
-          " failed.", APPARENT_VERSION_FAILED);
+          " failed.", APPARENT_VERSION_UPDATE_FAILED);
     }
     apparentVersion = version;
   }
