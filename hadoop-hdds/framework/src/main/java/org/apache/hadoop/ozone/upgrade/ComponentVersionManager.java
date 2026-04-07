@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.ozone.upgrade;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Iterator;
@@ -89,6 +90,14 @@ public abstract class ComponentVersionManager implements Closeable {
 
   public boolean needsFinalization() {
     return !apparentVersion.equals(softwareVersion);
+  }
+
+  /**
+   * Test-only accessor for the {@link Storage} instance supplied to the constructor.
+   */
+  @VisibleForTesting
+  protected Storage getStorageForTesting() {
+    return storage;
   }
 
   public void finalizeUpgrade() throws UpgradeException {

@@ -48,8 +48,9 @@ public final class OMLayoutVersionManager
       "org.apache.hadoop.ozone.om";
   public static final String OM_REQUEST_CLASS_PACKAGE =
       OM_CLASS_PACKAGE + ".request";
+  /** Same package as {@link OMUpgradeActionProvider#OM_UPGRADE_CLASS_PACKAGE}. */
   public static final String OM_UPGRADE_CLASS_PACKAGE =
-      OM_CLASS_PACKAGE + ".upgrade";
+      OMUpgradeActionProvider.OM_UPGRADE_CLASS_PACKAGE;
 
   public OMLayoutVersionManager(int layoutVersion) throws OMException {
     init(layoutVersion);

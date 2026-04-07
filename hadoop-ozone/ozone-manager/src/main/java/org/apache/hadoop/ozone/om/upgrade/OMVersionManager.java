@@ -17,45 +17,49 @@
 
 package org.apache.hadoop.ozone.om.upgrade;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.upgrade.ComponentUpgradeActionProvider;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeException;
-import org.reflections.Reflections;
-import org.reflections.scanners.SubTypesScanner;
-import org.reflections.scanners.TypeAnnotationsScanner;
-import org.reflections.util.ConfigurationBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Component version manager for Ozone Manager.
  */
 public class OMVersionManager extends ComponentVersionManager {
 
-  public static final String OM_UPGRADE_CLASS_PACKAGE = "org.apache.hadoop.ozone.om.upgrade";
-
-  private static final Logger LOG = LoggerFactory.getLogger(OMVersionManager.class);
-
-  private Map<ComponentVersion, OmUpgradeAction> upgradeActions;
+  private final Map<ComponentVersion, OmUpgradeAction> upgradeActions;
 
   private final OzoneManager upgradeActionArg;
 
   public OMVersionManager(OzoneManager om) throws IOException {
+    this(om, new OMUpgradeActionProvider());
+  }
+
+  public OMVersionManager(OzoneManager om, ComponentUpgradeActionProvider<OmUpgradeAction> upgradeActionProvider)
+      throws IOException {
     super(om.getOmStorage(), computeApparentVersion(om.getOmStorage().getApparentVersion()),
         OzoneManagerVersion.SOFTWARE_VERSION);
     upgradeActionArg = om;
-    registerUpgradeActions();
+    upgradeActions = upgradeActionProvider.load();
+  }
+
+  @VisibleForTesting
+  public Map<ComponentVersion, OmUpgradeAction> getUpgradeActionsForTesting() {
+    return upgradeActions;
   }
 
   protected void runUpgradeAction(ComponentVersion componentVersion) throws UpgradeException {
+    OmUpgradeAction action = upgradeActions.get(componentVersion);
+    if (action == null) {
+      return;
+    }
     try {
-      upgradeActions.get(componentVersion).execute(upgradeActionArg);
+      action.execute(upgradeActionArg);
     } catch (Exception e) {
       logAndThrow(e, "OM upgrade action for version " + componentVersion + " failed.",
           UpgradeException.ResultCodes.FINALIZE_UPGRADE_ACTION_FAILED);
@@ -74,47 +78,5 @@ public class OMVersionManager extends ComponentVersionManager {
     } else {
       return OzoneManagerVersion.deserialize(serializedApparentVersion);
     }
-  }
-
-  /**
-   * Scan classpath and register all actions to layout features.
-   *
-   * TODO We will need a new annotation to register upgrade actions to component versions. Annotations cannot use
-   *  interfaces as fields so the existing {@link UpgradeActionOm} cannot be made generic across layout features and
-   *  component versions.
-   */
-  private void registerUpgradeActions() {
-    upgradeActions = new HashMap<>();
-
-    Reflections reflections = new Reflections(new ConfigurationBuilder()
-        .forPackages(OM_UPGRADE_CLASS_PACKAGE)
-        .setScanners(new TypeAnnotationsScanner(), new SubTypesScanner())
-        .setExpandSuperTypes(false)
-        .setParallel(true));
-    Set<Class<?>> typesAnnotatedWith = reflections.getTypesAnnotatedWith(UpgradeActionOm.class);
-
-    typesAnnotatedWith.forEach(actionClass -> {
-      if (OmUpgradeAction.class.isAssignableFrom(actionClass)) {
-        try {
-          OmUpgradeAction action = (OmUpgradeAction) actionClass.newInstance();
-          UpgradeActionOm annotation =
-              actionClass.getAnnotation(UpgradeActionOm.class);
-          OMLayoutFeature feature = annotation.feature();
-          if (!isAllowed(feature)) {
-            LOG.info("Registering Upgrade Action : {}", action.name());
-            upgradeActions.put(feature, action);
-          } else {
-            LOG.debug("Skipping Upgrade Action {} since it has been finalized.", action.name());
-          }
-        } catch (Exception e) {
-          LOG.error("Cannot instantiate Upgrade Action class {}",
-              actionClass.getSimpleName(), e);
-        }
-      } else {
-        LOG.warn("Found upgrade action class not of type " +
-                "org.apache.hadoop.ozone.om.upgrade.OmUpgradeAction : {}",
-            actionClass.getName());
-      }
-    });
   }
 }

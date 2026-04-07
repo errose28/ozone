@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.hdds.upgrade;
 
+import static org.mockito.Mockito.when;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,10 +32,8 @@ import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.junit.jupiter.params.provider.Arguments;
 import org.mockito.Mockito;
 
-import static org.mockito.Mockito.when;
-
 /**
- * Tests for {@link HDDSVersionManager}.
+ * Tests for {@link HDDSVersionManager} using on-disk {@link Storage} under a JUnit temp directory.
  */
 class TestHDDSVersionManager extends AbstractComponentVersionManagerTest {
 
