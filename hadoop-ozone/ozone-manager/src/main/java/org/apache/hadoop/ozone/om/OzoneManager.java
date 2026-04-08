@@ -41,7 +41,6 @@ import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_SCM_BLOCK_SIZE_DEFAULT;
 import static org.apache.hadoop.ozone.OzoneConsts.DB_TRANSIENT_MARKER;
 import static org.apache.hadoop.ozone.OzoneConsts.DEFAULT_OM_UPDATE_ID;
-import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_DB_NAME;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_KEY_PREFIX;
 import static org.apache.hadoop.ozone.OzoneConsts.OM_METRICS_FILE;
@@ -163,6 +162,7 @@ import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.SafeModeAction;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.ExitManager;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.HddsUtils;
@@ -290,7 +290,6 @@ import org.apache.hadoop.ozone.om.service.QuotaRepairTask;
 import org.apache.hadoop.ozone.om.snapshot.defrag.SnapshotDefragService;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
-import org.apache.hadoop.ozone.om.upgrade.OMUpgradeFinalizer;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.OzoneManagerAdminService;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
@@ -323,7 +322,6 @@ import org.apache.hadoop.ozone.snapshot.ListSnapshotResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
 import org.apache.hadoop.ozone.storage.proto.OzoneManagerStorageProtos.PersistedUserVolumeInfo;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization.StatusAndMessages;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalizer;
 import org.apache.hadoop.ozone.util.OzoneNetUtils;
 import org.apache.hadoop.ozone.util.OzoneVersionInfo;
 import org.apache.hadoop.ozone.util.ShutdownHookManager;
@@ -1003,23 +1001,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     updateActiveSnapshotMetrics();
 
     if (withNewSnapshot) {
-      Integer layoutVersionInDB = getLayoutVersionInDB();
-      if (layoutVersionInDB != null &&
-          versionManager.getMetadataLayoutVersion() < layoutVersionInDB) {
-        LOG.info("New OM snapshot received with higher layout version {}. " +
-            "Attempting to finalize current OM to that version.",
-            layoutVersionInDB);
-        upgradeFinalizer.finalizeAndWaitForCompletion(
-            "om-ratis-snapshot", this,
-            config.getRatisBasedFinalizationTimeout());
-        if (versionManager.getMetadataLayoutVersion() < layoutVersionInDB) {
-          throw new IOException("Unable to finalize OM to the desired layout " +
-              "version " + layoutVersionInDB + " present in the snapshot DB.");
-        } else {
-          updateLayoutVersionInDB(versionManager, metadataManager);
-        }
-      }
-
+      versionManager.checkDBSnapshotFinalization();
       instantiatePrepareStateAfterSnapshot();
     } else {
       // Prepare state depends on the transaction ID of metadataManager after a
@@ -1826,15 +1808,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
       omRatisServer.start();
     }
 
-    Integer layoutVersionInDB = getLayoutVersionInDB();
-    if (layoutVersionInDB == null ||
-        versionManager.getMetadataLayoutVersion() != layoutVersionInDB) {
-      LOG.info("Version File has different layout " +
-              "version ({}) than OM DB ({}). That is expected if this " +
-              "OM has never been finalized to a newer layout version.",
-          versionManager.getMetadataLayoutVersion(), layoutVersionInDB);
-    }
-
     metrics.setNumVolumes(metadataManager
         .countEstimatedRowsInTable(metadataManager.getVolumeTable()));
     metrics.setNumBuckets(metadataManager
@@ -2337,17 +2310,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   public long getObjectIdFromTxId(long trxnId) {
     return OmUtils.getObjectIdFromTxId(metadataManager.getOmEpoch(),
         trxnId);
-  }
-
-  /**
-   *
-   * @return Gets the stored layout version from the DB meta table.
-   * @throws IOException on Error.
-   */
-  private Integer getLayoutVersionInDB() throws IOException {
-    String layoutVersion =
-        metadataManager.getMetaTable().get(LAYOUT_VERSION_KEY);
-    return (layoutVersion == null) ? null : Integer.parseInt(layoutVersion);
   }
 
   public TransactionInfo getTransactionInfo() {
@@ -5047,19 +5009,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     try (UncheckedAutoCloseableSupplier<IOmMetadataReader> rcReader = getReader(args)) {
       return rcReader.get().getObjectTagging(args);
     }
-  }
-
-  /**
-   * Write down Layout version of a finalized feature to DB on finalization.
-   * @param lvm OMLayoutVersionManager
-   * @param omMetadataManager omMetadataManager instance
-   * @throws IOException on Error.
-   */
-  private void updateLayoutVersionInDB(OMLayoutVersionManager lvm,
-                                       OMMetadataManager omMetadataManager)
-      throws IOException {
-    omMetadataManager.getMetaTable().put(LAYOUT_VERSION_KEY,
-        String.valueOf(lvm.getMetadataLayoutVersion()));
   }
 
   private BucketLayout getBucketLayout() {

@@ -57,8 +57,7 @@ public abstract class ComponentVersionManager implements Closeable {
   private final ComponentVersionManagerMetrics metrics;
   private final Storage storage;
 
-  private static final Logger LOG =
-      LoggerFactory.getLogger(ComponentVersionManager.class);
+  private static final Logger LOG = LoggerFactory.getLogger(ComponentVersionManager.class);
 
   protected ComponentVersionManager(Storage storage, ComponentVersion apparentVersion, ComponentVersion softwareVersion)
       throws IOException {
