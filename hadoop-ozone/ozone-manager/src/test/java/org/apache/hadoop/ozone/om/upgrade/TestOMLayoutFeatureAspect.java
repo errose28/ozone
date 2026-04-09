@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -81,9 +82,9 @@ public class TestOMLayoutFeatureAspect {
   public void testPreExecuteLayoutCheck() {
 
     OzoneManager om = mock(OzoneManager.class);
-    OMLayoutVersionManager lvm = mock(OMLayoutVersionManager.class);
-    when(lvm.isAllowed(any(LayoutFeature.class))).thenReturn(false);
-    when(om.getVersionManager()).thenReturn(lvm);
+    OMVersionManager ovm = mock(OMVersionManager.class);
+    when(ovm.isAllowed(any(ComponentVersion.class))).thenReturn(false);
+    when(om.getVersionManager()).thenReturn(ovm);
 
     MockOmRequest mockOmRequest = new MockOmRequest();
     OMLayoutFeatureAspect aspect = new OMLayoutFeatureAspect();

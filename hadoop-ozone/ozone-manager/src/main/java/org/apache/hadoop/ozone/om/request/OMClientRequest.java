@@ -113,7 +113,7 @@ public abstract class OMClientRequest implements RequestAuditor {
   public OMRequest preExecute(OzoneManager ozoneManager)
       throws IOException {
     LayoutVersion layoutVersion = LayoutVersion.newBuilder()
-        .setVersion(ozoneManager.getVersionManager().getMetadataLayoutVersion())
+        .setVersion(ozoneManager.getVersionManager().getApparentVersion().serialize())
         .build();
     omRequest = getOmRequest().toBuilder()
         .setUserInfo(getUserIfNotExists(ozoneManager))

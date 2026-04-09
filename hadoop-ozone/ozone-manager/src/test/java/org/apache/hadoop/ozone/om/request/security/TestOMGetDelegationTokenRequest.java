@@ -37,7 +37,7 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.AuditLoggerType;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
-import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Status;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
@@ -69,8 +69,8 @@ public class TestOMGetDelegationTokenRequest extends
     when(ozoneManager.getDelegationTokenMgr()).thenReturn(secretManager);
     when(ozoneManager.getAuditLogger()).thenReturn(new AuditLogger(
         AuditLoggerType.OMLOGGER));
-    when(ozoneManager.getVersionManager()).thenReturn(
-        new OMLayoutVersionManager());
+    when(ozoneManager.getVersionManager())
+        .thenReturn(OMVersionManagerTestUtils.mockFinalizedOmVersionManager());
 
     setupToken();
     setupRequest();

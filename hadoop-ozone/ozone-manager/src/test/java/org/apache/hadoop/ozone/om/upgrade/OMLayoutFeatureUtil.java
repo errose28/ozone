@@ -22,9 +22,8 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.IOException;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.upgrade.LayoutFeature;
-import org.apache.hadoop.ozone.upgrade.LayoutVersionManager;
 
 /**
  * Test util class. To be removed.
@@ -54,13 +53,12 @@ public class OMLayoutFeatureUtil {
 
   // A method named 'getOmVersionManager' needed for the Aspect to get
   // instance of the layout version manager.
-  public LayoutVersionManager getOmVersionManager() throws IOException {
-    LayoutVersionManager mockLvm = mock(LayoutVersionManager.class);
-    when(mockLvm.isAllowed(any(LayoutFeature.class)))
+  public OMVersionManager getOmVersionManager() {
+    OMVersionManager mockOvm = mock(OMVersionManager.class);
+    when(mockOvm.isAllowed(any(ComponentVersion.class)))
         .thenReturn(false)
         .thenReturn(true);
-    return mockLvm;
+    return mockOvm;
   }
 
 }
-

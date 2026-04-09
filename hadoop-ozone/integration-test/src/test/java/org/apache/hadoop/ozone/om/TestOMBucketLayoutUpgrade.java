@@ -21,7 +21,7 @@ import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
 import static org.apache.hadoop.ozone.om.OMUpgradeTestUtils.waitForFinalization;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.INITIAL_VERSION;
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager.maxLayoutVersion;
+import org.apache.hadoop.ozone.OzoneManagerVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -157,7 +157,8 @@ class TestOMBucketLayoutUpgrade {
 
     waitForFinalization(omClient);
 
-    final String expectedVersion = String.valueOf(maxLayoutVersion());
+    final String expectedVersion =
+        String.valueOf(OzoneManagerVersion.SOFTWARE_VERSION.serialize());
     LambdaTestUtils.await(30000, 3000,
         () -> expectedVersion.equals(
             ozoneManager.getMetadataManager().getMetaTable()

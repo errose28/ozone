@@ -21,12 +21,12 @@ import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.protocolPB.OzoneManagerRequestHandler;
 import org.apache.hadoop.ozone.upgrade.LayoutFeature;
-import org.apache.hadoop.ozone.upgrade.LayoutVersionManager;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Before;
@@ -53,40 +53,39 @@ public class OMLayoutFeatureAspect {
     LayoutFeature layoutFeature = ((MethodSignature) joinPoint.getSignature())
         .getMethod().getAnnotation(DisallowedUntilLayoutVersion.class)
         .value();
-    LayoutVersionManager lvm;
     final Object[] args = joinPoint.getArgs();
     if (joinPoint.getTarget() instanceof OzoneManagerRequestHandler) {
       OzoneManager ozoneManager = ((OzoneManagerRequestHandler)
           joinPoint.getTarget()).getOzoneManager();
-      lvm = ozoneManager.getVersionManager();
+      checkIsAllowed(joinPoint.getSignature().toShortString(),
+          ozoneManager.getVersionManager(), layoutFeature);
     } else if (joinPoint.getTarget() instanceof OMClientRequest &&
         joinPoint.toShortString().endsWith(".preExecute(..))")) {
       // Get OzoneManager instance from preExecute first argument
       OzoneManager ozoneManager = (OzoneManager) args[0];
-      lvm = ozoneManager.getVersionManager();
+      checkIsAllowed(joinPoint.getSignature().toShortString(),
+          ozoneManager.getVersionManager(), layoutFeature);
     } else {
       try {
         Method method = joinPoint.getTarget().getClass()
             .getMethod(GET_VERSION_MANAGER_METHOD_NAME);
-        lvm = (LayoutVersionManager) method.invoke(joinPoint.getTarget());
+        OMVersionManager ovm = (OMVersionManager) method.invoke(joinPoint.getTarget());
+        checkIsAllowed(joinPoint.getSignature().toShortString(), ovm, layoutFeature);
       } catch (Exception ex) {
-        lvm = new OMLayoutVersionManager();
+        throw new IOException("Unable to load version manager to validate request: " + joinPoint.toShortString(), ex);
       }
     }
-    checkIsAllowed(joinPoint.getSignature().toShortString(), lvm, layoutFeature);
   }
 
   private void checkIsAllowed(String operationName,
-                              LayoutVersionManager lvm,
+                              OMVersionManager omVersionManager,
                               LayoutFeature layoutFeature) throws OMException {
-    if (!lvm.isAllowed(layoutFeature)) {
+    if (!omVersionManager.isAllowed(layoutFeature)) {
       throw new OMException(String.format("Operation %s cannot be invoked " +
-              "before finalization. It belongs to the layout feature %s, " +
-              "whose layout version is %d. Current Layout version is %d",
+              "before finalization. It belongs to version %s. Current apparent version is %s",
           operationName,
-          layoutFeature.toString(),
-          layoutFeature.layoutVersion(),
-          lvm.getMetadataLayoutVersion()),
+          layoutFeature,
+          omVersionManager.getApparentVersion()),
           NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
     }
   }

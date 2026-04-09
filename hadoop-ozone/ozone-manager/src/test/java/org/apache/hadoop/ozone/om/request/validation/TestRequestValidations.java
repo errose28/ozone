@@ -43,7 +43,7 @@ import org.apache.hadoop.ozone.om.request.validation.testvalidatorset1.GeneralVa
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.upgrade.LayoutVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -330,14 +330,14 @@ public class TestRequestValidations {
         .build();
   }
 
-  private LayoutVersionManager aFinalizedVersionManager() {
-    LayoutVersionManager vm = mock(LayoutVersionManager.class);
+  private OMVersionManager aFinalizedVersionManager() {
+    OMVersionManager vm = mock(OMVersionManager.class);
     when(vm.needsFinalization()).thenReturn(false);
     return vm;
   }
 
-  private LayoutVersionManager anUnfinalizedVersionManager() {
-    LayoutVersionManager vm = mock(LayoutVersionManager.class);
+  private OMVersionManager anUnfinalizedVersionManager() {
+    OMVersionManager vm = mock(OMVersionManager.class);
     when(vm.needsFinalization()).thenReturn(true);
     return vm;
   }

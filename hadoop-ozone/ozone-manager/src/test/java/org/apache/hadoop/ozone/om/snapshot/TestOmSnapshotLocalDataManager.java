@@ -89,7 +89,8 @@ import org.apache.hadoop.ozone.om.lock.HierarchicalResourceLockManager.Hierarchi
 import org.apache.hadoop.ozone.om.snapshot.OmSnapshotLocalDataManager.ReadableOmSnapshotLocalDataProvider;
 import org.apache.hadoop.ozone.om.snapshot.OmSnapshotLocalDataManager.WritableOmSnapshotLocalDataProvider;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
-import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.ozone.upgrade.LayoutFeature;
 import org.apache.hadoop.ozone.util.YamlSerializer;
 import org.apache.ozone.rocksdb.util.SstFileInfo;
@@ -137,8 +138,7 @@ public class TestOmSnapshotLocalDataManager {
   @TempDir
   private Path tempDir;
 
-  @Mock
-  private OMLayoutVersionManager layoutVersionManager;
+  private OMVersionManager layoutVersionManager;
 
   private OmSnapshotLocalDataManager localDataManager;
   private AutoCloseable mocks;
@@ -175,7 +175,8 @@ public class TestOmSnapshotLocalDataManager {
   @BeforeEach
   public void setUp() throws IOException {
     mocks = MockitoAnnotations.openMocks(this);
-    
+    layoutVersionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+
     // Setup mock behavior
     when(omMetadataManager.getStore()).thenReturn(rdbStore);
     when(omMetadataManager.getHierarchicalLockManager()).thenReturn(lockManager);
@@ -193,7 +194,6 @@ public class TestOmSnapshotLocalDataManager {
     purgedSnapshotIdMap.clear();
     snapshotUtilMock.when(() -> OmSnapshotManager.isSnapshotPurged(any(), any(), any(), any()))
         .thenAnswer(i -> purgedSnapshotIdMap.getOrDefault(i.getArgument(2), false));
-    when(layoutVersionManager.isAllowed(any(LayoutFeature.class))).thenReturn(true);
     conf.setInt(OZONE_OM_SNAPSHOT_LOCAL_DATA_MANAGER_SERVICE_INTERVAL, -1);
   }
 

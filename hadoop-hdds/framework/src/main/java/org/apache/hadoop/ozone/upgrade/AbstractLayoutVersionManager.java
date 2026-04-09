@@ -38,7 +38,7 @@ import org.slf4j.LoggerFactory;
  */
 @SuppressWarnings("visibilitymodifier")
 public abstract class AbstractLayoutVersionManager<T extends LayoutFeature>
-    implements LayoutVersionManager, LayoutVersionManagerMXBean {
+    implements LayoutVersionManagerMXBean {
 
   private static final Logger LOG =
       LoggerFactory.getLogger(AbstractLayoutVersionManager.class);
