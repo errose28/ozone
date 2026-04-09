@@ -91,7 +91,6 @@ import org.apache.hadoop.ozone.om.snapshot.OmSnapshotLocalDataManager.WritableOm
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
-import org.apache.hadoop.ozone.upgrade.LayoutFeature;
 import org.apache.hadoop.ozone.util.YamlSerializer;
 import org.apache.ozone.rocksdb.util.SstFileInfo;
 import org.apache.ratis.util.function.CheckedFunction;

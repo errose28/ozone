@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.ozone.upgrade;
 
+import static org.apache.hadoop.ozone.upgrade.UpgradeException.ResultCodes.APPARENT_VERSION_UPDATE_FAILED;
+
 import com.google.common.annotations.VisibleForTesting;
 import java.io.Closeable;
 import java.io.IOException;
@@ -26,8 +28,6 @@ import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.common.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.hadoop.ozone.upgrade.UpgradeException.ResultCodes.APPARENT_VERSION_UPDATE_FAILED;
 
 /**
  * Tracks information about the apparent version, software version, and finalization status of a component.

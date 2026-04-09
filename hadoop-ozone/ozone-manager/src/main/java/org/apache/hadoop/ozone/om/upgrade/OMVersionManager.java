@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.ozone.om.upgrade;
 
+import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
+
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.Map;
@@ -28,8 +30,6 @@ import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
 
 /**
  * Component version manager for Ozone Manager.

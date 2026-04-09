@@ -67,7 +67,6 @@ import org.apache.hadoop.ozone.om.exceptions.OMLeaderNotReadyException;
 import org.apache.hadoop.ozone.om.exceptions.OMNotLeaderException;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
-import org.apache.hadoop.ozone.upgrade.LayoutFeature;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.ssl.KeyStoreTestUtil;
 import org.apache.hadoop.security.token.SecretManager;

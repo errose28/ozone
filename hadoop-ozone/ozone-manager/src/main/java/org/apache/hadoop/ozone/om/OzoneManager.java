@@ -162,7 +162,6 @@ import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.SafeModeAction;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.ExitManager;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.HddsUtils;

@@ -23,7 +23,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.apache.hadoop.hdds.ComponentVersion;
-import org.apache.hadoop.ozone.upgrade.LayoutFeature;
 
 /**
  * Test util class. To be removed.

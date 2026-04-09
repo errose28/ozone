@@ -21,7 +21,6 @@ import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
