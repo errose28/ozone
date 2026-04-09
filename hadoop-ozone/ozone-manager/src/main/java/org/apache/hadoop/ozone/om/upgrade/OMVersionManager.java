@@ -56,8 +56,8 @@ public class OMVersionManager extends ComponentVersionManager {
     ComponentVersion apparentVersion = getApparentVersion();
 
     if (!apparentVersion.equals(dbVersion)) {
-      LOG.info("Version File has different layout version ({}) than OM DB ({}). That is expected if this " +
-              "OM has never been finalized to a newer layout version.", apparentVersion, dbVersion);
+      LOG.info("Version file has different apparent version ({}) than OM DB ({}). That is expected if this "
+              + "OM has never been finalized to a newer version.", apparentVersion, dbVersion);
     }
 
     upgradeActions = upgradeActionProvider.load();
@@ -66,8 +66,8 @@ public class OMVersionManager extends ComponentVersionManager {
   public void checkDBSnapshotFinalization() throws IOException {
     ComponentVersion apparentVersionInDB = getApparentVersionInDB();
     if (apparentVersionInDB != null && !isAllowed(apparentVersionInDB)) {
-      LOG.info("New OM snapshot received with higher layout version {}. " +
-          "Attempting to finalize current OM to that version.", apparentVersionInDB);
+      LOG.info("New OM snapshot received with higher apparent version {}. "
+          + "Attempting to finalize current OM to that version.", apparentVersionInDB);
       finalizeUpgrade();
       updateApparentVersionInDB();
     }
@@ -101,10 +101,11 @@ public class OMVersionManager extends ComponentVersionManager {
   }
 
   /**
-   * If the apparent version stored on the disk is >= 100, it indicates the component has been finalized for the
-   * ZDU feature, and the apparent version corresponds to a version in {@link OzoneManagerVersion}.
-   * If the apparent version stored on the disk is < 100, it indicates the component is not yet finalized for the
-   * ZDU feature, and the apparent version corresponds to a version in {@link OMLayoutFeature}.
+   * Maps a serialized apparent version to a {@link ComponentVersion}.
+   * If the value is &gt;= {@link OzoneManagerVersion#ZDU} serialized, the OM has been finalized for ZDU and the
+   * apparent version is an {@link OzoneManagerVersion}.
+   * If the value is below that threshold, the OM is not yet ZDU-finalized and the apparent version is resolved as
+   * an {@link OMLayoutFeature} (legacy layout feature enum).
    */
   private static ComponentVersion computeApparentVersion(int serializedApparentVersion) {
     if (serializedApparentVersion < OzoneManagerVersion.ZDU.serialize()) {

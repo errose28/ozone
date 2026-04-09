@@ -1525,13 +1525,13 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
         System.out.println(
             "OM initialization succeeded.Current cluster id for sd="
                 + omStorage.getStorageDir() + ";cid=" + omStorage
-                .getClusterID() + ";layoutVersion=" + omStorage
+                .getClusterID() + ";apparentVersion=" + omStorage
                 .getApparentVersion());
       } else {
         System.out.println(
             "OM already initialized.Reusing existing cluster id for sd="
                 + omStorage.getStorageDir() + ";cid=" + omStorage
-                .getClusterID() + ";layoutVersion=" + omStorage
+                .getClusterID() + ";apparentVersion=" + omStorage
                 .getApparentVersion());
       }
     } catch (IOException ioe) {

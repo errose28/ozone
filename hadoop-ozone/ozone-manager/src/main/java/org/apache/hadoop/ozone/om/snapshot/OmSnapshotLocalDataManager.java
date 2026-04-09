@@ -342,14 +342,14 @@ public class OmSnapshotLocalDataManager implements AutoCloseable {
   }
 
   private void init(OzoneConfiguration configuration, SnapshotChainManager chainManager,
-      OMVersionManager layoutVersionManager,
+      OMVersionManager omVersionManager,
       CheckedFunction<SnapshotInfo, OmMetadataManagerImpl, IOException> defaultSnapProvider) throws IOException {
     this.locks = omMetadataManager.getHierarchicalLockManager();
     this.snapshotToBeCheckedForOrphans = new ConcurrentHashMap<>();
     RDBStore store = (RDBStore) omMetadataManager.getStore();
     String checkpointPrefix = store.getDbLocation().getName();
     File snapshotDir = new File(store.getSnapshotsParentDir());
-    boolean upgradeNeeded = !layoutVersionManager.isAllowed(SNAPSHOT_DEFRAG);
+    boolean upgradeNeeded = !omVersionManager.isAllowed(SNAPSHOT_DEFRAG);
     if (upgradeNeeded) {
       addMissingSnapshotYamlFiles(defaultSnapProvider);
     }

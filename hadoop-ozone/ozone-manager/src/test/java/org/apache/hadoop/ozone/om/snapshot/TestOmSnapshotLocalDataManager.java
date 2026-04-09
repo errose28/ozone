@@ -137,7 +137,7 @@ public class TestOmSnapshotLocalDataManager {
   @TempDir
   private Path tempDir;
 
-  private OMVersionManager layoutVersionManager;
+  private OMVersionManager omVersionManager;
 
   private OmSnapshotLocalDataManager localDataManager;
   private AutoCloseable mocks;
@@ -174,7 +174,7 @@ public class TestOmSnapshotLocalDataManager {
   @BeforeEach
   public void setUp() throws IOException {
     mocks = MockitoAnnotations.openMocks(this);
-    layoutVersionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    omVersionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
 
     // Setup mock behavior
     when(omMetadataManager.getStore()).thenReturn(rdbStore);
@@ -261,7 +261,7 @@ public class TestOmSnapshotLocalDataManager {
 
   private OmSnapshotLocalDataManager getNewOmSnapshotLocalDataManager(
       CheckedFunction<SnapshotInfo, OmMetadataManagerImpl, IOException> provider) throws IOException {
-    return new OmSnapshotLocalDataManager(omMetadataManager, null, layoutVersionManager, provider, conf);
+    return new OmSnapshotLocalDataManager(omMetadataManager, null, omVersionManager, provider, conf);
   }
 
   private OmSnapshotLocalDataManager getNewOmSnapshotLocalDataManager() throws IOException {
@@ -996,7 +996,7 @@ public class TestOmSnapshotLocalDataManager {
     table.put("snap3", createMockSnapshotInfo(snap3, null, SNAPSHOT_ACTIVE));
     table.put("snap2", createMockSnapshotInfo(snap2, snap3, SNAPSHOT_DELETED));
     table.put("snap1", createMockSnapshotInfo(snap1, snap2, SNAPSHOT_ACTIVE));
-    when(layoutVersionManager.isAllowed(eq(OMLayoutFeature.SNAPSHOT_DEFRAG))).thenReturn(!needsUpgrade);
+    when(omVersionManager.isAllowed(eq(OMLayoutFeature.SNAPSHOT_DEFRAG))).thenReturn(!needsUpgrade);
     localDataManager = getNewOmSnapshotLocalDataManager(mockedProvider);
     if (needsUpgrade) {
       assertEquals(ImmutableSet.of(snap1, snap2, snap3), localDataManager.getVersionNodeMapUnmodifiable().keySet());
