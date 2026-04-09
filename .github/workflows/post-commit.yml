@@ -27,3 +27,7 @@ jobs:
       || (github.repository != 'apache/ozone' && github.ref_name != 'master')
     uses: ./.github/workflows/ci.yml
     secrets: inherit
+    with:
+      # Forks: keep scheduling acceptance/integration/repro even when a basic check fails.
+      # apache/ozone: strict gating unless repo variable OZONE_CHECKS_CONTINUE_ON_ERROR is set to true.
+      checks-continue-on-error: ${{ github.repository != 'apache/ozone' || vars.OZONE_CHECKS_CONTINUE_ON_ERROR == 'true' }}

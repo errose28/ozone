@@ -42,9 +42,12 @@ if [[ "${OZONE_WITH_COVERAGE}" != "true" ]]; then
 fi
 
 if [[ "${FAIL_FAST}" == "true" ]]; then
-  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-fast -Dsurefire.skipAfterFailureCount=1"
+  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-fast -Dsurefire.skipAfterFailureCount=1 -Dfailsafe.skipAfterFailureCount=1"
 else
-  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-never"
+  # Run the full reactor and all tests: do not stop at the first failing module (--fail-fast) or
+  # the first failing test (skipAfterFailureCount). Use fail-at-end so Maven still reports failure
+  # at the end; _post_process.sh and summary.txt remain the source of truth for the script exit code.
+  MAVEN_OPTIONS="${MAVEN_OPTIONS} --fail-at-end -Dsurefire.skipAfterFailureCount=0 -Dfailsafe.skipAfterFailureCount=0"
 fi
 
 # apply module access args (for Java 9+)
