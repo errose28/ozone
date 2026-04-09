@@ -145,8 +145,6 @@ public class TestSnapshotDefragService {
   @Mock
   private IOzoneManagerLock omLock;
 
-  private OMVersionManager versionManager;
-
   private DeltaFileComputer deltaFileComputer;
 
   @TempDir
@@ -161,7 +159,7 @@ public class TestSnapshotDefragService {
   public void setup() throws IOException {
     mocks = MockitoAnnotations.openMocks(this);
     configuration = new OzoneConfiguration();
-    versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    OMVersionManager versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
 
     // Setup basic mocks
     when(ozoneManager.getOmSnapshotManager()).thenReturn(omSnapshotManager);

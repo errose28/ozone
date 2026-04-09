@@ -78,6 +78,7 @@ public class OMVersionManager extends ComponentVersionManager {
     return upgradeActions;
   }
 
+  @Override
   protected void runUpgradeAction(ComponentVersion componentVersion) throws UpgradeException {
     OmUpgradeAction action = upgradeActions.get(componentVersion);
     if (action == null) {
