@@ -65,6 +65,7 @@ import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotCreateRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.TestOMSnapshotCreateRequest;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotCreateResponse;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
@@ -165,8 +166,8 @@ public class TestSnapshotRequestAndResponse {
     IAccessAuthorizer accessAuthorizer = mock(IAccessAuthorizer.class);
     when(ozoneManager.getAccessAuthorizer()).thenReturn(accessAuthorizer);
     when(accessAuthorizer.isNative()).thenReturn(false);
-    when(ozoneManager.getVersionManager())
-        .thenReturn(OMVersionManagerTestUtils.mockFinalizedOmVersionManager());
+    OMVersionManager versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    when(ozoneManager.getVersionManager()).thenReturn(versionManager);
     AuditLogger auditLogger = mock(AuditLogger.class);
     when(ozoneManager.getAuditLogger()).thenReturn(auditLogger);
     doNothing().when(auditLogger).logWrite(any(AuditMessage.class));

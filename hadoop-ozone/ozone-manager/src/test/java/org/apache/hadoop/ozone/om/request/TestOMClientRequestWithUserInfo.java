@@ -44,6 +44,7 @@ import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.request.bucket.OMBucketCreateRequest;
 import org.apache.hadoop.ozone.om.request.key.OMKeyCommitRequest;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.BucketInfo;
@@ -85,8 +86,8 @@ public class TestOMClientRequestWithUserInfo {
     when(omConfig.isFileSystemPathEnabled()).thenReturn(false);
     when(ozoneManager.getConfig()).thenReturn(omConfig);
 
-    when(ozoneManager.getVersionManager())
-        .thenReturn(OMVersionManagerTestUtils.mockFinalizedOmVersionManager());
+    OMVersionManager versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    when(ozoneManager.getVersionManager()).thenReturn(versionManager);
 
     inetAddress = InetAddress.getByName("127.0.0.1");
   }

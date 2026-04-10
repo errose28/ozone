@@ -66,6 +66,7 @@ import org.apache.hadoop.ozone.om.S3SecretManagerImpl;
 import org.apache.hadoop.ozone.om.exceptions.OMLeaderNotReadyException;
 import org.apache.hadoop.ozone.om.exceptions.OMNotLeaderException;
 import org.apache.hadoop.ozone.om.helpers.S3SecretValue;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.ssl.KeyStoreTestUtil;
@@ -120,8 +121,8 @@ public class TestOzoneDelegationTokenSecretManager {
     om = mock(OzoneManager.class);
     OMMetadataManager metadataManager = new OmMetadataManagerImpl(conf, om);
     when(om.getMetadataManager()).thenReturn(metadataManager);
-    when(om.getVersionManager())
-        .thenReturn(OMVersionManagerTestUtils.mockFinalizedOmVersionManager());
+    OMVersionManager versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    when(om.getVersionManager()).thenReturn(versionManager);
     s3SecretManager = new S3SecretLockedManager(
         new S3SecretManagerImpl(new S3SecretStoreMap(s3Secrets),
             mock(S3SecretCache.class)),
