@@ -30,8 +30,6 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_OPEN_KEY_CLEANUP_
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_OPEN_KEY_EXPIRE_THRESHOLD;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isDone;
-import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isStarting;
-import static org.apache.ozone.test.LambdaTestUtils.await;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -218,16 +216,6 @@ public class TestHSyncUpgrade {
         .getClientProxy().getOzoneManagerClient();
     UpgradeFinalization.StatusAndMessages finalizationResponse =
         omClient.finalizeUpgrade();
-
-    // The status should transition as soon as the client call above returns
-    assertTrue(isStarting(finalizationResponse.status()));
-    // Wait for the finalization to be marked as done.
-    // 10s timeout should be plenty.
-    await(POLL_MAX_WAIT_MILLIS, POLL_INTERVAL_MILLIS, () -> {
-      final UpgradeFinalization.StatusAndMessages progress =
-          omClient.queryUpgradeFinalizationProgress();
-      return isDone(progress.status());
-    });
+    assertTrue(isDone(finalizationResponse.status()));
   }
-
 }
