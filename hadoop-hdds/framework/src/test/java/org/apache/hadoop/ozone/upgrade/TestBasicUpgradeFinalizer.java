@@ -95,7 +95,9 @@ public class TestBasicUpgradeFinalizer {
     StatusAndMessages res =
         finalizer.finalize("test-client-1", mockObj);
 
-    assertEquals(ALREADY_FINALIZED, res.status());
+    // TODO this test class will be removed with BasicUpgradeFinalizer when all components are migrated to the new
+    //  version framework.
+    assertEquals(FINALIZATION_DONE, res.status());
     assertFalse(finalizer.preCalled || finalizer.finalizeCalled ||
         finalizer.postCalled);
   }
