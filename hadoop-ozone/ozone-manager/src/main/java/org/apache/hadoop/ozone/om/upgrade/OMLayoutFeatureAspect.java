@@ -52,28 +52,28 @@ public class OMLayoutFeatureAspect {
     LayoutFeature layoutFeature = ((MethodSignature) joinPoint.getSignature())
         .getMethod().getAnnotation(DisallowedUntilLayoutVersion.class)
         .value();
+    OMVersionManager versionManager = null;
     final Object[] args = joinPoint.getArgs();
     if (joinPoint.getTarget() instanceof OzoneManagerRequestHandler) {
       OzoneManager ozoneManager = ((OzoneManagerRequestHandler)
           joinPoint.getTarget()).getOzoneManager();
-      checkIsAllowed(joinPoint.getSignature().toShortString(),
-          ozoneManager.getVersionManager(), layoutFeature);
+      versionManager = ozoneManager.getVersionManager();
     } else if (joinPoint.getTarget() instanceof OMClientRequest &&
         joinPoint.toShortString().endsWith(".preExecute(..))")) {
       // Get OzoneManager instance from preExecute first argument
       OzoneManager ozoneManager = (OzoneManager) args[0];
-      checkIsAllowed(joinPoint.getSignature().toShortString(),
-          ozoneManager.getVersionManager(), layoutFeature);
+      versionManager = ozoneManager.getVersionManager();
     } else {
       try {
         Method method = joinPoint.getTarget().getClass()
             .getMethod(GET_VERSION_MANAGER_METHOD_NAME);
-        OMVersionManager ovm = (OMVersionManager) method.invoke(joinPoint.getTarget());
-        checkIsAllowed(joinPoint.getSignature().toShortString(), ovm, layoutFeature);
+        versionManager = (OMVersionManager) method.invoke(joinPoint.getTarget());
       } catch (Exception ex) {
         throw new IOException("Unable to load version manager to validate request: " + joinPoint.toShortString(), ex);
       }
     }
+    // Throws an exception that must be propagated if the request is not allowed.
+    checkIsAllowed(joinPoint.getSignature().toShortString(), versionManager, layoutFeature);
   }
 
   private void checkIsAllowed(String operationName,
