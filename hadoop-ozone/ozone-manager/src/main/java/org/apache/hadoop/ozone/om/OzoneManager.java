@@ -530,7 +530,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
 
     reconfigurationHandler.setReconfigurationCompleteCallback(reconfigurationHandler.defaultLoggingCallback());
 
-    versionManager = new OMVersionManager(this);
     replicationConfigValidator =
         conf.getObject(ReplicationConfigValidator.class);
 
@@ -557,6 +556,8 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
           ResultCodes.OM_NOT_INITIALIZED);
     }
     omMetaDir = OMStorage.getOmDbDir(configuration);
+
+    versionManager = new OMVersionManager(omStorage, this);
 
     this.isSpnegoEnabled = conf.get(OZONE_OM_HTTP_AUTH_TYPE, "simple")
         .equals("kerberos");
@@ -913,6 +914,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     OmMetadataManagerImpl metadataManagerImpl =
         new OmMetadataManagerImpl(configuration, this);
     this.metadataManager = metadataManagerImpl;
+    versionManager.validateDBVersion(metadataManager);
     LOG.info("S3 Multi-Tenancy is {}",
         isS3MultiTenancyEnabled ? "enabled" : "disabled");
     if (isS3MultiTenancyEnabled) {
@@ -999,7 +1001,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     updateActiveSnapshotMetrics();
 
     if (withNewSnapshot) {
-      versionManager.checkDBSnapshotFinalization();
+      versionManager.finalizeFromSnapshotIfRequired(metadataManager);
       instantiatePrepareStateAfterSnapshot();
     } else {
       // Prepare state depends on the transaction ID of metadataManager after a

@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.ozone.om.upgrade;
 
+import static org.apache.hadoop.ozone.OzoneManagerVersion.SOFTWARE_VERSION;
 import static org.apache.hadoop.ozone.OzoneManagerVersion.ZDU;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.DELEGATION_TOKEN_SYMMETRIC_SIGN;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT;
@@ -24,8 +25,10 @@ import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.HBASE_SUPPORT;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.INITIAL_VERSION;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.QUOTA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.atLeastOnce;
@@ -36,7 +39,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -87,7 +92,6 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
   @BeforeEach
   public void init() {
     conf = new OzoneConfiguration();
-    conf.set(OMConfigKeys.OZONE_OM_DB_DIRS, tempFolder.toString());
   }
 
   public static Stream<Arguments> preFinalizedVersionArgs() {
@@ -107,8 +111,7 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
       ComponentUpgradeActionProvider<OmUpgradeAction> actions) throws IOException {
     OMStorage storage = newOmStorage(serializedApparentVersion);
     OzoneManager mockOM = Mockito.mock(OzoneManager.class);
-    when(mockOM.getOmStorage()).thenReturn(storage);
-    return new OMVersionManager(mockOM, actions);
+    return new OMVersionManager(storage, mockOM, actions);
   }
 
   @Override
@@ -123,13 +126,15 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
 
   @Test
   public void testClasspathScanDiscoversUpgradeActions() throws Exception {
+    // Regardless of whether OM is finalized, the same set of upgrade actions should be loaded.
     try (OMVersionManager versionManager = createManager(INITIAL_VERSION.serialize(), new OMUpgradeActionProvider())) {
+      assertTrue(versionManager.needsFinalization());
       OmUpgradeAction quotaAction = versionManager.getUpgradeActionsForTesting().get(QUOTA);
       assertInstanceOf(QuotaRepairUpgradeAction.class, quotaAction);
     }
 
-    // TODO this got changed, it should be checking a version that is finalized.
-    try (OMVersionManager versionManager = createManager(INITIAL_VERSION.serialize(), new OMUpgradeActionProvider())) {
+    try (OMVersionManager versionManager = createManager(SOFTWARE_VERSION.serialize(), new OMUpgradeActionProvider())) {
+      assertFalse(versionManager.needsFinalization());
       OmUpgradeAction quotaAction = versionManager.getUpgradeActionsForTesting().get(QUOTA);
       assertInstanceOf(QuotaRepairUpgradeAction.class, quotaAction);
     }
@@ -191,8 +196,7 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
     doThrow(new IOException("persist failed")).when(storage).persistCurrentState();
 
     OzoneManager mockOM = Mockito.mock(OzoneManager.class);
-    when(mockOM.getOmStorage()).thenReturn(storage);
-    try (OMVersionManager versionManager = new OMVersionManager(mockOM, HashMap::new)) {
+    try (OMVersionManager versionManager = new OMVersionManager(storage, mockOM, HashMap::new)) {
       assertEquals(INITIAL_VERSION, versionManager.getApparentVersion());
       UpgradeException thrown = assertThrows(UpgradeException.class, versionManager::finalizeUpgrade);
       assertEquals(UpgradeException.ResultCodes.APPARENT_VERSION_UPDATE_FAILED, thrown.getResult());
@@ -203,6 +207,9 @@ class TestOMVersionManager extends AbstractComponentVersionManagerTest {
 
   private OMStorage newOmStorage(int apparentVersion)
       throws IOException {
+    // Reinitialize the configuration to point to a new unique storage location.
+    Path dbDir = Files.createDirectory(new File(tempFolder.toFile(), UUID.randomUUID().toString()).toPath());
+    conf.set(OMConfigKeys.OZONE_OM_DB_DIRS, dbDir.toString());
     OMStorage storage = new OMStorage(conf);
     storage.setClusterId("test-cluster");
     storage.setApparentVersion(apparentVersion);

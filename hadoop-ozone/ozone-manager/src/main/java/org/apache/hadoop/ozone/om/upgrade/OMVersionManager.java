@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
+import org.apache.hadoop.ozone.om.OMMetadataManager;
+import org.apache.hadoop.ozone.om.OMStorage;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.upgrade.ComponentUpgradeActionProvider;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
@@ -40,36 +42,38 @@ public class OMVersionManager extends ComponentVersionManager {
 
   private final Map<ComponentVersion, OmUpgradeAction> upgradeActions;
 
-  private final OzoneManager om;
+  // The OM may not be fully initialized when the version manager is constructed. This field is just provided as an
+  // argument for upgrade actions when they are run.
+  private final OzoneManager upgradeActionArg;
 
-  public OMVersionManager(OzoneManager om) throws IOException {
-    this(om, new OMUpgradeActionProvider());
+  public OMVersionManager(OMStorage storage, OzoneManager upgradeActionArg) throws IOException {
+    this(storage, upgradeActionArg, new OMUpgradeActionProvider());
   }
 
-  public OMVersionManager(OzoneManager om, ComponentUpgradeActionProvider<OmUpgradeAction> upgradeActionProvider)
-      throws IOException {
-    super(om.getOmStorage(), computeApparentVersion(om.getOmStorage().getApparentVersion()),
-        OzoneManagerVersion.SOFTWARE_VERSION);
-    this.om = om;
+  public OMVersionManager(OMStorage storage, OzoneManager upgradeActionArg,
+      ComponentUpgradeActionProvider<OmUpgradeAction> upgradeActionProvider) throws IOException {
+    super(storage, computeApparentVersion(storage.getApparentVersion()), OzoneManagerVersion.SOFTWARE_VERSION);
+    this.upgradeActionArg = upgradeActionArg;
+    upgradeActions = upgradeActionProvider.load();
+  }
 
-    ComponentVersion dbVersion = getApparentVersionInDB();
+  public void validateDBVersion(OMMetadataManager metadataManager) throws IOException {
+    ComponentVersion dbVersion = getApparentVersionInDB(metadataManager);
     ComponentVersion apparentVersion = getApparentVersion();
 
     if (!apparentVersion.equals(dbVersion)) {
       LOG.info("Version file has different apparent version ({}) than OM DB ({}). That is expected if this "
-              + "OM has never been finalized to a newer version.", apparentVersion, dbVersion);
+          + "OM has never been finalized to a newer version.", apparentVersion, dbVersion);
     }
-
-    upgradeActions = upgradeActionProvider.load();
   }
 
-  public void checkDBSnapshotFinalization() throws IOException {
-    ComponentVersion apparentVersionInDB = getApparentVersionInDB();
+  public void finalizeFromSnapshotIfRequired(OMMetadataManager metadataManager) throws IOException {
+    ComponentVersion apparentVersionInDB = getApparentVersionInDB(metadataManager);
     if (apparentVersionInDB != null && !isAllowed(apparentVersionInDB)) {
       LOG.info("New OM snapshot received with higher apparent version {}. "
           + "Attempting to finalize current OM to that version.", apparentVersionInDB);
       finalizeUpgrade();
-      updateApparentVersionInDB();
+      updateApparentVersionInDB(metadataManager);
     }
   }
 
@@ -85,20 +89,20 @@ public class OMVersionManager extends ComponentVersionManager {
       return;
     }
     try {
-      action.execute(om);
+      action.execute(upgradeActionArg);
     } catch (Exception e) {
       logAndThrow(e, "OM upgrade action for version " + componentVersion + " failed.",
           UpgradeException.ResultCodes.FINALIZE_UPGRADE_ACTION_FAILED);
     }
   }
 
-  private ComponentVersion getApparentVersionInDB() throws IOException {
-    String apparentVersion = om.getMetadataManager().getMetaTable().get(LAYOUT_VERSION_KEY);
+  private static ComponentVersion getApparentVersionInDB(OMMetadataManager metadataManager) throws IOException {
+    String apparentVersion = metadataManager.getMetaTable().get(LAYOUT_VERSION_KEY);
     return (apparentVersion == null) ? null : computeApparentVersion(Integer.parseInt(apparentVersion));
   }
 
-  private void updateApparentVersionInDB() throws IOException {
-    om.getMetadataManager().getMetaTable().put(LAYOUT_VERSION_KEY, String.valueOf(getApparentVersion().serialize()));
+  private void updateApparentVersionInDB(OMMetadataManager metadataManager) throws IOException {
+    metadataManager.getMetaTable().put(LAYOUT_VERSION_KEY, String.valueOf(getApparentVersion().serialize()));
   }
 
   /**
