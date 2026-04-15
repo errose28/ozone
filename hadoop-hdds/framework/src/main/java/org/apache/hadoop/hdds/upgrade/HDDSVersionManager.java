@@ -49,6 +49,5 @@ public class HDDSVersionManager extends ComponentVersionManager {
   @Override
   protected void runUpgradeAction(ComponentVersion componentVersion) throws UpgradeException {
     // TODO HDDS-14826: Register upgrade actions based on annotations
-    //  This class will likely need an SCM and DN specific subclass to run the corresponding actions.
   }
 }

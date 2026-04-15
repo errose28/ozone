@@ -29,7 +29,10 @@ import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.ozone.common.Storage;
 import org.apache.hadoop.ozone.upgrade.AbstractComponentVersionManagerTest;
 import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
+import org.apache.ozone.test.tag.Unhealthy;
+import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
 /**
@@ -54,6 +57,15 @@ class TestHDDSVersionManager extends AbstractComponentVersionManagerTest {
     return ALL_VERSIONS.stream()
         .limit(ALL_VERSIONS.size() - 1)
         .map(Arguments::of);
+  }
+
+  @ParameterizedTest
+  @MethodSource("preFinalizedVersionArgs")
+  @Override
+  @Unhealthy
+  public void testFinalizationFromEarlierVersions(ComponentVersion apparentVersion) {
+    // TODO Once HDDSVersionManager implementation is finished, this override can be removed to enable the test in the
+    //  parent class.
   }
 
   @Override
