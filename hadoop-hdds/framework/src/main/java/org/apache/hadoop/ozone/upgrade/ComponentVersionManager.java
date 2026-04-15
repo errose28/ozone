@@ -106,10 +106,8 @@ public abstract class ComponentVersionManager implements Closeable {
       persistApparentVersion(version);
 
       LOG.info("Version {} has been finalized.", version);
-      if (!needsFinalization()) {
-        LOG.info("Finalization is complete.");
-      }
     }
+    LOG.info("Finalization is complete.");
   }
 
   /**
