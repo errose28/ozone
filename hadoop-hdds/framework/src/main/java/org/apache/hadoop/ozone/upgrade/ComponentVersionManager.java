@@ -59,16 +59,11 @@ public abstract class ComponentVersionManager implements Closeable {
 
   private static final Logger LOG = LoggerFactory.getLogger(ComponentVersionManager.class);
 
-  protected ComponentVersionManager(Storage storage, ComponentVersion apparentVersion, ComponentVersion softwareVersion)
-      throws IOException {
+  protected ComponentVersionManager(Storage storage, ComponentVersion apparentVersion,
+      ComponentVersion softwareVersion) {
     this.storage = storage;
     this.apparentVersion = apparentVersion;
     this.softwareVersion = softwareVersion;
-
-    if (!apparentVersion.isSupportedBy(softwareVersion)) {
-      throw new IOException("Initialize failed. Apparent version " + apparentVersion +
-          " is larger than software version " + softwareVersion);
-    }
 
     LOG.info("Initializing version manager with apparent version {} and software version {}",
         apparentVersion, softwareVersion);

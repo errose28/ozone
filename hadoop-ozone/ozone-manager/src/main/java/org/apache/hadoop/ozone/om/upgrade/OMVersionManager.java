@@ -108,15 +108,26 @@ public class OMVersionManager extends ComponentVersionManager {
   /**
    * Maps a serialized apparent version to a {@link ComponentVersion}.
    * If the value is &gt;= {@link OzoneManagerVersion#ZDU} serialized, the OM has been finalized for ZDU and the
-   * apparent version is an {@link OzoneManagerVersion}.
-   * If the value is below that threshold, the OM is not yet ZDU-finalized and the apparent version is resolved as
-   * an {@link OMLayoutFeature} (legacy layout feature enum).
+   * apparent version is resolved via {@link OzoneManagerVersion#deserialize(int)}. Values with no matching
+   * {@link OzoneManagerVersion} fail startup with the persisted integer in the exception message.
+   * If the value is below that threshold, the apparent version is resolved as an {@link OMLayoutFeature}. Integers in
+   * the gap between the largest {@link OMLayoutFeature} and ZDU are not valid legacy layout values; startup fails with
+   * the persisted integer in the exception message.
    */
-  private static ComponentVersion computeApparentVersion(int serializedApparentVersion) {
-    if (serializedApparentVersion < OzoneManagerVersion.ZDU.serialize()) {
-      return OMLayoutFeature.deserialize(serializedApparentVersion);
+  private static ComponentVersion computeApparentVersion(int serializedApparentVersion) throws IOException {
+    if (serializedApparentVersion >= OzoneManagerVersion.ZDU.serialize()) {
+      OzoneManagerVersion fromOm = OzoneManagerVersion.deserialize(serializedApparentVersion);
+      if (fromOm != OzoneManagerVersion.FUTURE_VERSION) {
+        return fromOm;
+      }
     } else {
-      return OzoneManagerVersion.deserialize(serializedApparentVersion);
+      ComponentVersion fromLayout = OMLayoutFeature.deserialize(serializedApparentVersion);
+      if (fromLayout != null) {
+        return fromLayout;
+      }
     }
+    throw new IOException("Initialization failed. Disk contains unknown apparent version " + serializedApparentVersion +
+        " for software version " + OzoneManagerVersion.SOFTWARE_VERSION + ". Make sure OM was not downgraded after" +
+        " finalization");
   }
 }
