@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.om;
 
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PrepareStatusResponse.PrepareStatus.PREPARE_COMPLETED;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.ALREADY_FINALIZED;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.FINALIZATION_DONE;
 import static org.apache.ozone.test.GenericTestUtils.waitFor;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -75,7 +76,10 @@ public final class OMUpgradeTestUtils {
             omClient.queryUpgradeFinalizationProgress();
         System.out.println("Finalization Messages : " +
             statusAndMessages.msgs());
-        return statusAndMessages.status().equals(FINALIZATION_DONE);
+        // OM returns FINALIZED_MSG (ALREADY_FINALIZED) when complete; SCM-style
+        // flows may still surface FINALIZATION_DONE.
+        return statusAndMessages.status().equals(FINALIZATION_DONE)
+            || statusAndMessages.status().equals(ALREADY_FINALIZED);
       } catch (IOException e) {
         fail(e.getMessage());
       }

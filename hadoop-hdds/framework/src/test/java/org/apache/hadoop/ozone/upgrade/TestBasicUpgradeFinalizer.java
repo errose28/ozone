@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.upgrade;
 
 import static org.apache.hadoop.ozone.upgrade.TestUpgradeFinalizerActions.MockLayoutFeature.VERSION_1;
 import static org.apache.hadoop.ozone.upgrade.TestUpgradeFinalizerActions.MockLayoutFeature.VERSION_3;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.ALREADY_FINALIZED;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.FINALIZATION_DONE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -96,7 +97,7 @@ public class TestBasicUpgradeFinalizer {
 
     // TODO this test class will be removed with BasicUpgradeFinalizer when all components are migrated to the new
     //  version framework.
-    assertEquals(FINALIZATION_DONE, res.status());
+    assertEquals(ALREADY_FINALIZED, res.status());
     assertFalse(finalizer.preCalled || finalizer.finalizeCalled ||
         finalizer.postCalled);
   }

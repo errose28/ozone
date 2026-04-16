@@ -100,8 +100,10 @@ import static org.apache.hadoop.ozone.om.s3.S3SecretStoreConfigurationKeys.S3_SE
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerInterServiceProtocolProtos.OzoneManagerInterService;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OzoneManagerService;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PrepareStatusResponse.PrepareStatus;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_DONE_MSG;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_REQUIRED_MSG;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZED_MSG;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.STARTING_MSG;
 import static org.apache.hadoop.security.UserGroupInformation.getCurrentUser;
 import static org.apache.hadoop.util.ExitUtil.terminate;
 import static org.apache.hadoop.util.Time.monotonicNow;
@@ -3561,21 +3563,22 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
 
   @Override
   public StatusAndMessages finalizeUpgrade() throws IOException {
+    if (!versionManager.needsFinalization()) {
+      return FINALIZED_MSG;
+    }
     versionManager.finalizeUpgrade();
-    // TODO Remove status and messages concept from finalization. Finalization succeeded if this method does not throw.
-    return FINALIZED_MSG;
+    // OM clients currently require STARTING_MSG to be returned when this method succeeds.
+    // TODO This will be removed when OM learns to finalize from SCM.
+
+    return STARTING_MSG;
   }
 
   @Override
   public StatusAndMessages queryUpgradeFinalizationProgress() {
-    // TODO Remove status and messages concept from finalization. Finalization is one Ratis request and not an ongoing
-    //  operation. A component is either finalized or not.
-    //  The status call may also be changed to return software and apparent version as well so that rolling upgrade
-    //  status can be monitored.
     if (versionManager.needsFinalization()) {
       return FINALIZATION_REQUIRED_MSG;
     } else {
-      return FINALIZED_MSG;
+      return FINALIZATION_DONE_MSG;
     }
   }
 

@@ -498,7 +498,8 @@ public interface OzoneManagerProtocol
    * - FINALIZATION_DONE with a message list containing the messages since
    *    the last query, if the finalization ended but the messages were not
    *    yet emitted to the client.
-   * - ALREADY_FINALIZED with an empty message list otherwise
+   * - FINALIZATION_DONE with an empty message list when finalization is not
+   *    required (component is already at the target version).
    * - If finalization is not in progress, but software layout version and
    *    metadata layout version are different, the method will throw an
    *    {@link OMException} with a result code INVALID_REQUEST

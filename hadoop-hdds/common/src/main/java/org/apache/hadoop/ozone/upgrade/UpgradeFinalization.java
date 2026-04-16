@@ -49,9 +49,16 @@ public final class UpgradeFinalization {
   );
 
   /**
-   * Default message to provide when the service is in ALREADY_FINALIZED state.
+   * Returned from finalize upgrade commands when finalization is not required.
    */
   public static final StatusAndMessages FINALIZED_MSG = new StatusAndMessages(
+      Status.ALREADY_FINALIZED, Collections.emptyList()
+  );
+
+  /**
+   * Returned from progress/status queries when finalization is not required.
+   */
+  public static final StatusAndMessages FINALIZATION_DONE_MSG = new StatusAndMessages(
       Status.FINALIZATION_DONE, Collections.emptyList()
   );
 
@@ -69,8 +76,6 @@ public final class UpgradeFinalization {
    * - or it can be {@code ALREADY_FINALIZED} if the finalization was successfully done.
    */
   public enum Status {
-    // TODO Only finalization done and required statuses will be used when all components move to the new
-    //  finalization flow.
     ALREADY_FINALIZED,
     STARTING_FINALIZATION,
     FINALIZATION_IN_PROGRESS,
