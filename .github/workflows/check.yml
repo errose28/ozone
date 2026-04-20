@@ -39,12 +39,6 @@ on:
         default: 1
         required: false
 
-      continue-on-error:
-        type: boolean
-        description: "If true, the job is marked successful when tests fail so dependent jobs can still run"
-        default: false
-        required: false
-
       java-version:
         type: string
         description: "Java version to set up (default: none)"
@@ -148,7 +142,6 @@ jobs:
   check:
     name: ${{ (inputs.split && format('{0} ({1})', inputs.script, inputs.split)) || inputs.script }}
     runs-on: ${{ inputs.runner }}
-    continue-on-error: ${{ inputs.continue-on-error }}
     timeout-minutes: ${{ inputs.timeout-minutes }}
     steps:
       - name: Checkout project
