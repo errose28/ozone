@@ -416,9 +416,9 @@ message BlockID {
 
 message UpgradeFinalizationStatus {
     enum Status {
-        ALREADY_FINALIZED = 1; // Deprecated
-        STARTING_FINALIZATION = 2; // Deprecated
-        FINALIZATION_IN_PROGRESS = 3; // Deprecated
+        ALREADY_FINALIZED = 1;
+        STARTING_FINALIZATION = 2;
+        FINALIZATION_IN_PROGRESS = 3;
         FINALIZATION_DONE = 4;
         FINALIZATION_REQUIRED = 5;
     }

@@ -42,12 +42,6 @@ import org.junit.jupiter.params.provider.MethodSource;
  * instance rooted under a JUnit temporary directory (see for example {@code TestOMStorage} in ozone-manager).
  * Assertions use {@link ComponentVersionManager#getStorageForTesting()} and {@link Storage#getApparentVersion()}
  * to confirm what was persisted, instead of Mockito interaction verification.
- *
- * <p>Run locally, for example:
- * <pre>{@code
- *   mvn -pl hadoop-hdds/framework -am test
- *   mvn -pl hadoop-ozone/ozone-manager -am test -Dtest=TestOMVersionManager
- * }</pre>
  */
 public abstract class AbstractComponentVersionManagerTest {
 
