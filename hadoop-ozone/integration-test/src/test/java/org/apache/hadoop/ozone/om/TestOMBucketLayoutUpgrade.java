@@ -152,12 +152,11 @@ class TestOMBucketLayoutUpgrade {
   @Test
   @Order(DURING_UPGRADE)
   void finalizeUpgrade() throws Exception {
-    String upgradeClientId = "Upgrade-Client-" + UUID.randomUUID();
     UpgradeFinalization.StatusAndMessages response =
-        omClient.finalizeUpgrade(upgradeClientId);
+        omClient.finalizeUpgrade("finalize-test");
     System.out.println("Finalization Messages : " + response.msgs());
 
-    waitForFinalization(omClient, upgradeClientId);
+    waitForFinalization(omClient);
 
     final String expectedVersion =
         String.valueOf(OzoneManagerVersion.SOFTWARE_VERSION.serialize());

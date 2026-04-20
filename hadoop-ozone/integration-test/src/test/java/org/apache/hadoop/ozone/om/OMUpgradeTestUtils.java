@@ -18,14 +18,12 @@
 package org.apache.hadoop.ozone.om;
 
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PrepareStatusResponse.PrepareStatus.PREPARE_COMPLETED;
-import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.ALREADY_FINALIZED;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.FINALIZATION_DONE;
 import static org.apache.ozone.test.GenericTestUtils.waitFor;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
@@ -69,35 +67,20 @@ public final class OMUpgradeTestUtils {
     }
   }
 
-  public static void waitForFinalization(OzoneManagerProtocol omClient,
-      String upgradeClientId) throws TimeoutException, InterruptedException {
+  public static void waitForFinalization(OzoneManagerProtocol omClient)
+      throws TimeoutException, InterruptedException {
     waitFor(() -> {
       try {
         UpgradeFinalization.StatusAndMessages statusAndMessages =
-            omClient.queryUpgradeFinalizationProgress(upgradeClientId, false,
-                true);
+            omClient.queryUpgradeFinalizationProgress("finalize-test", false,
+                false);
         System.out.println("Finalization Messages : " +
             statusAndMessages.msgs());
-        // OM returns FINALIZED_MSG (ALREADY_FINALIZED) when complete; SCM-style
-        // flows may still surface FINALIZATION_DONE.
-        return statusAndMessages.status().equals(FINALIZATION_DONE)
-            || statusAndMessages.status().equals(ALREADY_FINALIZED);
+        return statusAndMessages.status().equals(FINALIZATION_DONE);
       } catch (IOException e) {
         fail(e.getMessage());
       }
       return false;
     }, 2000, 20000);
-  }
-
-  /**
-   * Initiates OM upgrade finalization and blocks until a readonly status query
-   * reports completion ({@link UpgradeFinalization.Status#FINALIZATION_DONE} or
-   * {@link UpgradeFinalization.Status#ALREADY_FINALIZED}).
-   */
-  public static void finalizeOmUpgradeAndWait(OzoneManagerProtocol omClient)
-      throws IOException, InterruptedException, TimeoutException {
-    String upgradeClientId = "Upgrade-Client-" + UUID.randomUUID();
-    omClient.finalizeUpgrade(upgradeClientId);
-    waitForFinalization(omClient, upgradeClientId);
   }
 }

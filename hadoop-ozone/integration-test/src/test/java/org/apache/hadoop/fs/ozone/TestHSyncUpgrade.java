@@ -29,11 +29,16 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_LEASE_HARD_LIMIT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_OPEN_KEY_CLEANUP_SERVICE_INTERVAL;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_OPEN_KEY_EXPIRE_THRESHOLD;
 import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isDone;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isStarting;
+import static org.apache.ozone.test.LambdaTestUtils.await;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.fs.CommonConfigurationKeysPublic;
 import org.apache.hadoop.fs.FSDataOutputStream;
@@ -55,12 +60,12 @@ import org.apache.hadoop.ozone.container.keyvalue.KeyValueHandler;
 import org.apache.hadoop.ozone.container.keyvalue.impl.BlockManagerImpl;
 import org.apache.hadoop.ozone.container.metadata.AbstractDatanodeStore;
 import org.apache.hadoop.ozone.om.OMStorage;
-import org.apache.hadoop.ozone.om.OMUpgradeTestUtils;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.service.OpenKeyCleanupService;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
+import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
 import org.apache.ozone.test.GenericTestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -209,7 +214,23 @@ public class TestHSyncUpgrade {
    * (status FINALIZATION_DONE).
    */
   private void finalizeOMUpgrade() throws Exception {
-    OMUpgradeTestUtils.finalizeOmUpgradeAndWait(client.getObjectStore()
-        .getClientProxy().getOzoneManagerClient());
+    // Trigger OM upgrade finalization. Ref: FinalizeUpgradeSubCommand#call
+    final OzoneManagerProtocol omClient = client.getObjectStore()
+        .getClientProxy().getOzoneManagerClient();
+    final String upgradeClientID = "Test-Upgrade-Client-" + UUID.randomUUID();
+    UpgradeFinalization.StatusAndMessages finalizationResponse =
+        omClient.finalizeUpgrade(upgradeClientID);
+
+    // The status should transition as soon as the client call above returns
+    assertTrue(isStarting(finalizationResponse.status()));
+    // Wait for the finalization to be marked as done.
+    // 10s timeout should be plenty.
+    await(POLL_MAX_WAIT_MILLIS, POLL_INTERVAL_MILLIS, () -> {
+      final UpgradeFinalization.StatusAndMessages progress =
+          omClient.queryUpgradeFinalizationProgress(
+              upgradeClientID, false, false);
+      return isDone(progress.status());
+    });
   }
+
 }

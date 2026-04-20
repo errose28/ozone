@@ -50,7 +50,8 @@ import static org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse.Cancel
 import static org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse.JobStatus.CANCELLED;
 import static org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse.JobStatus.DONE;
 import static org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse.JobStatus.IN_PROGRESS;
-import static org.apache.hadoop.ozone.om.OMUpgradeTestUtils.finalizeOmUpgradeAndWait;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isDone;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.isStarting;
 import static org.apache.ozone.rocksdiff.RocksDBCheckpointDiffer.COLUMN_FAMILIES_TO_TRACK_IN_DAG;
 import static org.apache.ozone.test.LambdaTestUtils.await;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -152,6 +153,7 @@ import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffReportOzone;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
+import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.ozone.compaction.log.CompactionLogEntry;
@@ -322,8 +324,23 @@ public abstract class TestOmSnapshot {
    * (status FINALIZATION_DONE).
    */
   private void finalizeOMUpgrade() throws Exception {
-    finalizeOmUpgradeAndWait(client.getObjectStore()
-        .getClientProxy().getOzoneManagerClient());
+    // Trigger OM upgrade finalization. Ref: FinalizeUpgradeSubCommand#call
+    final OzoneManagerProtocol omClient = client.getObjectStore()
+        .getClientProxy().getOzoneManagerClient();
+    final String upgradeClientID = "Test-Upgrade-Client-" + UUID.randomUUID();
+    UpgradeFinalization.StatusAndMessages finalizationResponse =
+        omClient.finalizeUpgrade(upgradeClientID);
+
+    // The status should transition as soon as the client call above returns
+    assertTrue(isStarting(finalizationResponse.status()));
+    // Wait for the finalization to be marked as done.
+    // 10s timeout should be plenty.
+    await(POLL_MAX_WAIT_MILLIS, POLL_INTERVAL_MILLIS, () -> {
+      final UpgradeFinalization.StatusAndMessages progress =
+          omClient.queryUpgradeFinalizationProgress(
+              upgradeClientID, false, false);
+      return isDone(progress.status());
+    });
   }
 
   @AfterAll
