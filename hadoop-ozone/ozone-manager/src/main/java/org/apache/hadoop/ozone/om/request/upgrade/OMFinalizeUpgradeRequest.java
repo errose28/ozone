@@ -36,6 +36,7 @@ import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.upgrade.OMFinalizeUpgradeResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.FinalizeUpgradeRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.FinalizeUpgradeResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -76,7 +77,11 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
         }
       }
 
-      StatusAndMessages omStatus = ozoneManager.finalizeUpgrade();
+      FinalizeUpgradeRequest request =
+          getOmRequest().getFinalizeUpgradeRequest();
+      String upgradeClientID = request.getUpgradeClientId();
+      StatusAndMessages omStatus =
+          ozoneManager.finalizeUpgrade(upgradeClientID);
 
       UpgradeFinalizationStatus.Status protoStatus =
           UpgradeFinalizationStatus.Status.valueOf(omStatus.status().name());

@@ -1348,8 +1348,14 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   }
 
   private FinalizeUpgradeProgressResponse reportUpgradeProgress(
-      FinalizeUpgradeProgressRequest ignored) throws IOException {
-    StatusAndMessages progress = impl.queryUpgradeFinalizationProgress();
+      FinalizeUpgradeProgressRequest request) throws IOException {
+    String upgradeClientId = request.getUpgradeClientId();
+    boolean takeover = request.getTakeover();
+    boolean readonly = request.getReadonly();
+
+    StatusAndMessages progress =
+        impl.queryUpgradeFinalizationProgress(upgradeClientId, takeover,
+            readonly);
 
     UpgradeFinalizationStatus.Status protoStatus =
         UpgradeFinalizationStatus.Status.valueOf(progress.status().name());

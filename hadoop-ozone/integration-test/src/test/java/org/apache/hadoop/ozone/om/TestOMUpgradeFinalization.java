@@ -89,11 +89,12 @@ class TestOMUpgradeFinalization {
 
         omClient.cancelOzoneManagerPrepare();
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_CANCEL, AuditEventStatus.SUCCESS);
-        StatusAndMessages response = omClient.finalizeUpgrade();
+        String upgradeClientId = "Upgrade-Client-" + UUID.randomUUID();
+        StatusAndMessages response = omClient.finalizeUpgrade(upgradeClientId);
         System.out.println("Finalization Messages : " + response.msgs());
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_FINALIZE, AuditEventStatus.SUCCESS);
 
-        waitForFinalization(omClient);
+        waitForFinalization(omClient, upgradeClientId);
         cluster.restartOzoneManager(downedOM, true);
 
         OzoneManagerStateMachine omStateMachine = downedOM.getOmRatisServer()

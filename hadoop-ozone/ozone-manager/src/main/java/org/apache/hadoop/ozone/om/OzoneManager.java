@@ -3562,7 +3562,8 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   }
 
   @Override
-  public StatusAndMessages finalizeUpgrade() throws IOException {
+  public StatusAndMessages finalizeUpgrade(String unusedUpgradeClientId)
+      throws IOException {
     if (!versionManager.needsFinalization()) {
       return FINALIZED_MSG;
     }
@@ -3574,7 +3575,9 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
   }
 
   @Override
-  public StatusAndMessages queryUpgradeFinalizationProgress() {
+  public StatusAndMessages queryUpgradeFinalizationProgress(
+      String unusedUpgradeClientId, boolean unusedTakeover, boolean unusedReadonly)
+      throws IOException {
     if (versionManager.needsFinalization()) {
       return FINALIZATION_REQUIRED_MSG;
     } else {

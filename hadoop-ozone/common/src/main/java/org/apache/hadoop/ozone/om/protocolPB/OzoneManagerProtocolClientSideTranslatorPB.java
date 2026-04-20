@@ -1928,9 +1928,10 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   }
 
   @Override
-  public StatusAndMessages finalizeUpgrade() throws IOException {
+  public StatusAndMessages finalizeUpgrade(String upgradeClientID)
+      throws IOException {
     FinalizeUpgradeRequest req = FinalizeUpgradeRequest.newBuilder()
-        .setUpgradeClientId("")
+        .setUpgradeClientId(upgradeClientID)
         .build();
 
     OMRequest omRequest = createOMRequest(Type.FinalizeUpgrade)
@@ -1948,10 +1949,14 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   }
 
   @Override
-  public StatusAndMessages queryUpgradeFinalizationProgress() throws IOException {
+  public StatusAndMessages queryUpgradeFinalizationProgress(
+      String upgradeClientID, boolean takeover, boolean readonly
+  ) throws IOException {
     FinalizeUpgradeProgressRequest req = FinalizeUpgradeProgressRequest
         .newBuilder()
-        .setUpgradeClientId("")
+        .setUpgradeClientId(upgradeClientID)
+        .setTakeover(takeover)
+        .setReadonly(readonly)
         .build();
 
     OMRequest omRequest = createOMRequest(Type.FinalizeUpgradeProgress)
