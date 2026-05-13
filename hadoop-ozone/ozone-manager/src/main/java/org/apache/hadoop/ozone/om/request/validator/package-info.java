@@ -16,7 +16,7 @@
  */
 
 /**
- * Explicit, builder-driven OM request/response validation scaffolding that will
- * replace annotation + reflection based {@link org.apache.hadoop.ozone.om.request.validation.RequestValidations}.
+ * Builder-driven OM request/response validation used by
+ * {@link org.apache.hadoop.ozone.protocolPB.OzoneManagerProtocolServerSideTranslatorPB}.
  */
 package org.apache.hadoop.ozone.om.request.validator;

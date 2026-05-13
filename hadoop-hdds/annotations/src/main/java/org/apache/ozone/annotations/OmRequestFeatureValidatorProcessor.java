@@ -87,7 +87,7 @@ public class OmRequestFeatureValidatorProcessor extends AbstractProcessor {
       "org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos"
           + ".OMResponse";
   public static final String VALIDATION_CONTEXT_CLASS_NAME =
-      "org.apache.hadoop.ozone.om.request.validation.ValidationContext";
+      "org.apache.hadoop.ozone.om.request.validator.ValidationContext";
 
   private static final List<String> ANNOTATION_SIMPLE_NAMES = Arrays.asList("OMClientVersionValidator",
       "OMLayoutVersionValidator");

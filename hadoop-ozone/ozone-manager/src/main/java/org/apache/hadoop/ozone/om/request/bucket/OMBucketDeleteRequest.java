@@ -30,6 +30,7 @@ import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
@@ -45,9 +46,7 @@ import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.bucket.OMBucketDeleteResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
@@ -55,8 +54,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteB
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DeleteBucketResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.slf4j.Logger;
@@ -263,32 +260,17 @@ public class OMBucketDeleteRequest extends OMClientRequest {
     return false;
   }
 
-  /**
-   * Validates bucket delete requests.
-   * Handles the cases where an older client attempts to delete a bucket
-   * a new bucket layout.
-   * We do not want to allow this to happen, since this would cause the client
-   * to be able to delete buckets it cannot understand.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.DeleteBucket
-  )
-  public static OMRequest blockBucketDeleteWithBucketLayoutFromOldClient(
-      OMRequest req, ValidationContext ctx) throws IOException {
-    DeleteBucketRequest request = req.getDeleteBucketRequest();
-
-    if (request.hasBucketName() && request.hasVolumeName()) {
-      BucketLayout bucketLayout = ctx.getBucketLayout(
-          request.getVolumeName(), request.getBucketName());
-      bucketLayout.validateSupportedOperation();
-    }
-    return req;
+  /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject non-legacy layouts. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
+      DeleteBucketRequest request = req.getDeleteBucketRequest();
+      if (request.hasBucketName() && request.hasVolumeName()) {
+        BucketLayout bucketLayout = context.getBucketLayout(
+            request.getVolumeName(), request.getBucketName());
+        bucketLayout.validateSupportedOperation();
+      }
+      return req;
+    };
   }
 }

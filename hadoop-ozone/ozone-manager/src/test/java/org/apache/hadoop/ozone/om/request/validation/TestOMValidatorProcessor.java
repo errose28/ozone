@@ -522,7 +522,7 @@ public class TestOMValidatorProcessor {
         + ".OzoneManagerProtocolProtos.OMRequest;");
     imports.add("import org.apache.hadoop.ozone.protocol.proto"
         + ".OzoneManagerProtocolProtos.OMResponse;");
-    imports.add("import org.apache.hadoop.ozone.om.request.validation"
+    imports.add("import org.apache.hadoop.ozone.om.request.validator"
         + ".ValidationContext;");
     imports.add("import com.google.protobuf.ServiceException;");
     for (RequestProcessingPhase phase : RequestProcessingPhase.values()) {

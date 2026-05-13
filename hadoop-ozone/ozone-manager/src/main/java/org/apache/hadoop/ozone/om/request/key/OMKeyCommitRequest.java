@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
@@ -55,9 +56,7 @@ import org.apache.hadoop.ozone.om.helpers.RepeatedOmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.WithMetadata;
 import org.apache.hadoop.ozone.om.request.util.OmKeyHSyncUtil;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.key.OMKeyCommitResponse;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
@@ -66,8 +65,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyLocation;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;
@@ -512,15 +509,10 @@ public class OMKeyCommitRequest extends OMKeyRequest {
     }
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CommitKey
-  )
-  public static OMRequest disallowCommitKeyWithECReplicationConfig(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#ERASURE_CODED_STORAGE_SUPPORT} is finalized. */
+  public static RequestAction preProcessErasureCodedStorage() {
+    return context -> {
+      OMRequest req = context.getRequest();
       if (req.getCommitKeyRequest().getKeyArgs().hasEcReplicationConfig()) {
         throw new OMException("Cluster does not have the Erasure Coded"
             + " Storage support feature finalized yet, but the request contains"
@@ -528,94 +520,47 @@ public class OMKeyCommitRequest extends OMKeyRequest {
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
+      return req;
+    };
   }
 
-  /**
-   * Validates key commit requests.
-   * We do not want to allow older clients to commit keys associated with
-   * buckets which use non LEGACY layouts.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CommitKey
-  )
-  public static OMRequest blockCommitKeyWithBucketLayoutFromOldClient(
-      OMRequest req, ValidationContext ctx) throws IOException {
-    if (req.getCommitKeyRequest().hasKeyArgs()) {
-      KeyArgs keyArgs = req.getCommitKeyRequest().getKeyArgs();
-
-      if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-        BucketLayout bucketLayout = ctx.getBucketLayout(
-            keyArgs.getVolumeName(), keyArgs.getBucketName());
-        bucketLayout.validateSupportedOperation();
+  /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject non-legacy layouts. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
+      if (req.getCommitKeyRequest().hasKeyArgs()) {
+        KeyArgs keyArgs = req.getCommitKeyRequest().getKeyArgs();
+        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
+          BucketLayout bucketLayout = context.getBucketLayout(
+              keyArgs.getVolumeName(), keyArgs.getBucketName());
+          bucketLayout.validateSupportedOperation();
+        }
       }
-    }
-    return req;
+      return req;
+    };
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CommitKey
-  )
-  public static OMRequest disallowHsync(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.HBASE_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#HBASE_SUPPORT} is finalized (hsync and lease recovery). */
+  public static RequestAction preProcessHbaseSupport() {
+    return context -> {
+      OMRequest req = context.getRequest();
       CommitKeyRequest commitKeyRequest = req.getCommitKeyRequest();
-      boolean isHSync = commitKeyRequest.hasHsync() &&
-          commitKeyRequest.getHsync();
-      if (isHSync) {
+      if (commitKeyRequest.hasHsync() && commitKeyRequest.getHsync()) {
         throw new OMException("Cluster does not have the hsync support "
             + "feature finalized yet, but the request contains"
             + " an hsync field. Rejecting the request,"
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
-  }
-
-  /**
-   * Validates key commit requests.
-   * We do not want to allow clients to perform lease recovery requests
-   * until the cluster has finalized the HBase support feature.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CommitKey
-  )
-
-  public static OMRequest disallowRecovery(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.HBASE_SUPPORT)) {
-      CommitKeyRequest commitKeyRequest = req.getCommitKeyRequest();
-      boolean isRecovery = commitKeyRequest.hasRecovery() &&
-          commitKeyRequest.getRecovery();
-      if (isRecovery) {
+      if (commitKeyRequest.hasRecovery() && commitKeyRequest.getRecovery()) {
         throw new OMException("Cluster does not have the HBase support "
             + "feature finalized yet, but the request contains"
             + " an recovery field. Rejecting the request,"
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
+      return req;
+    };
   }
 
   protected void validateAtomicRewrite(OmKeyInfo existing, OmKeyInfo toCommit, Map<String, String> auditMap)

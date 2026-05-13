@@ -34,21 +34,19 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OMMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.ResolvedBucket;
-import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmRenameKeys;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.key.OMKeysRenameResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
@@ -57,8 +55,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenameK
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenameKeysMap;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenameKeysRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RenameKeysResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.util.Time;
@@ -286,32 +282,19 @@ public class OMKeysRenameRequest extends OMKeyRequest {
     return auditMap;
   }
 
-  /**
-   * Validates rename keys requests.
-   * We do not want to allow older clients to rename keys in buckets which use
-   * non LEGACY layouts.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.RenameKeys
-  )
-  public static OMRequest blockRenameKeysWithBucketLayoutFromOldClient(
-      OMRequest req, ValidationContext ctx) throws IOException {
-    if (req.getRenameKeysRequest().hasRenameKeysArgs()) {
-      RenameKeysArgs keyArgs = req.getRenameKeysRequest().getRenameKeysArgs();
-
-      if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-        BucketLayout bucketLayout = ctx.getBucketLayout(
-            keyArgs.getVolumeName(), keyArgs.getBucketName());
-        bucketLayout.validateSupportedOperation();
+  /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject non-legacy layouts. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
+      if (req.getRenameKeysRequest().hasRenameKeysArgs()) {
+        RenameKeysArgs keyArgs = req.getRenameKeysRequest().getRenameKeysArgs();
+        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
+          BucketLayout bucketLayout = context.getBucketLayout(
+              keyArgs.getVolumeName(), keyArgs.getBucketName());
+          bucketLayout.validateSupportedOperation();
+        }
       }
-    }
-    return req;
+      return req;
+    };
   }
 }

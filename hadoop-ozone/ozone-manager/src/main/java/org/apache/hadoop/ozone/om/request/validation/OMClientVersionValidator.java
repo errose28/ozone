@@ -30,8 +30,9 @@ import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
  * An annotation to mark methods that do certain request validations based on the
  * request protocol's client version.
  *
- * The methods annotated with this annotation are collected by the
- * {@link ValidatorRegistry} class during the initialization of the server.
+ * The methods annotated with this annotation are checked at compile time by
+ * {@link org.apache.ozone.annotations.OmRequestFeatureValidatorProcessor} for consistent signatures; runtime
+ * wiring is performed via {@link org.apache.hadoop.ozone.om.request.validator.RequestValidator}.
  *
  * The conditions describe the specific use case in which the validator should be
  * applied to the request.

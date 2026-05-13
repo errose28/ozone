@@ -52,9 +52,7 @@ import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.bucket.OMBucketCreateResponse;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
@@ -64,8 +62,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CreateB
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CreateBucketResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.util.Time;
@@ -410,15 +406,10 @@ public class OMBucketCreateRequest extends OMClientRequest {
 
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CreateBucket
-  )
-  public static OMRequest disallowCreateBucketWithECReplicationConfig(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#ERASURE_CODED_STORAGE_SUPPORT} is finalized. */
+  public static RequestAction preProcessErasureCodedStorage() {
+    return context -> {
+      OMRequest req = context.getRequest();
       if (req.getCreateBucketRequest()
           .getBucketInfo().hasDefaultReplicationConfig()
           && req.getCreateBucketRequest().getBucketInfo()
@@ -429,23 +420,16 @@ public class OMBucketCreateRequest extends OMClientRequest {
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
+      return req;
+    };
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CreateBucket
-  )
-  public static OMRequest handleCreateBucketWithBucketLayoutDuringPreFinalize(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.BUCKET_LAYOUT_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#BUCKET_LAYOUT_SUPPORT} is finalized. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
       if (req.getCreateBucketRequest()
           .getBucketInfo().hasBucketLayout()) {
-        // If the client explicitly specified a bucket layout while OM is
-        // pre-finalized, reject the request.
         if (!BucketLayout.fromProto(req.getCreateBucketRequest().getBucketInfo()
             .getBucketLayout()).isLegacy()) {
           throw new OMException("Cluster does not have the Bucket Layout"
@@ -455,40 +439,19 @@ public class OMBucketCreateRequest extends OMClientRequest {
               ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
         }
       } else {
-        // The client did not specify a bucket layout, meaning the OM's
-        // default bucket layout would be used.
-        // Since the OM is pre-finalized for bucket layout support,
-        // explicitly override the server default by specifying this request
-        // as a legacy bucket.
         return changeBucketLayout(req, BucketLayout.LEGACY);
       }
-    }
-    return req;
+      return req;
+    };
   }
 
-
   /**
-   * When a client that does not support bucket layout types issues a create
-   * bucket command, it will leave the bucket layout field empty. For these
-   * old clients, they should create legacy buckets so that they can read and
-   * write to them, instead of using the server default which may be in a layout
-   * they do not understand.
+   * For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: force legacy layout when registered by
+   * {@link org.apache.hadoop.ozone.protocolPB.OzoneManagerProtocolServerSideTranslatorPB} for clients that do not
+   * advertise support.
    */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.CreateBucket
-  )
-  public static OMRequest setDefaultBucketLayoutForOlderClients(OMRequest req,
-      ValidationContext ctx) {
-    if (!ClientVersion.BUCKET_LAYOUT_SUPPORT.isSupportedBy(
-        req.getVersion())) {
-      // Older client will default bucket layout to LEGACY to
-      // make its operations backward compatible.
-      return changeBucketLayout(req, BucketLayout.LEGACY);
-    } else {
-      return req;
-    }
+  public static RequestAction preProcessBucketLayoutForClient() {
+    return context -> changeBucketLayout(context.getRequest(), BucketLayout.LEGACY);
   }
 
   private static OMRequest changeBucketLayout(OMRequest originalRequest,

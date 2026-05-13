@@ -22,6 +22,7 @@ import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.OzoneManagerUtils;
+import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 
 /**
@@ -41,15 +42,18 @@ public abstract class ValidationContext {
     this.request = request;
   }
 
-  public final OMRequest getRequest() {
-    return request;
+  /**
+   * Resolves persisted {@linkplain BucketLayout} (link buckets follow source), matching
+   * legacy request validators.
+   */
+  public final BucketLayout getBucketLayout(String volumeName, String bucketName)
+      throws IOException {
+    return OzoneManagerUtils.getBucketLayout(
+        ozoneManager.getMetadataManager(), volumeName, bucketName);
   }
 
-  /**
-   * Serialized client protocol revision from the protobuf {@linkplain OMRequest request} payload.
-   */
-  public final ClientVersion getClientProtocolVersion() {
-    return ClientVersion.deserialize(request.getVersion());
+  public final OMRequest getRequest() {
+    return request;
   }
 
   /**

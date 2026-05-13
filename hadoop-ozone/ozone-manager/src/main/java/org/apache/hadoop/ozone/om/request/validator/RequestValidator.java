@@ -37,8 +37,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 
 /**
  * Aggregates {@link RequestAction} preprocessing and {@link ResponseAction} postprocessing, ordered like the legacy
- * {@link org.apache.hadoop.ozone.om.request.validation.RequestValidations} stack (client versioning first, then
- * server finalization probes).
+ * annotation-based validation stack (client versioning first, then server finalization probes).
  *
  * <p>Thread-safety follows the supplied mutable {@link Builder} maps; treat each builder as single-shot.
  */

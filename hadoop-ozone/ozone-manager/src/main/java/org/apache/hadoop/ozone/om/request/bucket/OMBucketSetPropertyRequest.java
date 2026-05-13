@@ -44,9 +44,7 @@ import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.bucket.OMBucketSetPropertyResponse;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
@@ -56,8 +54,6 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetBucketPropertyRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetBucketPropertyResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -352,15 +348,10 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
     return true;
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.SetBucketProperty
-  )
-  public static OMRequest disallowSetBucketPropertyWithECReplicationConfig(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#ERASURE_CODED_STORAGE_SUPPORT} is finalized. */
+  public static RequestAction preProcessErasureCodedStorage() {
+    return context -> {
+      OMRequest req = context.getRequest();
       SetBucketPropertyRequest propReq =
           req.getSetBucketPropertyRequest();
       if (propReq.hasBucketArgs()
@@ -373,7 +364,7 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
+      return req;
+    };
   }
 }

@@ -16,47 +16,13 @@
  */
 
 /**
- * Request's feature validation handling.
+ * Compile-time helper annotations for OM request validator method signatures
+ * ({@link org.apache.hadoop.ozone.om.request.validation.OMClientVersionValidator},
+ * {@link org.apache.hadoop.ozone.om.request.validation.OMLayoutVersionValidator})
+ * and {@linkplain org.apache.hadoop.ozone.om.request.validation.VersionExtractor version routing}.
  *
- * This package holds facilities to add new situation specific behaviour to
- * request handling without cluttering the basic logic of the request handler
- * code.
- *
- * Typical use case scenarios, that we had in mind during the design:
- * - during an upgrade, in the pre-finalized state certain request types are
- *   to be rejected based on provided properties of the request not based on the
- *   request type
- * - a client connects to the server but uses an older version of the protocol
- * - a client connects to the server but uses a newer version of the protocol
- * - the code can handle certain checks that have to run all the time, but at
- *   first we do not see a general use case that we would pull in immediately.
- * These are the current
- * {@link org.apache.hadoop.ozone.om.request.validation.ValidationCondition}s
- * but this list might be extended later on if we see other use cases.
- *
- * The system uses a reflection based discovery to find methods that are
- * annotated with the
- * {@link org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator}
- * annotation.
- * This annotation is used to specify the condition in which a certain validator
- * has to be used, the request type to which the validation should be applied,
- * and the request processing phase in which we apply the validation.
- *
- * One validator can be applied in multiple
- * {@link org.apache.hadoop.ozone.om.request.validation.ValidationCondition}
- * but a validator has to handle strictly just one
- * {@link org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type
- * }.
- * The main reason to avoid validating multiple request types with the same
- * validator, is that these validators have to be simple methods without state
- * any complex validation has to happen in the reql request handling.
- * In these validators we need to ensure that in the given condition the request
- * is rejected with a proper message, or rewritten to the proper format if for
- * example we want to handle an old request with a new server, but we need some
- * additional values set to something default, while in the meantime we want to
- * add meaning to a null value from newer clients.
- *
- * In general, it is a good practice to have the request handling code, and the
- * validations tied together in one class.
+ * <p>Runtime request gating and compatibility is implemented by
+ * {@link org.apache.hadoop.ozone.om.request.validator.RequestValidator}, wired from
+ * {@link org.apache.hadoop.ozone.protocolPB.OzoneManagerProtocolServerSideTranslatorPB}.
  */
 package org.apache.hadoop.ozone.om.request.validation;

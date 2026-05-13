@@ -29,6 +29,7 @@ import java.util.Objects;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -46,9 +47,7 @@ import org.apache.hadoop.ozone.om.request.file.OMFileRequest;
 import org.apache.hadoop.ozone.om.request.key.OMKeyRequest;
 import org.apache.hadoop.ozone.om.request.util.OMMultipartUploadUtils;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.s3.multipart.S3InitiateMultipartUploadResponse;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
@@ -57,9 +56,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Multipa
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.MultipartInfoInitiateResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.protocolPB.OMPBHelper;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer.ACLType;
 import org.apache.hadoop.util.Time;
 import org.slf4j.Logger;
@@ -284,16 +281,10 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
     }
   }
 
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.CLUSTER_NEEDS_FINALIZATION,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.InitiateMultiPartUpload
-  )
-  public static OMRequest
-      disallowInitiateMultiPartUploadWithECReplicationConfig(
-      OMRequest req, ValidationContext ctx) throws OMException {
-    if (!ctx.versionManager()
-        .isAllowed(OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)) {
+  /** Until {@link OMLayoutFeature#ERASURE_CODED_STORAGE_SUPPORT} is finalized. */
+  public static RequestAction preProcessErasureCodedStorage() {
+    return context -> {
+      OMRequest req = context.getRequest();
       if (req.getInitiateMultiPartUploadRequest().getKeyArgs()
           .hasEcReplicationConfig()) {
         throw new OMException("Cluster does not have the Erasure Coded"
@@ -302,37 +293,23 @@ public class S3InitiateMultipartUploadRequest extends OMKeyRequest {
             + " please finalize the cluster upgrade and then try again.",
             OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
       }
-    }
-    return req;
+      return req;
+    };
   }
 
-
-  /**
-   * Validates S3 initiate MPU requests.
-   * We do not want to allow older clients to initiate MPU to buckets which
-   * use non LEGACY layouts.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.InitiateMultiPartUpload
-  )
-  public static OMRequest blockInitiateMPUWithBucketLayoutFromOldClient(
-      OMRequest req, ValidationContext ctx) throws IOException {
-    if (req.getInitiateMultiPartUploadRequest().hasKeyArgs()) {
-      KeyArgs keyArgs = req.getInitiateMultiPartUploadRequest().getKeyArgs();
-
-      if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-        BucketLayout bucketLayout = ctx.getBucketLayout(
-            keyArgs.getVolumeName(), keyArgs.getBucketName());
-        bucketLayout.validateSupportedOperation();
+  /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject non-legacy layouts. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
+      if (req.getInitiateMultiPartUploadRequest().hasKeyArgs()) {
+        KeyArgs keyArgs = req.getInitiateMultiPartUploadRequest().getKeyArgs();
+        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
+          BucketLayout bucketLayout = context.getBucketLayout(
+              keyArgs.getVolumeName(), keyArgs.getBucketName());
+          bucketLayout.validateSupportedOperation();
+        }
       }
-    }
-    return req;
+      return req;
+    };
   }
 }

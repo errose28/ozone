@@ -20,6 +20,7 @@ package org.apache.hadoop.ozone.om.request.validation;
 import java.lang.annotation.Annotation;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.ClientVersion;
+import org.apache.hadoop.ozone.om.request.validator.ValidationContext;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 
 /**
@@ -32,7 +33,7 @@ public enum VersionExtractor {
   LAYOUT_VERSION_EXTRACTOR {
     @Override
     public ComponentVersion extractVersion(OMRequest req, ValidationContext ctx) {
-      return ctx.versionManager().getApparentVersion();
+      return ctx.getApparentVersion();
     }
 
     @Override

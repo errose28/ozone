@@ -32,6 +32,7 @@ import org.apache.hadoop.hdds.server.OzoneProtocolMessageDispatcher;
 import org.apache.hadoop.hdds.utils.ProtocolMessageMetrics;
 import org.apache.hadoop.ipc_.ProcessingDetails.Timing;
 import org.apache.hadoop.ipc_.Server;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OmUtils;
 import org.apache.hadoop.ozone.om.OMPerformanceMetrics;
 import org.apache.hadoop.ozone.om.OzoneManager;
@@ -42,8 +43,25 @@ import org.apache.hadoop.ozone.om.protocolPB.OzoneManagerProtocolPB;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer.RaftServerStatus;
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
-import org.apache.hadoop.ozone.om.request.validation.RequestValidations;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.bucket.OMBucketCreateRequest;
+import org.apache.hadoop.ozone.om.request.bucket.OMBucketDeleteRequest;
+import org.apache.hadoop.ozone.om.request.bucket.OMBucketSetPropertyRequest;
+import org.apache.hadoop.ozone.om.request.file.OMDirectoryCreateRequest;
+import org.apache.hadoop.ozone.om.request.file.OMFileCreateRequest;
+import org.apache.hadoop.ozone.om.request.key.OMAllocateBlockRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyCommitRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyCreateRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyDeleteRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyRenameRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeysDeleteRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeysRenameRequest;
+import org.apache.hadoop.ozone.om.request.key.acl.OMKeyAddAclRequest;
+import org.apache.hadoop.ozone.om.request.key.acl.OMKeyRemoveAclRequest;
+import org.apache.hadoop.ozone.om.request.key.acl.OMKeySetAclRequest;
+import org.apache.hadoop.ozone.om.request.s3.multipart.S3InitiateMultipartUploadRequest;
+import org.apache.hadoop.ozone.om.request.s3.multipart.S3MultipartUploadAbortRequest;
+import org.apache.hadoop.ozone.om.request.s3.multipart.S3MultipartUploadCommitPartRequest;
+import org.apache.hadoop.ozone.om.request.s3.multipart.S3MultipartUploadCompleteRequest;
 import org.apache.hadoop.ozone.om.request.validator.RequestValidator;
 import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
@@ -69,7 +87,6 @@ import org.slf4j.LoggerFactory;
  */
 public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerProtocolPB {
   private static final Logger LOG = LoggerFactory .getLogger(OzoneManagerProtocolServerSideTranslatorPB.class);
-  private static final String OM_REQUESTS_PACKAGE = "org.apache.hadoop.ozone";
   // same as hadoop ipc config defaults
   public static final String MAXIMUM_RESPONSE_LENGTH = "ipc.maximum.response.length";
   public static final int MAXIMUM_RESPONSE_LENGTH_DEFAULT = 134217728;
@@ -80,7 +97,6 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
   private final OzoneManager ozoneManager;
   private final OzoneProtocolMessageDispatcher<OMRequest, OMResponse,
       OzoneManagerProtocolProtos.Type> dispatcher;
-  private final RequestValidations requestValidations;
   private final RequestValidator requestValidator;
   private final OMPerformanceMetrics perfMetrics;
 
@@ -103,14 +119,9 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
     dispatcher = new OzoneProtocolMessageDispatcher<>("OzoneProtocol",
         metrics, LOG, OMPBHelper::processForDebug, OMPBHelper::processForDebug);
 
-    // TODO: make this injectable for testing...
-    this.requestValidations = new RequestValidations()
-        .fromPackage(OM_REQUESTS_PACKAGE)
-        .withinContext(ValidationContext.of(ozoneManager.getVersionManager(), ozoneManager.getMetadataManager()))
-        .load();
-
     RequestValidator.Builder validatorBuilder = new RequestValidator.Builder(impl);
-    assignValidations(validatorBuilder);
+    assignServerValidations(validatorBuilder);
+    assignClientValidations(validatorBuilder);
     this.requestValidator = validatorBuilder.build();
 
     maxResponseLength = ozoneManager.getConfiguration()
@@ -127,10 +138,7 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
     try {
       validatedRequest = captureLatencyNs(
           perfMetrics.getValidateRequestLatencyNs(),
-          () -> {
-            OMRequest afterLayout = requestValidator.preProcess(request);
-            return requestValidations.validateRequest(afterLayout);
-          });
+          () -> requestValidator.preProcess(request));
     } catch (Exception e) {
       if (e instanceof OMException) {
         return createErrorResponse(request, (OMException) e);
@@ -145,8 +153,7 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
 
     try {
       return captureLatencyNs(perfMetrics.getValidateResponseLatencyNs(),
-          () -> requestValidator.postProcess(request,
-              requestValidations.validateResponse(request, response)));
+          () -> requestValidator.postProcess(request, response));
     } catch (Exception e) {
       if (e instanceof OMException) {
         return createErrorResponse(request, (OMException) e);
@@ -159,11 +166,10 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
   }
 
   /**
-   * Registers {@linkplain OMLayoutFeature layout feature} gates previously enforced by
-   * {@link org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion} / {@link
-   * org.apache.hadoop.ozone.om.upgrade.OMLayoutFeatureAspect}.
+   * Registers OM protocol compatibility rules (layout finalization gates, erasure coding and bucket layout handling,
+   * legacy client request/response shaping).
    */
-  private static void assignValidations(RequestValidator.Builder b) {
+  private static void assignServerValidations(RequestValidator.Builder b) {
     b.untilServerVersion(OMLayoutFeature.FILESYSTEM_SNAPSHOT)
         .block(Type.CreateSnapshot)
         .block(Type.DeleteSnapshot)
@@ -188,6 +194,100 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
     b.untilServerVersion(OMLayoutFeature.HBASE_SUPPORT)
         .block(Type.RecoverLease)
         .block(Type.ListOpenFiles);
+    b.untilServerVersion(OMLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)
+        .preProcess(Type.AllocateBlock,
+            OMAllocateBlockRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CreateFile,
+            OMFileCreateRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.InitiateMultiPartUpload,
+            S3InitiateMultipartUploadRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CommitKey,
+            OMKeyCommitRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CompleteMultiPartUpload,
+            S3MultipartUploadCompleteRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CreateKey,
+            OMKeyCreateRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.SetBucketProperty,
+            OMBucketSetPropertyRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CreateBucket,
+            OMBucketCreateRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CommitMultiPartUpload,
+            S3MultipartUploadCommitPartRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.CreateDirectory,
+            OMDirectoryCreateRequest.preProcessErasureCodedStorage())
+        .preProcess(Type.AbortMultiPartUpload,
+            S3MultipartUploadAbortRequest.preProcessErasureCodedStorage());
+    b.untilServerVersion(OMLayoutFeature.BUCKET_LAYOUT_SUPPORT)
+        .preProcess(Type.CreateBucket,
+            OMBucketCreateRequest.preProcessBucketLayout());
+    b.untilServerVersion(OMLayoutFeature.HBASE_SUPPORT)
+        .preProcess(Type.CommitKey,
+            OMKeyCommitRequest.preProcessHbaseSupport());
+  }
+
+  private static void assignClientValidations(RequestValidator.Builder b) {
+    b.untilClientVersion(ClientVersion.BUCKET_LAYOUT_SUPPORT)
+        .preprocess(Type.CommitKey,
+            OMKeyCommitRequest.preProcessBucketLayout())
+        .preprocess(Type.CreateKey,
+            OMKeyCreateRequest.preProcessBucketLayout())
+        .preprocess(Type.CreateFile,
+            OMFileCreateRequest.preProcessBucketLayout())
+        .preprocess(Type.CreateDirectory,
+            OMDirectoryCreateRequest.preProcessBucketLayout())
+        .preprocess(Type.RenameKey,
+            OMKeyRenameRequest.preProcessBucketLayout())
+        .preprocess(Type.DeleteKey,
+            OMKeyDeleteRequest.preProcessBucketLayout())
+        .preprocess(Type.DeleteKeys,
+            OMKeysDeleteRequest.preProcessBucketLayout())
+        .preprocess(Type.DeleteBucket,
+            OMBucketDeleteRequest.preProcessBucketLayout())
+        .preprocess(Type.AddAcl,
+            OMKeyAddAclRequest.preProcessBucketLayout())
+        .preprocess(Type.RemoveAcl,
+            OMKeyRemoveAclRequest.preProcessBucketLayout())
+        .preprocess(Type.SetAcl,
+            OMKeySetAclRequest.preProcessBucketLayout())
+        .preprocess(Type.InitiateMultiPartUpload,
+            S3InitiateMultipartUploadRequest.preProcessBucketLayout())
+        .preprocess(Type.CompleteMultiPartUpload,
+            S3MultipartUploadCompleteRequest.preProcessBucketLayout())
+        .preprocess(Type.CommitMultiPartUpload,
+            S3MultipartUploadCommitPartRequest.preProcessBucketLayout())
+        .preprocess(Type.AbortMultiPartUpload,
+            S3MultipartUploadAbortRequest.preProcessBucketLayout())
+        .preprocess(Type.RenameKeys,
+            OMKeysRenameRequest.preProcessBucketLayout())
+        .preprocess(Type.AllocateBlock,
+            OMAllocateBlockRequest.preProcessBucketLayout())
+        .preprocess(Type.CreateBucket,
+            OMBucketCreateRequest.preProcessBucketLayoutForClient())
+        .postprocess(Type.LookupKey,
+            OzoneManagerRequestHandler.postProcessBucketLayoutLookupKey())
+        .postprocess(Type.ListKeys,
+            OzoneManagerRequestHandler.postProcessBucketLayoutListKeys())
+        .postprocess(Type.ListTrash,
+            OzoneManagerRequestHandler.postProcessBucketLayoutListTrash())
+        .postprocess(Type.GetFileStatus,
+            OzoneManagerRequestHandler.postProcessBucketLayoutGetFileStatus())
+        .postprocess(Type.LookupFile,
+            OzoneManagerRequestHandler.postProcessBucketLayoutLookupFile())
+        .postprocess(Type.ListStatus,
+            OzoneManagerRequestHandler.postProcessBucketLayoutListStatus());
+    b.untilClientVersion(ClientVersion.ERASURE_CODING_SUPPORT)
+        .postprocess(Type.LookupKey,
+            OzoneManagerRequestHandler.postProcessErasureCodingLookupKey())
+        .postprocess(Type.ListKeys,
+            OzoneManagerRequestHandler.postProcessErasureCodingListKeys())
+        .postprocess(Type.ListTrash,
+            OzoneManagerRequestHandler.postProcessErasureCodingListTrash())
+        .postprocess(Type.GetFileStatus,
+            OzoneManagerRequestHandler.postProcessErasureCodingGetFileStatus())
+        .postprocess(Type.LookupFile,
+            OzoneManagerRequestHandler.postProcessErasureCodingLookupFile())
+        .postprocess(Type.ListStatus,
+            OzoneManagerRequestHandler.postProcessErasureCodingListStatus());
   }
 
   @VisibleForTesting

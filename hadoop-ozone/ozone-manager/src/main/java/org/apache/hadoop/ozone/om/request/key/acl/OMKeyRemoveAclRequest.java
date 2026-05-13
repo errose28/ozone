@@ -21,28 +21,24 @@ import com.google.common.collect.Lists;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OzoneManager;
-import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
 import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.request.util.ObjectParser;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
-import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
-import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
-import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestAction;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.key.acl.OMKeyAclResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.RemoveAclResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
-import org.apache.hadoop.ozone.request.validation.RequestProcessingPhase;
 import org.apache.hadoop.ozone.security.acl.OzoneObj;
 import org.apache.hadoop.ozone.security.acl.OzoneObjInfo;
 import org.apache.hadoop.util.Time;
@@ -152,38 +148,23 @@ public class OMKeyRemoveAclRequest extends OMKeyAclRequest {
     return super.validateAndUpdateCache(ozoneManager, context);
   }
 
-  /**
-   * Validates Add ACL requests.
-   * We do not want to allow older clients to create remove ACL requests
-   * for keys that are present in buckets which use non LEGACY layouts.
-   *
-   * @param req - the request to validate
-   * @param ctx - the validation context
-   * @return the validated request
-   * @throws OMException if the request is invalid
-   */
-  @RequestFeatureValidator(
-      conditions = ValidationCondition.OLDER_CLIENT_REQUESTS,
-      processingPhase = RequestProcessingPhase.PRE_PROCESS,
-      requestType = Type.RemoveAcl
-  )
-  public static OMRequest blockRemoveAclWithBucketLayoutFromOldClient(
-      OMRequest req, ValidationContext ctx) throws IOException {
-    if (req.getRemoveAclRequest().hasObj()) {
-      OzoneObj obj =
-          OzoneObjInfo.fromProtobuf(req.getRemoveAclRequest().getObj());
-      String path = obj.getPath();
-
-      ObjectParser objectParser = new ObjectParser(path,
-          OzoneManagerProtocolProtos.OzoneObj.ObjectType.KEY);
-
-      String volume = objectParser.getVolume();
-      String bucket = objectParser.getBucket();
-
-      BucketLayout bucketLayout = ctx.getBucketLayout(volume, bucket);
-      bucketLayout.validateSupportedOperation();
-    }
-    return req;
+  /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject non-legacy layouts. */
+  public static RequestAction preProcessBucketLayout() {
+    return context -> {
+      OMRequest req = context.getRequest();
+      if (req.getRemoveAclRequest().hasObj()) {
+        OzoneObj obj =
+            OzoneObjInfo.fromProtobuf(req.getRemoveAclRequest().getObj());
+        String path = obj.getPath();
+        ObjectParser objectParser = new ObjectParser(path,
+            OzoneManagerProtocolProtos.OzoneObj.ObjectType.KEY);
+        String volume = objectParser.getVolume();
+        String bucket = objectParser.getBucket();
+        BucketLayout bucketLayout = context.getBucketLayout(volume, bucket);
+        bucketLayout.validateSupportedOperation();
+      }
+      return req;
+    };
   }
 }
 
