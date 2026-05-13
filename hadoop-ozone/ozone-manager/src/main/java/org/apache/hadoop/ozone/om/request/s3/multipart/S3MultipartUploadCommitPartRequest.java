@@ -373,11 +373,7 @@ public class S3MultipartUploadCommitPartRequest extends OMKeyRequest {
       OMRequest req = context.getRequest();
       if (req.getCommitMultiPartUploadRequest().getKeyArgs()
           .hasEcReplicationConfig()) {
-        throw new OMException("Cluster does not have the Erasure Coded"
-            + " Storage support feature finalized yet, but the request contains"
-            + " an Erasure Coded replication type. Rejecting the request,"
-            + " please finalize the cluster upgrade and then try again.",
-            OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+        return RequestAction.blockPreFinalized(context);
       }
       return req;
     };
@@ -389,11 +385,7 @@ public class S3MultipartUploadCommitPartRequest extends OMKeyRequest {
       OMRequest req = context.getRequest();
       if (req.getCommitMultiPartUploadRequest().hasKeyArgs()) {
         KeyArgs keyArgs = req.getCommitMultiPartUploadRequest().getKeyArgs();
-        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-          BucketLayout bucketLayout = context.getBucketLayout(
-              keyArgs.getVolumeName(), keyArgs.getBucketName());
-          bucketLayout.validateSupportedOperation();
-        }
+        context.checkNonLegacyBucket(keyArgs.getVolumeName(), keyArgs.getBucketName());
       }
       return req;
     };

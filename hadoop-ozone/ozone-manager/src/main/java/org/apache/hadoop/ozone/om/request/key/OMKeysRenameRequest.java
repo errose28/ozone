@@ -288,11 +288,7 @@ public class OMKeysRenameRequest extends OMKeyRequest {
       OMRequest req = context.getRequest();
       if (req.getRenameKeysRequest().hasRenameKeysArgs()) {
         RenameKeysArgs keyArgs = req.getRenameKeysRequest().getRenameKeysArgs();
-        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-          BucketLayout bucketLayout = context.getBucketLayout(
-              keyArgs.getVolumeName(), keyArgs.getBucketName());
-          bucketLayout.validateSupportedOperation();
-        }
+        context.checkNonLegacyBucket(keyArgs.getVolumeName(), keyArgs.getBucketName());
       }
       return req;
     };

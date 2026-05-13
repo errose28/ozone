@@ -358,11 +358,7 @@ public class OMBucketSetPropertyRequest extends OMClientRequest {
           && propReq.getBucketArgs().hasDefaultReplicationConfig()
           && propReq.getBucketArgs().getDefaultReplicationConfig()
           .hasEcReplicationConfig()) {
-        throw new OMException("Cluster does not have the Erasure Coded"
-            + " Storage support feature finalized yet, but the request contains"
-            + " an Erasure Coded replication type. Rejecting the request,"
-            + " please finalize the cluster upgrade and then try again.",
-            OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+        return RequestAction.blockPreFinalized(context);
       }
       return req;
     };

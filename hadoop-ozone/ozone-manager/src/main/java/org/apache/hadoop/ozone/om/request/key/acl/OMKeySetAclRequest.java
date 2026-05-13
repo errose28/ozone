@@ -28,7 +28,6 @@ import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OzoneAclUtil;
 import org.apache.hadoop.ozone.om.request.util.ObjectParser;
@@ -156,8 +155,7 @@ public class OMKeySetAclRequest extends OMKeyAclRequest {
             OzoneManagerProtocolProtos.OzoneObj.ObjectType.KEY);
         String volume = objectParser.getVolume();
         String bucket = objectParser.getBucket();
-        BucketLayout bucketLayout = context.getBucketLayout(volume, bucket);
-        bucketLayout.validateSupportedOperation();
+        context.checkNonLegacyBucket(volume, bucket);
       }
       return req;
     };

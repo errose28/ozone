@@ -63,7 +63,6 @@ import org.apache.hadoop.ozone.om.OzoneManagerPrepareState;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
 import org.apache.hadoop.ozone.om.helpers.BasicOmKeyInfo;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.DBUpdates;
 import org.apache.hadoop.ozone.om.helpers.KeyInfoWithVolumeContext;
 import org.apache.hadoop.ozone.om.helpers.KeyValueUtil;
@@ -682,29 +681,18 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: strip non-legacy bucket layout from LookupKey. */
   public static ResponseAction postProcessBucketLayoutLookupKey() {
     return context -> {
-      OMRequest req = context.getRequest();
       OMResponse resp = context.getResponse();
       if (!resp.hasLookupKeyResponse()) {
         return resp;
       }
-      KeyInfo keyInfo = resp.getLookupKeyResponse().getKeyInfo();
-      if (keyInfo.hasVolumeName() && keyInfo.hasBucketName() &&
-          !context.getBucketLayout(keyInfo.getVolumeName(), keyInfo.getBucketName())
-              .equals(BucketLayout.LEGACY)) {
-        return resp.toBuilder()
-            .setStatus(Status.NOT_SUPPORTED_OPERATION)
-            .setMessage("Key is present inside a bucket with bucket layout " +
-                "features, which the client can not understand. Please upgrade" +
-                " the client to a compatible version before trying to read the" +
-                " key info for "
-                + req.getLookupKeyRequest().getKeyArgs().getVolumeName()
-                + "/" + req.getLookupKeyRequest().getKeyArgs().getBucketName()
-                + "/" + req.getLookupKeyRequest().getKeyArgs().getKeyName()
-                + ".")
-            .clearLookupKeyResponse()
-            .build();
+      if (!resp.getLookupKeyResponse().hasKeyInfo()) {
+        return resp;
       }
-      return resp;
+      KeyInfo keyInfo = resp.getLookupKeyResponse().getKeyInfo();
+      return context.createNonLegacyBucketResponse(
+          keyInfo.getVolumeName(),
+          keyInfo.getBucketName(),
+          OMResponse.Builder::clearLookupKeyResponse);
     };
   }
 
@@ -742,22 +730,16 @@ public class OzoneManagerRequestHandler implements RequestHandler {
       HashSet<Pair<String, String>> volumeBucketSet = new HashSet<>();
       List<KeyInfo> keys = resp.getListKeysResponse().getKeyInfoList();
       for (KeyInfo key : keys) {
-        if (key.hasVolumeName() && key.hasBucketName()) {
-          volumeBucketSet.add(
-              new ImmutablePair<>(key.getVolumeName(), key.getBucketName()));
-        }
+        volumeBucketSet.add(
+            new ImmutablePair<>(key.getVolumeName(), key.getBucketName()));
       }
       for (Pair<String, String> volumeBucket : volumeBucketSet) {
-        if (!context.getBucketLayout(volumeBucket.getLeft(), volumeBucket.getRight())
-            .isLegacy()) {
-          return resp.toBuilder()
-              .setStatus(Status.NOT_SUPPORTED_OPERATION)
-              .setMessage("The list of keys contains keys present inside bucket" +
-                  " with bucket layout features, hence the client is not able " +
-                  "to understand all the keys returned. Please upgrade the"
-                  + " client to get the list of keys.")
-              .clearListKeysResponse()
-              .build();
+        OMResponse next = context.createNonLegacyBucketResponse(
+            volumeBucket.getLeft(),
+            volumeBucket.getRight(),
+            OMResponse.Builder::clearListKeysResponse);
+        if (next != resp) {
+          return next;
         }
       }
       return resp;
@@ -803,23 +785,17 @@ public class OzoneManagerRequestHandler implements RequestHandler {
       HashSet<Pair<String, String>> volumeBucketSet = new HashSet<>();
       for (RepeatedKeyInfo repeatedKey : repeatedKeys) {
         for (KeyInfo key : repeatedKey.getKeyInfoList()) {
-          if (key.hasVolumeName() && key.hasBucketName()) {
-            volumeBucketSet.add(
-                new ImmutablePair<>(key.getVolumeName(), key.getBucketName()));
-          }
+          volumeBucketSet.add(
+              new ImmutablePair<>(key.getVolumeName(), key.getBucketName()));
         }
       }
       for (Pair<String, String> volumeBucket : volumeBucketSet) {
-        if (!context.getBucketLayout(volumeBucket.getLeft(), volumeBucket.getRight())
-            .isLegacy()) {
-          return resp.toBuilder()
-              .setStatus(Status.NOT_SUPPORTED_OPERATION)
-              .setMessage("The list of keys contains keys present in buckets " +
-                  " using bucket layout features, hence the client is not able to"
-                  + " understand all the keys returned. Please upgrade the"
-                  + " client to get the list of keys.")
-              .clearListTrashResponse()
-              .build();
+        OMResponse next = context.createNonLegacyBucketResponse(
+            volumeBucket.getLeft(),
+            volumeBucket.getRight(),
+            OMResponse.Builder::clearListTrashResponse);
+        if (next != resp) {
+          return next;
         }
       }
       return resp;
@@ -856,29 +832,19 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject GetFileStatus for non-legacy buckets. */
   public static ResponseAction postProcessBucketLayoutGetFileStatus() {
     return context -> {
-      OMRequest req = context.getRequest();
       OMResponse resp = context.getResponse();
       if (!resp.hasGetFileStatusResponse()) {
         return resp;
       }
-      KeyInfo keyInfo = resp.getGetFileStatusResponse().getStatus().getKeyInfo();
-      if (keyInfo.hasVolumeName() && keyInfo.hasBucketName() &&
-          !context.getBucketLayout(keyInfo.getVolumeName(), keyInfo.getBucketName())
-              .isLegacy()) {
-        return resp.toBuilder()
-            .setStatus(Status.NOT_SUPPORTED_OPERATION)
-            .setMessage("Key is present in a bucket using bucket layout features"
-                + " which the client can not understand."
-                + " Please upgrade the client before trying to read the key info"
-                + " for "
-                + req.getGetFileStatusRequest().getKeyArgs().getVolumeName()
-                + "/" + req.getGetFileStatusRequest().getKeyArgs().getBucketName()
-                + "/" + req.getGetFileStatusRequest().getKeyArgs().getKeyName()
-                + ".")
-            .clearGetFileStatusResponse()
-            .build();
+      OzoneFileStatusProto status = resp.getGetFileStatusResponse().getStatus();
+      if (!status.hasKeyInfo()) {
+        return resp;
       }
-      return resp;
+      KeyInfo keyInfo = status.getKeyInfo();
+      return context.createNonLegacyBucketResponse(
+          keyInfo.getVolumeName(),
+          keyInfo.getBucketName(),
+          OMResponse.Builder::clearGetFileStatusResponse);
     };
   }
 
@@ -911,29 +877,18 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   /** For {@link ClientVersion#BUCKET_LAYOUT_SUPPORT}: reject LookupFile for non-legacy buckets. */
   public static ResponseAction postProcessBucketLayoutLookupFile() {
     return context -> {
-      OMRequest req = context.getRequest();
       OMResponse resp = context.getResponse();
       if (!resp.hasLookupFileResponse()) {
         return resp;
       }
-      KeyInfo keyInfo = resp.getLookupFileResponse().getKeyInfo();
-      if (keyInfo.hasVolumeName() && keyInfo.hasBucketName() &&
-          !context.getBucketLayout(keyInfo.getVolumeName(), keyInfo.getBucketName())
-              .equals(BucketLayout.LEGACY)) {
-        return resp.toBuilder()
-            .setStatus(Status.NOT_SUPPORTED_OPERATION)
-            .setMessage("File is present inside a bucket with bucket layout " +
-                "features, which the client can not understand. Please upgrade" +
-                " the client to a compatible version before trying to read the" +
-                " key info for "
-                + req.getLookupFileRequest().getKeyArgs().getVolumeName()
-                + "/" + req.getLookupFileRequest().getKeyArgs().getBucketName()
-                + "/" + req.getLookupFileRequest().getKeyArgs().getKeyName()
-                + ".")
-            .clearLookupFileResponse()
-            .build();
+      if (!resp.getLookupFileResponse().hasKeyInfo()) {
+        return resp;
       }
-      return resp;
+      KeyInfo keyInfo = resp.getLookupFileResponse().getKeyInfo();
+      return context.createNonLegacyBucketResponse(
+          keyInfo.getVolumeName(),
+          keyInfo.getBucketName(),
+          OMResponse.Builder::clearLookupFileResponse);
     };
   }
 
@@ -973,24 +928,20 @@ public class OzoneManagerRequestHandler implements RequestHandler {
           resp.getListStatusResponse().getStatusesList();
       HashSet<Pair<String, String>> volumeBucketSet = new HashSet<>();
       for (OzoneFileStatusProto status : statuses) {
-        KeyInfo keyInfo = status.getKeyInfo();
-        if (keyInfo.hasVolumeName() && keyInfo.hasBucketName()) {
-          volumeBucketSet.add(
-              new ImmutablePair<>(keyInfo.getVolumeName(),
-                  keyInfo.getBucketName()));
+        if (!status.hasKeyInfo()) {
+          continue;
         }
+        KeyInfo keyInfo = status.getKeyInfo();
+        volumeBucketSet.add(
+            new ImmutablePair<>(keyInfo.getVolumeName(), keyInfo.getBucketName()));
       }
       for (Pair<String, String> volumeBucket : volumeBucketSet) {
-        if (!context.getBucketLayout(volumeBucket.getLeft(),
-            volumeBucket.getRight()).isLegacy()) {
-          return resp.toBuilder()
-              .setStatus(Status.NOT_SUPPORTED_OPERATION)
-              .setMessage("The list of keys is present in a bucket using bucket"
-                  + " layout features, hence the client is not able to"
-                  + " represent all the keys returned."
-                  + " Please upgrade the client to get the list of keys.")
-              .clearListStatusResponse()
-              .build();
+        OMResponse next = context.createNonLegacyBucketResponse(
+            volumeBucket.getLeft(),
+            volumeBucket.getRight(),
+            OMResponse.Builder::clearListStatusResponse);
+        if (next != resp) {
+          return next;
         }
       }
       return resp;

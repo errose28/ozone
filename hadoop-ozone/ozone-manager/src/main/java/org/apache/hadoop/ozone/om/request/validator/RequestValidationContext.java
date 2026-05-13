@@ -17,7 +17,9 @@
 
 package org.apache.hadoop.ozone.om.request.validator;
 
+import java.io.IOException;
 import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 
 /** Request phase validation context ({@linkplain OMRequest protobuf request}). */
@@ -25,5 +27,14 @@ public final class RequestValidationContext extends ValidationContext {
 
   public RequestValidationContext(OzoneManager om, OMRequest request) {
     super(om, request);
+  }
+
+  public void checkNonLegacyBucket(String volumeName, String bucketName) throws IOException {
+    if (!isLegacyBucket(volumeName, bucketName)) {
+      throw new OMException("Client is attempting to modify bucket /" + volumeName + "/" + bucketName
+          + " which uses non-LEGACY bucket layout features. Please upgrade the client"
+          + " to a compatible version before performing this operation.",
+          OMException.ResultCodes.NOT_SUPPORTED_OPERATION);
+    }
   }
 }

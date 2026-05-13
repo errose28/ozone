@@ -514,11 +514,7 @@ public class OMKeyCommitRequest extends OMKeyRequest {
     return context -> {
       OMRequest req = context.getRequest();
       if (req.getCommitKeyRequest().getKeyArgs().hasEcReplicationConfig()) {
-        throw new OMException("Cluster does not have the Erasure Coded"
-            + " Storage support feature finalized yet, but the request contains"
-            + " an Erasure Coded replication type. Rejecting the request,"
-            + " please finalize the cluster upgrade and then try again.",
-            OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+        return RequestAction.blockPreFinalized(context);
       }
       return req;
     };
@@ -530,11 +526,7 @@ public class OMKeyCommitRequest extends OMKeyRequest {
       OMRequest req = context.getRequest();
       if (req.getCommitKeyRequest().hasKeyArgs()) {
         KeyArgs keyArgs = req.getCommitKeyRequest().getKeyArgs();
-        if (keyArgs.hasVolumeName() && keyArgs.hasBucketName()) {
-          BucketLayout bucketLayout = context.getBucketLayout(
-              keyArgs.getVolumeName(), keyArgs.getBucketName());
-          bucketLayout.validateSupportedOperation();
-        }
+        context.checkNonLegacyBucket(keyArgs.getVolumeName(), keyArgs.getBucketName());
       }
       return req;
     };
@@ -546,18 +538,10 @@ public class OMKeyCommitRequest extends OMKeyRequest {
       OMRequest req = context.getRequest();
       CommitKeyRequest commitKeyRequest = req.getCommitKeyRequest();
       if (commitKeyRequest.hasHsync() && commitKeyRequest.getHsync()) {
-        throw new OMException("Cluster does not have the hsync support "
-            + "feature finalized yet, but the request contains"
-            + " an hsync field. Rejecting the request,"
-            + " please finalize the cluster upgrade and then try again.",
-            OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+        return RequestAction.blockPreFinalized(context);
       }
       if (commitKeyRequest.hasRecovery() && commitKeyRequest.getRecovery()) {
-        throw new OMException("Cluster does not have the HBase support "
-            + "feature finalized yet, but the request contains"
-            + " an recovery field. Rejecting the request,"
-            + " please finalize the cluster upgrade and then try again.",
-            OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+        return RequestAction.blockPreFinalized(context);
       }
       return req;
     };

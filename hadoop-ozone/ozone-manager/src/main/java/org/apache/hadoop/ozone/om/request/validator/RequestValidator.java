@@ -17,8 +17,6 @@
 
 package org.apache.hadoop.ozone.om.request.validator;
 
-import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
-
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.EnumMap;
@@ -29,7 +27,6 @@ import java.util.TreeMap;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
-import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -239,7 +236,7 @@ public final class RequestValidator {
       }
 
       public ServerRequestValidation block(Type cmd) {
-        return preProcess(cmd, BLOCKING_ACTION);
+        return preProcess(cmd, RequestAction::blockPreFinalized);
       }
 
       public ServerRequestValidation preProcess(Type cmd, RequestAction action) {
@@ -269,14 +266,6 @@ public final class RequestValidator {
         }
         return this;
       }
-
-      private static final RequestAction BLOCKING_ACTION = context -> {
-        throw new OMException(String.format(
-                "Operation %s cannot be invoked before finalization. OM's current apparent version is %s",
-                context.getRequest().getCmdType(),
-                context.getApparentVersion()),
-            NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
-      };
     }
 
     /**

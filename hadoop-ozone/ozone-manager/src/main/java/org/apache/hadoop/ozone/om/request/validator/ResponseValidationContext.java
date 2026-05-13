@@ -17,14 +17,17 @@
 
 package org.apache.hadoop.ozone.om.request.validator;
 
+import java.io.IOException;
+import java.util.function.UnaryOperator;
 import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 
 /** Response phase validation context. */
 public final class ResponseValidationContext extends ValidationContext {
 
-  private OMResponse response;
+  private final OMResponse response;
 
   public ResponseValidationContext(
       OzoneManager om,
@@ -38,7 +41,25 @@ public final class ResponseValidationContext extends ValidationContext {
     return response;
   }
 
-  public void replaceResponse(OMResponse newResponse) {
-    this.response = newResponse;
+  /**
+   * When the resolved bucket is non-legacy, returns an error response built from the current response
+   * with {@link OzoneManagerProtocolProtos.Status#NOT_SUPPORTED_OPERATION} and the standard bucket-layout
+   * upgrade message, after {@code customizeError} adjusts the builder (typically to clear the RPC payload).
+   * Otherwise returns the current response unchanged.
+   */
+  public OMResponse createNonLegacyBucketResponse(
+      String volumeName,
+      String bucketName,
+      UnaryOperator<OMResponse.Builder> customizeError) throws IOException {
+    if (isLegacyBucket(volumeName, bucketName)) {
+      return response;
+    }
+    String message =
+        "Client is attempting to access bucket /" + volumeName + "/" + bucketName
+            + " which uses non-LEGACY bucket layout features. Please upgrade the client"
+            + " to a compatible version before performing this operation.";
+    OMResponse.Builder builder =
+        response.toBuilder().setStatus(OzoneManagerProtocolProtos.Status.NOT_SUPPORTED_OPERATION).setMessage(message);
+    return customizeError.apply(builder).build();
   }
 }

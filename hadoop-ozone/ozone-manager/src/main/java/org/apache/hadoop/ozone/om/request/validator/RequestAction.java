@@ -17,7 +17,10 @@
 
 package org.apache.hadoop.ozone.om.request.validator;
 
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION;
+
 import java.io.IOException;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 
 /** Stateful request adjustment or rejection triggered during preprocessing. */
@@ -27,4 +30,12 @@ public interface RequestAction {
    * @throws java.io.IOException on validation failure ({@link org.apache.hadoop.ozone.om.exceptions.OMException})
    */
   OMRequest process(RequestValidationContext context) throws IOException;
+
+  static OMRequest blockPreFinalized(RequestValidationContext context) throws OMException {
+    throw new OMException(String.format(
+        "Operation %s cannot be invoked before finalization. OM's current apparent version is %s",
+        context.getRequest().getCmdType(),
+        context.getApparentVersion()),
+        NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION);
+  }
 }

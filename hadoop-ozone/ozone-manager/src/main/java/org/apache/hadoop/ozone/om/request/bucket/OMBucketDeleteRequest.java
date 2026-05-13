@@ -40,7 +40,6 @@ import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmVolumeArgs;
 import org.apache.hadoop.ozone.om.helpers.SnapshotInfo;
@@ -265,11 +264,7 @@ public class OMBucketDeleteRequest extends OMClientRequest {
     return context -> {
       OMRequest req = context.getRequest();
       DeleteBucketRequest request = req.getDeleteBucketRequest();
-      if (request.hasBucketName() && request.hasVolumeName()) {
-        BucketLayout bucketLayout = context.getBucketLayout(
-            request.getVolumeName(), request.getBucketName());
-        bucketLayout.validateSupportedOperation();
-      }
+      context.checkNonLegacyBucket(request.getVolumeName(), request.getBucketName());
       return req;
     };
   }

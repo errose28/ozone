@@ -19,10 +19,8 @@ package org.apache.hadoop.ozone.om.request.validator;
 
 import java.io.IOException;
 import org.apache.hadoop.hdds.ComponentVersion;
-import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.OzoneManagerUtils;
-import org.apache.hadoop.ozone.om.helpers.BucketLayout;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 
 /**
@@ -40,16 +38,6 @@ public abstract class ValidationContext {
   protected ValidationContext(OzoneManager ozoneManager, OMRequest request) {
     this.ozoneManager = ozoneManager;
     this.request = request;
-  }
-
-  /**
-   * Resolves persisted {@linkplain BucketLayout} (link buckets follow source), matching
-   * legacy request validators.
-   */
-  public final BucketLayout getBucketLayout(String volumeName, String bucketName)
-      throws IOException {
-    return OzoneManagerUtils.getBucketLayout(
-        ozoneManager.getMetadataManager(), volumeName, bucketName);
   }
 
   public final OMRequest getRequest() {
@@ -74,14 +62,16 @@ public abstract class ValidationContext {
 
   /**
    * True when resolved bucket metadata reports {@linkplain org.apache.hadoop.ozone.om.helpers.BucketLayout#LEGACY
-   * LEGACY} layout (including link buckets resolved to source).
+   * LEGACY} layout (link buckets follow source). When volume or bucket name is null or empty, returns true so
+   * older-client compatibility checks do not reject the request before names are validated elsewhere.
    *
    * @see org.apache.hadoop.ozone.om.helpers.BucketLayout#isLegacy()
    */
-  public final boolean isLegacyBucket(String volumeName, String bucketName)
-      throws IOException {
-    return OzoneManagerUtils.getBucketLayout(
-            ozoneManager.getMetadataManager(), volumeName, bucketName)
-        .isLegacy();
+  protected final boolean isLegacyBucket(String volumeName, String bucketName) throws IOException {
+    if (volumeName == null || bucketName == null
+        || volumeName.isEmpty() || bucketName.isEmpty()) {
+      return true;
+    }
+    return OzoneManagerUtils.getBucketLayout(ozoneManager.getMetadataManager(), volumeName, bucketName).isLegacy();
   }
 }
