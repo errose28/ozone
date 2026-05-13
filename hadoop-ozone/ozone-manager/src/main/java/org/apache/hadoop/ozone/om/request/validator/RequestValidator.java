@@ -210,13 +210,21 @@ public final class RequestValidator {
           postProcessClientActions);
     }
 
+
+    private static final Comparator<ComponentVersion> VERSION_COMPARATOR = (a, b) -> {
+      if (Objects.equals(a, b)) {
+        return 0;
+      } else if (a.isSupportedBy(b)) {
+        return -1;
+      } else {
+        return 1;
+      }
+    };
+
     /**
      * Fluent registrations for validations gated on apparent OM / layout {@linkplain ComponentVersion versions}.
      */
     public static final class ServerRequestValidation {
-      private static final Comparator<ComponentVersion> GATE_ORDER =
-          Comparator.comparingInt(ComponentVersion::serialize);
-
       private final ComponentVersion minimumVersion;
       private final OMVersionManager versionManager;
       private final Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessMap;
@@ -238,7 +246,7 @@ public final class RequestValidator {
 
       public ServerRequestValidation preProcess(Type cmd, RequestAction action) {
         SortedMap<ComponentVersion, RequestAction> versionToAction =
-            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(GATE_ORDER));
+            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
         if (versionToAction.containsKey(minimumVersion)) {
           throw new IllegalArgumentException(
               "Duplicate OM pre-process action for cmd=" + cmd + " version=" + minimumVersion);
@@ -252,7 +260,7 @@ public final class RequestValidator {
 
       public ServerRequestValidation postProcess(Type cmd, ResponseAction action) {
         SortedMap<ComponentVersion, ResponseAction> versionToAction =
-            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(GATE_ORDER));
+            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
         if (versionToAction.containsKey(minimumVersion)) {
           throw new IllegalArgumentException(
               "Duplicate OM post-process action for cmd=" + cmd + " version=" + minimumVersion);
@@ -280,9 +288,6 @@ public final class RequestValidator {
      * registration-time (clients evolve faster than disk snapshots of apparent versions).
      */
     public static final class ClientRequestValidation {
-      private static final Comparator<ClientVersion> CLIENT_GATE_ORDER =
-          Comparator.comparingInt(ClientVersion::serialize)
-              .thenComparing(ClientVersion::name);
 
       private final ClientVersion minimumVersion;
       private final Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessMap;
@@ -300,7 +305,7 @@ public final class RequestValidator {
 
       public ClientRequestValidation preprocess(Type cmd, RequestAction action) {
         SortedMap<ClientVersion, RequestAction> versionToAction =
-            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(CLIENT_GATE_ORDER));
+            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
         if (versionToAction.containsKey(minimumVersion)) {
           throw new IllegalArgumentException(
               "Duplicate OM client pre-process action for cmd=" + cmd + " version=" + minimumVersion);
@@ -311,7 +316,7 @@ public final class RequestValidator {
 
       public ClientRequestValidation postprocess(Type cmd, ResponseAction action) {
         SortedMap<ClientVersion, ResponseAction> versionToAction =
-            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(CLIENT_GATE_ORDER));
+            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
         if (versionToAction.containsKey(minimumVersion)) {
           throw new IllegalArgumentException(
               "Duplicate OM client post-process action for cmd=" + cmd + " version=" + minimumVersion);
@@ -319,7 +324,6 @@ public final class RequestValidator {
         versionToAction.put(minimumVersion, action);
         return this;
       }
-
     }
   }
 }
