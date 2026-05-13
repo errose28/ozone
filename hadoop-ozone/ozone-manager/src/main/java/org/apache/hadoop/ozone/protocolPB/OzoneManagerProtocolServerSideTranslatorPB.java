@@ -44,12 +44,15 @@ import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer.RaftServerStatus
 import org.apache.hadoop.ozone.om.ratis.utils.OzoneManagerRatisUtils;
 import org.apache.hadoop.ozone.om.request.validation.RequestValidations;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
+import org.apache.hadoop.ozone.om.request.validator.RequestValidator;
+import org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ReadConsistencyHint;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ReadConsistencyHint.LocalLeaseContext;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ReadConsistencyProto;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 import org.apache.hadoop.ozone.security.S3SecurityUtil;
 import org.apache.ratis.proto.RaftProtos.CommitInfoProto;
 import org.apache.ratis.proto.RaftProtos.FollowerInfoProto;
@@ -78,6 +81,7 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
   private final OzoneProtocolMessageDispatcher<OMRequest, OMResponse,
       OzoneManagerProtocolProtos.Type> dispatcher;
   private final RequestValidations requestValidations;
+  private final RequestValidator requestValidator;
   private final OMPerformanceMetrics perfMetrics;
 
   private OMRequest lastRequestToSubmit;
@@ -104,6 +108,11 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
         .fromPackage(OM_REQUESTS_PACKAGE)
         .withinContext(ValidationContext.of(ozoneManager.getVersionManager(), ozoneManager.getMetadataManager()))
         .load();
+
+    RequestValidator.Builder validatorBuilder = new RequestValidator.Builder(impl);
+    assignValidations(validatorBuilder);
+    this.requestValidator = validatorBuilder.build();
+
     maxResponseLength = ozoneManager.getConfiguration()
         .getInt(MAXIMUM_RESPONSE_LENGTH, MAXIMUM_RESPONSE_LENGTH_DEFAULT);
   }
@@ -118,7 +127,10 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
     try {
       validatedRequest = captureLatencyNs(
           perfMetrics.getValidateRequestLatencyNs(),
-          () -> requestValidations.validateRequest(request));
+          () -> {
+            OMRequest afterLayout = requestValidator.preProcess(request);
+            return requestValidations.validateRequest(afterLayout);
+          });
     } catch (Exception e) {
       if (e instanceof OMException) {
         return createErrorResponse(request, (OMException) e);
@@ -131,8 +143,51 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
 
     logLargeResponseIfNeeded(response);
 
-    return captureLatencyNs(perfMetrics.getValidateResponseLatencyNs(),
-        () -> requestValidations.validateResponse(request, response));
+    try {
+      return captureLatencyNs(perfMetrics.getValidateResponseLatencyNs(),
+          () -> requestValidator.postProcess(request,
+              requestValidations.validateResponse(request, response)));
+    } catch (Exception e) {
+      if (e instanceof OMException) {
+        return createErrorResponse(request, (OMException) e);
+      }
+      if (e instanceof ServiceException) {
+        throw (ServiceException) e;
+      }
+      throw new ServiceException(e);
+    }
+  }
+
+  /**
+   * Registers {@linkplain OMLayoutFeature layout feature} gates previously enforced by
+   * {@link org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion} / {@link
+   * org.apache.hadoop.ozone.om.upgrade.OMLayoutFeatureAspect}.
+   */
+  private static void assignValidations(RequestValidator.Builder b) {
+    b.untilServerVersion(OMLayoutFeature.FILESYSTEM_SNAPSHOT)
+        .block(Type.CreateSnapshot)
+        .block(Type.DeleteSnapshot)
+        .block(Type.SnapshotMoveDeletedKeys)
+        .block(Type.SnapshotMoveTableKeys)
+        .block(Type.RenameSnapshot)
+        .block(Type.SnapshotDiff)
+        .block(Type.SubmitSnapshotDiff)
+        .block(Type.CancelSnapshotDiff)
+        .block(Type.GetSnapshotInfo)
+        .block(Type.ListSnapshot);
+    b.untilServerVersion(OMLayoutFeature.MULTITENANCY_SCHEMA)
+        .block(Type.CreateTenant)
+        .block(Type.DeleteTenant)
+        .block(Type.ListTenant)
+        .block(Type.TenantGetUserInfo)
+        .block(Type.TenantAssignUserAccessId)
+        .block(Type.TenantRevokeUserAccessId)
+        .block(Type.TenantAssignAdmin)
+        .block(Type.TenantRevokeAdmin)
+        .block(Type.TenantListUser);
+    b.untilServerVersion(OMLayoutFeature.HBASE_SUPPORT)
+        .block(Type.RecoverLease)
+        .block(Type.ListOpenFiles);
   }
 
   @VisibleForTesting

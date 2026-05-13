@@ -18,7 +18,6 @@
 package org.apache.hadoop.ozone.om.request.snapshot;
 
 import static org.apache.hadoop.hdds.HddsUtils.fromProtobuf;
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.FILESYSTEM_SNAPSHOT;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +45,6 @@ import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotMoveTableKeysResponse;
 import org.apache.hadoop.ozone.om.snapshot.SnapshotUtils;
-import org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotMoveKeyInfos;
@@ -73,7 +71,6 @@ public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
   }
 
   @Override
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
     OmMetadataManagerImpl omMetadataManager = (OmMetadataManagerImpl) ozoneManager.getMetadataManager();
     SnapshotChainManager snapshotChainManager = omMetadataManager.getSnapshotChainManager();

@@ -210,7 +210,6 @@ public final class RequestValidator {
           postProcessClientActions);
     }
 
-
     private static final Comparator<ComponentVersion> VERSION_COMPARATOR = (a, b) -> {
       if (Objects.equals(a, b)) {
         return 0;

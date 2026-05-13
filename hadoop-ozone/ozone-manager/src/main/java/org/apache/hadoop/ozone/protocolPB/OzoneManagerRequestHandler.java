@@ -17,9 +17,6 @@
 
 package org.apache.hadoop.ozone.protocolPB;
 
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.FILESYSTEM_SNAPSHOT;
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.HBASE_SUPPORT;
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.MULTITENANCY_SCHEMA;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DBUpdatesRequest;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.DBUpdatesResponse;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetAclRequest;
@@ -98,7 +95,6 @@ import org.apache.hadoop.ozone.om.request.validation.RequestFeatureValidator;
 import org.apache.hadoop.ozone.om.request.validation.ValidationCondition;
 import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
-import org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CancelSnapshotDiffRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CancelSnapshotDiffResponse;
@@ -549,7 +545,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return resp.build();
   }
 
-  @DisallowedUntilLayoutVersion(MULTITENANCY_SCHEMA)
   private TenantGetUserInfoResponse tenantGetUserInfo(
       TenantGetUserInfoRequest request) throws IOException {
 
@@ -566,7 +561,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return resp.build();
   }
 
-  @DisallowedUntilLayoutVersion(MULTITENANCY_SCHEMA)
   private TenantListUserResponse tenantListUsers(
       TenantListUserRequest request) throws IOException {
     TenantListUserResponse.Builder builder =
@@ -580,7 +574,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return builder.build();
   }
 
-  @DisallowedUntilLayoutVersion(MULTITENANCY_SCHEMA)
   private ListTenantResponse listTenant(
       ListTenantRequest request) throws IOException {
 
@@ -921,7 +914,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return resp;
   }
 
-  @DisallowedUntilLayoutVersion(HBASE_SUPPORT)
   private ListOpenFilesResponse listOpenFiles(ListOpenFilesRequest req,
                                               int clientVersion)
       throws IOException {
@@ -1391,7 +1383,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return impl.getS3VolumeContext().getProtobuf();
   }
 
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   private SnapshotDiffResponse snapshotDiff(
       SnapshotDiffRequest snapshotDiffRequest) throws IOException {
     org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse response;
@@ -1432,7 +1423,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return builder.build();
   }
 
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   private SubmitSnapshotDiffResponse submitSnapshotDiff(
       SubmitSnapshotDiffRequest submitSnapshotDiffRequest) throws IOException {
 
@@ -1455,7 +1445,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return builder.build();
   }
 
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   private CancelSnapshotDiffResponse cancelSnapshotDiff(
       CancelSnapshotDiffRequest cancelSnapshotDiffRequest) throws IOException {
 
@@ -1527,7 +1516,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
     return builder.build();
   }
 
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   private OzoneManagerProtocolProtos.SnapshotInfoResponse getSnapshotInfo(
       OzoneManagerProtocolProtos.SnapshotInfoRequest request)
       throws IOException {
@@ -1538,7 +1526,6 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         .setSnapshotInfo(snapshotInfo.getProtobuf()).build();
   }
 
-  @DisallowedUntilLayoutVersion(FILESYSTEM_SNAPSHOT)
   private OzoneManagerProtocolProtos.ListSnapshotResponse getSnapshots(
       OzoneManagerProtocolProtos.ListSnapshotRequest request)
       throws IOException {

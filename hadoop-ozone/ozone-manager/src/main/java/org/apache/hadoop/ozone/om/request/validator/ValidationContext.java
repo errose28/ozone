@@ -27,10 +27,10 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMReque
 /**
  * Adapter base for OM request/response validations (builder-driven validator).
  *
- * <p>Version gating stays in {@link RequestValidator}. Layout-related compatibility logic in migrated validators only
- * needs to distinguish LEGACY buckets from FILE_SYSTEM_OPTIMIZED / OBJECT_STORE (see {@linkplain
- * org.apache.hadoop.ozone.protocolPB.OzoneManagerRequestHandler legacy post-process validators}), which maps to checking
- * {@linkplain org.apache.hadoop.ozone.om.helpers.BucketLayout#LEGACY persisted layout LEGACY}.
+ * <p>Version gating stays in {@link RequestValidator}. Layout-related compatibility logic in migrated
+ * validators only needs to distinguish LEGACY buckets from FILE_SYSTEM_OPTIMIZED / OBJECT_STORE (see {@linkplain
+ * org.apache.hadoop.ozone.protocolPB.OzoneManagerRequestHandler legacy post-process validators}), which maps to
+ * checking {@linkplain org.apache.hadoop.ozone.om.helpers.BucketLayout#LEGACY persisted layout LEGACY}.
  */
 public abstract class ValidationContext {
   private final OzoneManager ozoneManager;
