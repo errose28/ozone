@@ -227,66 +227,66 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
 
   private static void assignClientValidations(RequestValidator.Builder b) {
     b.untilClientVersion(ClientVersion.BUCKET_LAYOUT_SUPPORT)
-        .preprocess(Type.CommitKey,
+        .preProcess(Type.CommitKey,
             OMKeyCommitRequest.preProcessBucketLayout())
-        .preprocess(Type.CreateKey,
+        .preProcess(Type.CreateKey,
             OMKeyCreateRequest.preProcessBucketLayout())
-        .preprocess(Type.CreateFile,
+        .preProcess(Type.CreateFile,
             OMFileCreateRequest.preProcessBucketLayout())
-        .preprocess(Type.CreateDirectory,
+        .preProcess(Type.CreateDirectory,
             OMDirectoryCreateRequest.preProcessBucketLayout())
-        .preprocess(Type.RenameKey,
+        .preProcess(Type.RenameKey,
             OMKeyRenameRequest.preProcessBucketLayout())
-        .preprocess(Type.DeleteKey,
+        .preProcess(Type.DeleteKey,
             OMKeyDeleteRequest.preProcessBucketLayout())
-        .preprocess(Type.DeleteKeys,
+        .preProcess(Type.DeleteKeys,
             OMKeysDeleteRequest.preProcessBucketLayout())
-        .preprocess(Type.DeleteBucket,
+        .preProcess(Type.DeleteBucket,
             OMBucketDeleteRequest.preProcessBucketLayout())
-        .preprocess(Type.AddAcl,
+        .preProcess(Type.AddAcl,
             OMKeyAddAclRequest.preProcessBucketLayout())
-        .preprocess(Type.RemoveAcl,
+        .preProcess(Type.RemoveAcl,
             OMKeyRemoveAclRequest.preProcessBucketLayout())
-        .preprocess(Type.SetAcl,
+        .preProcess(Type.SetAcl,
             OMKeySetAclRequest.preProcessBucketLayout())
-        .preprocess(Type.InitiateMultiPartUpload,
+        .preProcess(Type.InitiateMultiPartUpload,
             S3InitiateMultipartUploadRequest.preProcessBucketLayout())
-        .preprocess(Type.CompleteMultiPartUpload,
+        .preProcess(Type.CompleteMultiPartUpload,
             S3MultipartUploadCompleteRequest.preProcessBucketLayout())
-        .preprocess(Type.CommitMultiPartUpload,
+        .preProcess(Type.CommitMultiPartUpload,
             S3MultipartUploadCommitPartRequest.preProcessBucketLayout())
-        .preprocess(Type.AbortMultiPartUpload,
+        .preProcess(Type.AbortMultiPartUpload,
             S3MultipartUploadAbortRequest.preProcessBucketLayout())
-        .preprocess(Type.RenameKeys,
+        .preProcess(Type.RenameKeys,
             OMKeysRenameRequest.preProcessBucketLayout())
-        .preprocess(Type.AllocateBlock,
+        .preProcess(Type.AllocateBlock,
             OMAllocateBlockRequest.preProcessBucketLayout())
-        .preprocess(Type.CreateBucket,
+        .preProcess(Type.CreateBucket,
             OMBucketCreateRequest.preProcessBucketLayoutForClient())
-        .postprocess(Type.LookupKey,
+        .postProcess(Type.LookupKey,
             OzoneManagerRequestHandler.postProcessBucketLayoutLookupKey())
-        .postprocess(Type.ListKeys,
+        .postProcess(Type.ListKeys,
             OzoneManagerRequestHandler.postProcessBucketLayoutListKeys())
-        .postprocess(Type.ListTrash,
+        .postProcess(Type.ListTrash,
             OzoneManagerRequestHandler.postProcessBucketLayoutListTrash())
-        .postprocess(Type.GetFileStatus,
+        .postProcess(Type.GetFileStatus,
             OzoneManagerRequestHandler.postProcessBucketLayoutGetFileStatus())
-        .postprocess(Type.LookupFile,
+        .postProcess(Type.LookupFile,
             OzoneManagerRequestHandler.postProcessBucketLayoutLookupFile())
-        .postprocess(Type.ListStatus,
+        .postProcess(Type.ListStatus,
             OzoneManagerRequestHandler.postProcessBucketLayoutListStatus());
     b.untilClientVersion(ClientVersion.ERASURE_CODING_SUPPORT)
-        .postprocess(Type.LookupKey,
+        .postProcess(Type.LookupKey,
             OzoneManagerRequestHandler.postProcessErasureCodingLookupKey())
-        .postprocess(Type.ListKeys,
+        .postProcess(Type.ListKeys,
             OzoneManagerRequestHandler.postProcessErasureCodingListKeys())
-        .postprocess(Type.ListTrash,
+        .postProcess(Type.ListTrash,
             OzoneManagerRequestHandler.postProcessErasureCodingListTrash())
-        .postprocess(Type.GetFileStatus,
+        .postProcess(Type.GetFileStatus,
             OzoneManagerRequestHandler.postProcessErasureCodingGetFileStatus())
-        .postprocess(Type.LookupFile,
+        .postProcess(Type.LookupFile,
             OzoneManagerRequestHandler.postProcessErasureCodingLookupFile())
-        .postprocess(Type.ListStatus,
+        .postProcess(Type.ListStatus,
             OzoneManagerRequestHandler.postProcessErasureCodingListStatus());
   }
 

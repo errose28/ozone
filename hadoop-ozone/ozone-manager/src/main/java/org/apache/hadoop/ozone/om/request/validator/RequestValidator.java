@@ -18,10 +18,8 @@
 package org.apache.hadoop.ozone.om.request.validator;
 
 import java.io.IOException;
-import java.util.Comparator;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import org.apache.hadoop.hdds.ComponentVersion;
@@ -39,278 +37,271 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
  * <p>Thread-safety follows the supplied mutable {@link Builder} maps; treat each builder as single-shot.
  */
 public final class RequestValidator {
-  private final OzoneManager om;
+  private final PreFinalizedConditions preFinalizedConditions;
+  private final OldClientConditions oldClientConditions;
 
-  /*
-   * Type -> gated {@linkplain ComponentVersion} -> preprocessing action invoked while that gate rejects current state.
-   */
-  private final Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessServerActions;
-  private final Map<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessServerActions;
-  /*
-   * Type -> gated client {@linkplain ClientVersion} -> preprocessing action invoked when clients trail.
-   */
-  private final Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessClientActions;
-  private final Map<Type, SortedMap<ClientVersion, ResponseAction>> postProcessClientActions;
-
-  private RequestValidator(
-      OzoneManager ozoneManager,
-      Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessServerActions,
-      Map<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessServerActions,
-      Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessClientActions,
-      Map<Type, SortedMap<ClientVersion, ResponseAction>> postProcessClientActions) {
-
-    this.om = ozoneManager;
-    this.preProcessServerActions = preProcessServerActions;
-    this.postProcessServerActions = postProcessServerActions;
-    this.preProcessClientActions = preProcessClientActions;
-    this.postProcessClientActions = postProcessClientActions;
+  private RequestValidator(PreFinalizedConditions preFinalizedConditions, OldClientConditions oldClientConditions) {
+    this.preFinalizedConditions = preFinalizedConditions;
+    this.oldClientConditions = oldClientConditions;
   }
 
   public OMRequest preProcess(OMRequest request) throws IOException {
-    OMRequest modifiedRequest = preProcessClient(request);
-    return preProcessServer(modifiedRequest);
+    OMRequest request2 = preFinalizedConditions.preProcess(request);
+    return oldClientConditions.preProcess(request2);
   }
 
   public OMResponse postProcess(OMRequest request, OMResponse response) throws IOException {
-    OMResponse modifiedResponse = postProcessClient(request, response);
-    return postProcessServer(request, modifiedResponse);
-  }
-
-  private OMRequest preProcessClient(OMRequest request) throws IOException {
-    // We only need to handle older clients.
-    if (ClientVersion.CURRENT.isSupportedBy(request.getVersion())) {
-      return request;
-    }
-
-    SortedMap<ClientVersion, RequestAction> versionsToActions = preProcessClientActions.get(request.getCmdType());
-    if (versionsToActions == null || versionsToActions.isEmpty()) {
-      return request;
-    }
-
-    OMRequest effectiveRequest = request;
-    for (Map.Entry<ClientVersion, RequestAction> entry : versionsToActions.entrySet()) {
-      ClientVersion minimumVersion = entry.getKey();
-      if (!minimumVersion.isSupportedBy(request.getVersion())) {
-        RequestAction action = entry.getValue();
-        effectiveRequest = action.process(new RequestValidationContext(om, effectiveRequest));
-      }
-    }
-    return effectiveRequest;
-  }
-
-  private OMRequest preProcessServer(OMRequest request) throws IOException {
-    OMVersionManager versionManager = om.getVersionManager();
-    // We only need to check server version if the OM is not finalized.
-    // Otherwise, checking server versions is up to the client to handle an old server.
-    if (!versionManager.needsFinalization()) {
-      return request;
-    }
-
-    SortedMap<ComponentVersion, RequestAction> versionsToActions = preProcessServerActions.get(request.getCmdType());
-    if (versionsToActions == null || versionsToActions.isEmpty()) {
-      return request;
-    }
-
-    OMRequest effectiveRequest = request;
-    for (Map.Entry<ComponentVersion, RequestAction> entry : versionsToActions.entrySet()) {
-      ComponentVersion minimumVersion = entry.getKey();
-      if (!versionManager.isAllowed(minimumVersion)) {
-        RequestAction action = entry.getValue();
-        effectiveRequest = action.process(new RequestValidationContext(om, effectiveRequest));
-      }
-    }
-    return effectiveRequest;
-  }
-
-  private OMResponse postProcessClient(OMRequest request, OMResponse response) throws IOException {
-    if (ClientVersion.CURRENT.isSupportedBy(request.getVersion())) {
-      return response;
-    }
-
-    SortedMap<ClientVersion, ResponseAction> versionsToActions = postProcessClientActions.get(request.getCmdType());
-    if (versionsToActions == null || versionsToActions.isEmpty()) {
-      return response;
-    }
-
-    // TODO search for request version in this map instead of iterating.
-    OMResponse effectiveResponse = response;
-    for (Map.Entry<ClientVersion, ResponseAction> entry : versionsToActions.entrySet()) {
-      ClientVersion minimumVersion = entry.getKey();
-      if (!minimumVersion.isSupportedBy(request.getVersion())) {
-        ResponseAction action = entry.getValue();
-        effectiveResponse = action.process(new ResponseValidationContext(om, request, effectiveResponse));
-      }
-    }
-    return effectiveResponse;
-  }
-
-  private OMResponse postProcessServer(OMRequest request, OMResponse response) throws IOException {
-    OMVersionManager versionManager = om.getVersionManager();
-    if (!versionManager.needsFinalization()) {
-      return response;
-    }
-
-    SortedMap<ComponentVersion, ResponseAction> versionsToActions = postProcessServerActions.get(request.getCmdType());
-    if (versionsToActions == null || versionsToActions.isEmpty()) {
-      return response;
-    }
-
-    OMResponse effectiveResponse = response;
-    for (Map.Entry<ComponentVersion, ResponseAction> entry : versionsToActions.entrySet()) {
-      ComponentVersion minimumVersion = entry.getKey();
-      if (!versionManager.isAllowed(minimumVersion)) {
-        ResponseAction action = entry.getValue();
-        effectiveResponse = action.process(new ResponseValidationContext(om, request, effectiveResponse));
-      }
-    }
-    return effectiveResponse;
+    OMResponse response2 = preFinalizedConditions.postProcess(request, response);
+    return oldClientConditions.postProcess(request, response2);
   }
 
   /**
    * Provides a fluent API which is used to define request pre and post processing based on client and server versions.
    */
   public static final class Builder {
-    private final OzoneManager om;
-    private final EnumMap<Type, SortedMap<ComponentVersion, RequestAction>> preProcessServerActions =
-        new EnumMap<>(Type.class);
-    private final EnumMap<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessServerActions =
-        new EnumMap<>(Type.class);
+    private final PreFinalizedConditions preFinalizedConditions;
+    private final OldClientConditions oldClientConditions;
 
-    private final EnumMap<Type, SortedMap<ClientVersion, RequestAction>> preProcessClientActions =
-        new EnumMap<>(Type.class);
-    private final EnumMap<Type, SortedMap<ClientVersion, ResponseAction>> postProcessClientActions =
-        new EnumMap<>(Type.class);
-
-    public Builder(OzoneManager ozoneManager) {
-      this.om = ozoneManager;
+    public Builder(OzoneManager om) {
+      preFinalizedConditions = new PreFinalizedConditions(om);
+      oldClientConditions = new OldClientConditions(om);
     }
 
     /** Begins chaining server-gated actions (cluster finalization / layout versions). */
-    public ServerRequestValidation untilServerVersion(ComponentVersion minimumVersion) {
-      return new ServerRequestValidation(
-          minimumVersion, om.getVersionManager(), preProcessServerActions, postProcessServerActions);
+    public PreFinalizedConditionBuilder untilServerVersion(ComponentVersion minimumVersion) {
+      return new PreFinalizedConditionBuilder(minimumVersion, preFinalizedConditions);
     }
 
     /** Begins chaining client-protocol-gated compat rules. */
-    public ClientRequestValidation untilClientVersion(ClientVersion minimumVersion) {
-      return new ClientRequestValidation(minimumVersion, preProcessClientActions, postProcessClientActions);
+    public OldClientConditionBuilder untilClientVersion(ClientVersion minimumVersion) {
+      return new OldClientConditionBuilder(minimumVersion, oldClientConditions);
     }
 
     /** Materializes validators around the aggregated tables. */
     public RequestValidator build() {
-      return new RequestValidator(
-          om,
-          preProcessServerActions,
-          postProcessServerActions,
-          preProcessClientActions,
-          postProcessClientActions);
+      return new RequestValidator(preFinalizedConditions, oldClientConditions);
     }
 
-    private static final Comparator<ComponentVersion> VERSION_COMPARATOR = (a, b) -> {
-      if (Objects.equals(a, b)) {
-        return 0;
-      } else if (a.isSupportedBy(b)) {
-        return -1;
-      } else {
-        return 1;
-      }
-    };
-
     /**
-     * Fluent registrations for validations gated on apparent OM / layout {@linkplain ComponentVersion versions}.
+     * Fluent API.
+     * Created Once on each untilVersion call
+     * Given the one total PreFinalizedServerConditions object to add to
      */
-    public static final class ServerRequestValidation {
+    public static final class PreFinalizedConditionBuilder {
       private final ComponentVersion minimumVersion;
-      private final OMVersionManager versionManager;
-      private final Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessMap;
-      private final Map<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessMap;
+      private final PreFinalizedConditions serverConditions;
 
-      private ServerRequestValidation(ComponentVersion minimumVersion,
-                              OMVersionManager versionManager,
-                              Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessMap,
-                              Map<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessMap) {
+      private PreFinalizedConditionBuilder(ComponentVersion minimumVersion,
+          PreFinalizedConditions serverConditions) {
         this.minimumVersion = minimumVersion;
-        this.versionManager = versionManager;
-        this.preProcessMap = preProcessMap;
-        this.postProcessMap = postProcessMap;
+        this.serverConditions = serverConditions;
       }
 
-      public ServerRequestValidation block(Type cmd) {
+      public PreFinalizedConditionBuilder block(Type cmd) {
         return preProcess(cmd, RequestAction::blockPreFinalized);
       }
 
-      public ServerRequestValidation preProcess(Type cmd, RequestAction action) {
-        SortedMap<ComponentVersion, RequestAction> versionToAction =
-            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
-        if (versionToAction.containsKey(minimumVersion)) {
-          throw new IllegalArgumentException(
-              "Duplicate OM pre-process action for cmd=" + cmd + " version=" + minimumVersion);
-        }
-
-        if (!versionManager.isAllowed(minimumVersion)) {
-          versionToAction.put(minimumVersion, action);
-        }
+      public PreFinalizedConditionBuilder preProcess(Type cmd, RequestAction action) {
+        serverConditions.addPreProcessAction(cmd, minimumVersion, action);
         return this;
       }
 
-      public ServerRequestValidation postProcess(Type cmd, ResponseAction action) {
-        SortedMap<ComponentVersion, ResponseAction> versionToAction =
-            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
-        if (versionToAction.containsKey(minimumVersion)) {
-          throw new IllegalArgumentException(
-              "Duplicate OM post-process action for cmd=" + cmd + " version=" + minimumVersion);
-        }
-
-        if (!versionManager.isAllowed(minimumVersion)) {
-          versionToAction.put(minimumVersion, action);
-        }
+      public PreFinalizedConditionBuilder postProcess(Type cmd, ResponseAction action) {
+        serverConditions.addPostProcessAction(cmd, minimumVersion, action);
         return this;
       }
     }
 
     /**
-     * Fluent registrations for validations gated strictly on OM client protocol versioning.
-     *
-     * Unlike {@linkplain ServerRequestValidation server-gated validations}, rules are unconditional at
-     * registration-time (clients evolve faster than disk snapshots of apparent versions).
+     * Part of the fluent API which allows constructing conditions based on old client versions.
      */
-    public static final class ClientRequestValidation {
-
+    public static final class OldClientConditionBuilder {
       private final ClientVersion minimumVersion;
-      private final Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessMap;
-      private final Map<Type, SortedMap<ClientVersion, ResponseAction>> postProcessMap;
+      private final OldClientConditions clientConditions;
 
-      private ClientRequestValidation(
-          ClientVersion gate,
-          Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessMap,
-          Map<Type, SortedMap<ClientVersion, ResponseAction>> postProcessMap) {
-
-        this.minimumVersion = gate;
-        this.preProcessMap = preProcessMap;
-        this.postProcessMap = postProcessMap;
+      private OldClientConditionBuilder(ClientVersion minimumVersion, OldClientConditions clientConditions) {
+        this.minimumVersion = minimumVersion;
+        this.clientConditions = clientConditions;
       }
 
-      public ClientRequestValidation preprocess(Type cmd, RequestAction action) {
-        SortedMap<ClientVersion, RequestAction> versionToAction =
-            preProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
-        if (versionToAction.containsKey(minimumVersion)) {
-          throw new IllegalArgumentException(
-              "Duplicate OM client pre-process action for cmd=" + cmd + " version=" + minimumVersion);
-        }
-        versionToAction.put(minimumVersion, action);
+      public OldClientConditionBuilder preProcess(Type cmd, RequestAction action) {
+        clientConditions.addPreProcessAction(cmd, minimumVersion, action);
         return this;
       }
 
-      public ClientRequestValidation postprocess(Type cmd, ResponseAction action) {
-        SortedMap<ClientVersion, ResponseAction> versionToAction =
-            postProcessMap.computeIfAbsent(cmd, unused -> new TreeMap<>(VERSION_COMPARATOR));
-        if (versionToAction.containsKey(minimumVersion)) {
-          throw new IllegalArgumentException(
-              "Duplicate OM client post-process action for cmd=" + cmd + " version=" + minimumVersion);
-        }
-        versionToAction.put(minimumVersion, action);
+      public OldClientConditionBuilder postProcess(Type cmd, ResponseAction action) {
+        clientConditions.addPostProcessAction(cmd, minimumVersion, action);
         return this;
       }
+    }
+
+//    public static final class ConfigConditionBuilder {
+//      private final ConfigConditions configConditions;
+//
+//      private OldClientConditionBuilder(ClientVersion minimumVersion, ConfigConditions configConditions) {
+//        this.minimumVersion = minimumVersion;
+//        this.configConditions = configConditions;
+//      }
+//
+//      public ConfigConditionBuilder preProcess(Type cmd, RequestAction action) {
+//        configConditions.addPreProcessAction(cmd, action);
+//        return this;
+//      }
+//
+//      public ConfigConditionBuilder postProcess(Type cmd, ResponseAction action) {
+//        configConditions.addPostProcessAction(cmd, action);
+//        return this;
+//      }
+//    }
+  }
+
+  private static final class PreFinalizedConditions {
+    private final Map<Type, SortedMap<ComponentVersion, RequestAction>> preProcessActions;
+    private final Map<Type, SortedMap<ComponentVersion, ResponseAction>> postProcessActions;
+    private final OMVersionManager versionManager;
+    private final OzoneManager contextArg;
+
+    PreFinalizedConditions(OzoneManager contextArg) {
+      this.preProcessActions = new HashMap<>();
+      this.postProcessActions = new HashMap<>();
+      this.versionManager = contextArg.getVersionManager();
+      this.contextArg = contextArg;
+    }
+
+    public void addPreProcessAction(Type cmd, ComponentVersion minServerVersion, RequestAction action) {
+      SortedMap<ComponentVersion, RequestAction> versionToAction =
+          preProcessActions.computeIfAbsent(cmd, unused -> new TreeMap<>(ComponentVersion.COMPARATOR));
+      if (versionToAction.containsKey(minServerVersion)) {
+        throw new IllegalArgumentException(
+            "Duplicate OM pre-process action for cmd=" + cmd + " server version=" + minServerVersion);
+      }
+
+      if (!versionManager.isAllowed(minServerVersion)) {
+        versionToAction.put(minServerVersion, action);
+      }
+    }
+
+    public void addPostProcessAction(Type cmd, ComponentVersion minServerVersion, ResponseAction action) {
+      SortedMap<ComponentVersion, ResponseAction> versionToAction =
+          postProcessActions.computeIfAbsent(cmd, unused -> new TreeMap<>(ComponentVersion.COMPARATOR));
+      if (versionToAction.containsKey(minServerVersion)) {
+        throw new IllegalArgumentException(
+            "Duplicate OM post-process action for cmd=" + cmd + " server version=" + minServerVersion);
+      }
+
+      if (!versionManager.isAllowed(minServerVersion)) {
+        versionToAction.put(minServerVersion, action);
+      }
+    }
+
+    public OMRequest preProcess(OMRequest request) throws IOException {
+      SortedMap<ComponentVersion, RequestAction> versionsToActions = preProcessActions.get(request.getCmdType());
+      if (skipProcessing(versionsToActions)) {
+        return request;
+      }
+
+      // Else, this request has actions mapped to it for some unfinalized versions.
+      OMRequest effectiveRequest = request;
+      for (RequestAction action : getUnfinalizedActions(versionsToActions)) {
+        effectiveRequest = action.process(new RequestValidationContext(contextArg, effectiveRequest));
+      }
+      return effectiveRequest;
+    }
+
+    public OMResponse postProcess(OMRequest request, OMResponse response) throws IOException {
+      SortedMap<ComponentVersion, ResponseAction> versionsToActions = postProcessActions.get(request.getCmdType());
+      if (skipProcessing(versionsToActions)) {
+        return response;
+      }
+
+      // Else, this request has actions mapped to it for some unfinalized versions.
+      OMResponse effectiveResponse = response;
+      for (ResponseAction action : getUnfinalizedActions(versionsToActions)) {
+        effectiveResponse = action.process(new ResponseValidationContext(contextArg, request, effectiveResponse));
+      }
+      return effectiveResponse;
+    }
+
+    private boolean skipProcessing(Map<ComponentVersion, ?> versionsForRequest) {
+      return versionManager.needsFinalization() || versionsForRequest == null || versionsForRequest.isEmpty();
+    }
+
+    private <T> Iterable<T> getUnfinalizedActions(SortedMap<ComponentVersion, T> versionsToActions) {
+      return versionsToActions.tailMap(versionManager.getFirstUnfinalizedVersion()).values();
+    }
+  }
+
+  private static final class OldClientConditions {
+    private final Map<Type, SortedMap<ClientVersion, RequestAction>> preProcessActions;
+    private final Map<Type, SortedMap<ClientVersion, ResponseAction>> postProcessActions;
+    private final OzoneManager contextArg;
+
+    OldClientConditions(OzoneManager contextArg) {
+      this.preProcessActions = new HashMap<>();
+      this.postProcessActions = new HashMap<>();
+      this.contextArg = contextArg;
+    }
+
+    public void addPreProcessAction(Type cmd, ClientVersion minClientVersion, RequestAction action) {
+      SortedMap<ClientVersion, RequestAction> versionToAction =
+          preProcessActions.computeIfAbsent(cmd, unused -> new TreeMap<>(ClientVersion.COMPARATOR));
+      if (versionToAction.containsKey(minClientVersion)) {
+        throw new IllegalArgumentException(
+            "Duplicate OM pre-process action for cmd=" + cmd + " client version=" + minClientVersion);
+      }
+
+      versionToAction.put(minClientVersion, action);
+    }
+
+    public void addPostProcessAction(Type cmd, ClientVersion minClientVersion, ResponseAction action) {
+      SortedMap<ClientVersion, ResponseAction> versionToAction =
+          postProcessActions.computeIfAbsent(cmd, unused -> new TreeMap<>(ClientVersion.COMPARATOR));
+      if (versionToAction.containsKey(minClientVersion)) {
+        throw new IllegalArgumentException(
+            "Duplicate OM post-process action for cmd=" + cmd + " client version=" + minClientVersion);
+      }
+
+      versionToAction.put(minClientVersion, action);
+    }
+
+    public OMRequest preProcess(OMRequest request) throws IOException {
+      ClientVersion clientVersion = ClientVersion.deserialize(request.getVersion());
+      SortedMap<ClientVersion, RequestAction> versionsToActions = preProcessActions.get(request.getCmdType());
+      if (skipProcessing(clientVersion, versionsToActions)) {
+        return request;
+      }
+
+      // Else, this request has actions mapped to it for some unfinalized versions.
+      OMRequest effectiveRequest = request;
+      for (RequestAction action : getActionsForOldClient(clientVersion, versionsToActions)) {
+        effectiveRequest = action.process(new RequestValidationContext(contextArg, effectiveRequest));
+      }
+      return effectiveRequest;
+    }
+
+    public OMResponse postProcess(OMRequest request, OMResponse response) throws IOException {
+      ClientVersion clientVersion = ClientVersion.deserialize(request.getVersion());
+      SortedMap<ClientVersion, ResponseAction> versionsToActions = postProcessActions.get(request.getCmdType());
+      if (skipProcessing(clientVersion, versionsToActions)) {
+        return response;
+      }
+
+      // Else, this request has actions mapped to it for some unfinalized versions.
+      OMResponse effectiveResponse = response;
+      for (ResponseAction action : getActionsForOldClient(clientVersion, versionsToActions)) {
+        effectiveResponse = action.process(new ResponseValidationContext(contextArg, request, effectiveResponse));
+      }
+      return effectiveResponse;
+    }
+
+    private <T> Iterable<T> getActionsForOldClient(ClientVersion version,
+        SortedMap<ClientVersion, T> versionsToActions) {
+      return versionsToActions.tailMap(version.nextVersion()).values();
+    }
+
+    private boolean skipProcessing(ClientVersion clientVersion, Map<ClientVersion, ?> versionsForRequest) {
+      return clientVersion.isSupportedBy(ClientVersion.CURRENT) ||
+          versionsForRequest == null || versionsForRequest.isEmpty();
     }
   }
 }

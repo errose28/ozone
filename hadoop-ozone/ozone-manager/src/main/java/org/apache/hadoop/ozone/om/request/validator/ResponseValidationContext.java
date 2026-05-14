@@ -29,10 +29,7 @@ public final class ResponseValidationContext extends ValidationContext {
 
   private final OMResponse response;
 
-  public ResponseValidationContext(
-      OzoneManager om,
-      OMRequest request,
-      OMResponse response) {
+  public ResponseValidationContext(OzoneManager om, OMRequest request, OMResponse response) {
     super(om, request);
     this.response = response;
   }

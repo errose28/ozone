@@ -86,6 +86,10 @@ public abstract class ComponentVersionManager implements Closeable {
     return !apparentVersion.equals(softwareVersion);
   }
 
+  public ComponentVersion getFirstUnfinalizedVersion() {
+    return apparentVersion.nextVersion();
+  }
+
   /**
    * Test-only accessor for the {@link Storage} instance supplied to the constructor.
    */

@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.hdds;
 
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import org.apache.hadoop.ozone.upgrade.UpgradeAction;
 
@@ -80,4 +82,14 @@ public interface ComponentVersion {
   default Optional<? extends UpgradeAction> action() {
     return Optional.empty();
   }
+
+  Comparator<ComponentVersion> COMPARATOR = (a, b) -> {
+    if (Objects.equals(a, b)) {
+      return 0;
+    } else if (a.isSupportedBy(b)) {
+      return -1;
+    } else {
+      return 1;
+    }
+  };
 }
