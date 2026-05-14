@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Defines read-only contract of Configuration objects.
  */
-public interface ConfigurationSource {
+public interface  ConfigurationSource {
 
   String[] EMPTY_STRING_ARRAY = {};
 

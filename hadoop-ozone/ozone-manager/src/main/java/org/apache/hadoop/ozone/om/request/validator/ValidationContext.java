@@ -60,6 +60,10 @@ public abstract class ValidationContext {
     return ozoneManager.getVersionManager().getSoftwareVersion();
   }
 
+  public final boolean isSnapshotEnabled() {
+    return ozoneManager.isFilesystemSnapshotEnabled();
+  }
+
   /**
    * True when resolved bucket metadata reports {@linkplain org.apache.hadoop.ozone.om.helpers.BucketLayout#LEGACY
    * LEGACY} layout (link buckets follow source). When volume or bucket name is null or empty, returns true so

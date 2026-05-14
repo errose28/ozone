@@ -170,6 +170,18 @@ public class OzoneManagerProtocolServerSideTranslatorPB implements OzoneManagerP
    * legacy client request/response shaping).
    */
   private static void assignServerValidations(RequestValidator.Builder b) {
+    // TODO migrate Snapshot requests off aspectj
+    b.ifSnapshotDisabled()
+        .block(Type.CreateSnapshot)
+        .block(Type.DeleteSnapshot)
+        .block(Type.SnapshotMoveDeletedKeys)
+        .block(Type.SnapshotMoveTableKeys)
+        .block(Type.RenameSnapshot)
+        .block(Type.SnapshotDiff)
+        .block(Type.SubmitSnapshotDiff)
+        .block(Type.CancelSnapshotDiff)
+        .block(Type.GetSnapshotInfo)
+        .block(Type.ListSnapshot);
     b.untilServerVersion(OMLayoutFeature.FILESYSTEM_SNAPSHOT)
         .block(Type.CreateSnapshot)
         .block(Type.DeleteSnapshot)

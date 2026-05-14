@@ -17,7 +17,10 @@
 
 package org.apache.hadoop.ozone.om.request.validator;
 
+import static org.apache.hadoop.ozone.om.exceptions.OMException.ResultCodes.FEATURE_NOT_ENABLED;
+
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.SortedMap;
@@ -25,6 +28,7 @@ import java.util.TreeMap;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.om.OzoneManager;
+import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -39,20 +43,27 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type;
 public final class RequestValidator {
   private final PreFinalizedConditions preFinalizedConditions;
   private final OldClientConditions oldClientConditions;
+  private final GeneralConditions generalConditions;
 
-  private RequestValidator(PreFinalizedConditions preFinalizedConditions, OldClientConditions oldClientConditions) {
+  private RequestValidator(PreFinalizedConditions preFinalizedConditions, OldClientConditions oldClientConditions,
+      GeneralConditions generalConditions) {
     this.preFinalizedConditions = preFinalizedConditions;
     this.oldClientConditions = oldClientConditions;
+    this.generalConditions = generalConditions;
   }
 
   public OMRequest preProcess(OMRequest request) throws IOException {
-    OMRequest request2 = preFinalizedConditions.preProcess(request);
-    return oldClientConditions.preProcess(request2);
+    request = generalConditions.preProcess(request);
+    request = oldClientConditions.preProcess(request);
+    request = preFinalizedConditions.preProcess(request);
+    return request;
   }
 
   public OMResponse postProcess(OMRequest request, OMResponse response) throws IOException {
-    OMResponse response2 = preFinalizedConditions.postProcess(request, response);
-    return oldClientConditions.postProcess(request, response2);
+    response = generalConditions.postProcess(request, response);
+    response = oldClientConditions.postProcess(request, response);
+    response = preFinalizedConditions.postProcess(request,  response);
+    return response;
   }
 
   /**
@@ -61,10 +72,12 @@ public final class RequestValidator {
   public static final class Builder {
     private final PreFinalizedConditions preFinalizedConditions;
     private final OldClientConditions oldClientConditions;
+    private final GeneralConditions generalConditions;
 
     public Builder(OzoneManager om) {
       preFinalizedConditions = new PreFinalizedConditions(om);
       oldClientConditions = new OldClientConditions(om);
+      generalConditions = new GeneralConditions(om);
     }
 
     /** Begins chaining server-gated actions (cluster finalization / layout versions). */
@@ -77,9 +90,13 @@ public final class RequestValidator {
       return new OldClientConditionBuilder(minimumVersion, oldClientConditions);
     }
 
+    public SnapshotConditionBuilder ifSnapshotDisabled() {
+      return new SnapshotConditionBuilder(generalConditions);
+    }
+
     /** Materializes validators around the aggregated tables. */
     public RequestValidator build() {
-      return new RequestValidator(preFinalizedConditions, oldClientConditions);
+      return new RequestValidator(preFinalizedConditions, oldClientConditions, generalConditions);
     }
 
     /**
@@ -135,24 +152,31 @@ public final class RequestValidator {
       }
     }
 
-//    public static final class ConfigConditionBuilder {
-//      private final ConfigConditions configConditions;
-//
-//      private OldClientConditionBuilder(ClientVersion minimumVersion, ConfigConditions configConditions) {
-//        this.minimumVersion = minimumVersion;
-//        this.configConditions = configConditions;
-//      }
-//
-//      public ConfigConditionBuilder preProcess(Type cmd, RequestAction action) {
-//        configConditions.addPreProcessAction(cmd, action);
-//        return this;
-//      }
-//
-//      public ConfigConditionBuilder postProcess(Type cmd, ResponseAction action) {
-//        configConditions.addPostProcessAction(cmd, action);
-//        return this;
-//      }
-//    }
+    /**
+     * Part of the fluent API which allows constructing conditions.
+     */
+    public static final class SnapshotConditionBuilder {
+      private final GeneralConditions generalConditions;
+
+      private SnapshotConditionBuilder(GeneralConditions generalConditions) {
+        this.generalConditions = generalConditions;
+      }
+
+      public SnapshotConditionBuilder block(Type cmd) {
+        generalConditions.addPreProcessAction(cmd, SNAPSHOT_PRE_PROCESS);
+        return this;
+      }
+
+      private static final RequestAction SNAPSHOT_PRE_PROCESS = context -> {
+        if (!context.isSnapshotEnabled()) {
+          throw new OMException(String.format(
+              "Operation %s cannot be invoked because Ozone snapshot feature is disabled.",
+              context.getRequest()),
+              FEATURE_NOT_ENABLED);
+        }
+        return context.getRequest();
+      };
+    }
   }
 
   private static final class PreFinalizedConditions {
@@ -302,6 +326,45 @@ public final class RequestValidator {
     private boolean skipProcessing(ClientVersion clientVersion, Map<ClientVersion, ?> versionsForRequest) {
       return clientVersion.isSupportedBy(ClientVersion.CURRENT) ||
           versionsForRequest == null || versionsForRequest.isEmpty();
+    }
+  }
+
+  /**
+   * Conditions that are always checked.
+   */
+  private static final class GeneralConditions {
+    private final Map<Type, RequestAction> preProcessActions;
+    private final Map<Type, ResponseAction> postProcessActions;
+    private final OzoneManager contextArg;
+
+    GeneralConditions(OzoneManager contextArg) {
+      this.contextArg = contextArg;
+      preProcessActions = new EnumMap<>(Type.class);
+      postProcessActions = new EnumMap<>(Type.class);
+    }
+
+    public void addPreProcessAction(Type cmd, RequestAction action) {
+      preProcessActions.put(cmd, action);
+    }
+
+    public void addPostProcessAction(Type cmd, ResponseAction action) {
+      postProcessActions.put(cmd, action);
+    }
+
+    public OMRequest preProcess(OMRequest request) throws IOException {
+      RequestAction action = preProcessActions.get(request.getCmdType());
+      if (action != null) {
+        return action.process(new RequestValidationContext(contextArg, request));
+      }
+      return request;
+    }
+
+    public OMResponse postProcess(OMRequest request, OMResponse response) throws IOException {
+      ResponseAction action = postProcessActions.get(request.getCmdType());
+      if (action != null) {
+        return action.process(new ResponseValidationContext(contextArg, request, response));
+      }
+      return response;
     }
   }
 }
