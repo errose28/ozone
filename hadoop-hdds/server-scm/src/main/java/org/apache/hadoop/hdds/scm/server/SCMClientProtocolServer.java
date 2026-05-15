@@ -1154,7 +1154,7 @@ public class SCMClientProtocolServer implements
   @Deprecated
   public StatusAndMessages finalizeScmUpgrade(String upgradeClientID) throws
       IOException {
-    if (scm.getLayoutVersionManager().getUpgradeState() == ALREADY_FINALIZED) {
+    if (!scm.getFinalizationManager().needsFinalization()) {
       return new StatusAndMessages(ALREADY_FINALIZED, Collections.emptyList());
     }
     finalizeUpgrade();
@@ -1211,7 +1211,7 @@ public class SCMClientProtocolServer implements
     try {
       getScm().checkAdminAccess(getRemoteUser(), true);
 
-      boolean scmFinalized = !scm.getLayoutVersionManager().needsFinalization();
+      boolean scmFinalized = !scm.getFinalizationManager().needsFinalization();
       NodeManager.DatanodeFinalizationCounts datanodeFinalizationCounts =
           scm.getScmNodeManager().getDatanodeFinalizationCounts();
       int finalizedDatanodes = datanodeFinalizationCounts.getNumFinalizedDatanodes();

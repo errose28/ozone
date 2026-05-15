@@ -82,6 +82,11 @@ public class FinalizationManagerImpl implements FinalizationManager {
     finalizationStateManager.reinitialize(finalizationStore);
   }
 
+  @Override
+  public void close() {
+    finalizationStateManager.close();
+  }
+
   /**
    * Builds a {@link FinalizationManagerImpl}.
    */

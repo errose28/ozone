@@ -168,8 +168,6 @@ import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.server.events.FixedThreadPoolWithAffinityExecutor;
 import org.apache.hadoop.hdds.server.http.RatisDropwizardExports;
 import org.apache.hadoop.hdds.tracing.TracingConfig;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
-import org.apache.hadoop.hdds.upgrade.ScmUpgradeActionProvider;
 import org.apache.hadoop.hdds.utils.HAUtils;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.utils.HddsVersionInfo;
@@ -246,7 +244,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   private NodeDecommissionManager scmDecommissionManager;
   private WritableContainerFactory writableContainerFactory;
   private FinalizationManager finalizationManager;
-  private HDDSLayoutVersionManager scmLayoutVersionManager;
   private LeaseManager<Object> leaseManager;
 
   private SCMMetadataStore scmMetadataStore;
@@ -699,9 +696,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       leaseManager = new LeaseManager<>(threadNamePrefix, timeDuration);
     }
 
-    scmLayoutVersionManager = new HDDSLayoutVersionManager(
-        scmStorageConfig.getApparentVersion(), new ScmUpgradeActionProvider(), null);
-
     finalizationManager = new FinalizationManagerImpl.Builder()
         .setStorage(scmStorageConfig)
         .setHAManager(scmHAManager)
@@ -741,7 +735,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       scmNodeManager = configurator.getScmNodeManager();
     } else {
       scmNodeManager = new SCMNodeManager(conf, scmStorageConfig, eventQueue,
-          clusterMap, scmContext, scmLayoutVersionManager,
+          clusterMap, scmContext, finalizationManager,
           this::resolveNodeLocation);
     }
 
@@ -1681,8 +1675,8 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       LOG.error("Storage Container Manager HTTP server stop failed.", ex);
     }
 
-    LOG.info("Stopping SCM LayoutVersionManager Service.");
-    scmLayoutVersionManager.close();
+    LOG.info("Stopping SCM version manager metrics.");
+    getFinalizationManager().close();
 
     if (getSecurityProtocolServer() != null) {
       getSecurityProtocolServer().stop();
@@ -2093,10 +2087,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   @Override
   public String getClusterId() {
     return getScmStorageConfig().getClusterID();
-  }
-
-  public HDDSLayoutVersionManager getLayoutVersionManager() {
-    return scmLayoutVersionManager;
   }
 
   public FinalizationManager getFinalizationManager() {

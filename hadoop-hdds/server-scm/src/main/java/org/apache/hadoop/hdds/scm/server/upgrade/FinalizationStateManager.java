@@ -47,6 +47,11 @@ public interface FinalizationStateManager extends SCMHandler {
   void reinitialize(Table<String, String> newFinalizationStore)
       throws IOException;
 
+  /**
+   * Closes version manager metrics on this SCM instance.
+   */
+  void close();
+
   @Override
   default RequestType getType() {
     return RequestType.FINALIZE;

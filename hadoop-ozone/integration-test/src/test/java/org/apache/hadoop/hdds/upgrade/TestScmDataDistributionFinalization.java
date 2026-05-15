@@ -138,8 +138,8 @@ public class TestScmDataDistributionFinalization {
 
     scmClient = cluster.getStorageContainerLocationClient();
     cluster.waitForClusterToBeReady();
-    assertEquals(HDDSLayoutFeature.HBASE_SUPPORT.layoutVersion(),
-        cluster.getStorageContainerManager().getLayoutVersionManager().getMetadataLayoutVersion());
+    assertEquals(HDDSLayoutFeature.HBASE_SUPPORT,
+        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
 
     // Create Volume and Bucket
     try (OzoneClient ozoneClient = OzoneClientFactory.getRpcClient(conf)) {
@@ -172,8 +172,8 @@ public class TestScmDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getLayoutVersionManager().getMetadataLayoutVersion());
+    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
+        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -277,8 +277,8 @@ public class TestScmDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getLayoutVersionManager().getMetadataLayoutVersion());
+    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
+        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -418,7 +418,7 @@ public class TestScmDataDistributionFinalization {
     GenericTestUtils.waitFor(() -> !scm.isInSafeMode(), 500, 5000);
     GenericTestUtils.waitFor(() -> {
       LOG.info("Waiting for SCM {} (leader? {}) to finalize.", scm.getSCMNodeId(), scm.checkLeader());
-      return !scm.getLayoutVersionManager().needsFinalization();
+      return !scm.getFinalizationManager().needsFinalization();
     }, 2_000, 60_000);
   }
 

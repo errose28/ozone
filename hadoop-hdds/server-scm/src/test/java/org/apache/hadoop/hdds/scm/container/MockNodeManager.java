@@ -68,6 +68,7 @@ import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.node.states.NodeStateMap;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.container.upgrade.UpgradeUtils;
@@ -946,6 +947,11 @@ public class MockNodeManager implements NodeManager {
   @Override
   public long getLastHeartbeat(DatanodeDetails datanodeDetails) {
     return -1;
+  }
+
+  @Override
+  public FinalizationManager getFinalizationManager() {
+    return null;
   }
 
   public void setNumPipelinePerDatanode(int value) {

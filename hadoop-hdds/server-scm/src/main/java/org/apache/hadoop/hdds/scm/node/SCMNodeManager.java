@@ -84,6 +84,7 @@ import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineNotFoundException;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ipc_.Server;
@@ -135,7 +136,11 @@ public class SCMNodeManager implements NodeManager {
   private final Map<String, Set<DatanodeID>> dnsToDnIdMap = new ConcurrentHashMap<>();
   private final int numPipelinesPerMetadataVolume;
   private final int datanodePipelineLimit;
-  private final HDDSLayoutVersionManager scmLayoutVersionManager;
+  @Nullable
+  private final FinalizationManager finalizationManager;
+  /** Non-null for Recon and legacy tests that still wire {@link HDDSLayoutVersionManager}. */
+  @Nullable
+  private final HDDSLayoutVersionManager legacyLayoutVersionManager;
   private final EventPublisher scmNodeEventPublisher;
   private final SCMContext scmContext;
   private final Map<SCMCommandProto.Type,
@@ -168,7 +173,36 @@ public class SCMNodeManager implements NodeManager {
   }
 
   /**
-   * Constructs SCM machine Manager.
+   * Constructs SCM machine Manager using {@link FinalizationManager} (production SCM).
+   */
+  public SCMNodeManager(
+      OzoneConfiguration conf,
+      SCMStorageConfig scmStorageConfig,
+      EventPublisher eventPublisher,
+      NetworkTopology networkTopology,
+      SCMContext scmContext,
+      FinalizationManager finalizationManager) {
+    this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
+        finalizationManager, null, hostname -> null);
+  }
+
+  /**
+   * Constructs SCM machine Manager using {@link FinalizationManager} (production SCM).
+   */
+  public SCMNodeManager(
+      OzoneConfiguration conf,
+      SCMStorageConfig scmStorageConfig,
+      EventPublisher eventPublisher,
+      NetworkTopology networkTopology,
+      SCMContext scmContext,
+      FinalizationManager finalizationManager,
+      Function<String, String> nodeResolver) {
+    this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
+        finalizationManager, null, nodeResolver);
+  }
+
+  /**
+   * Legacy constructor for Recon and tests that still use {@link HDDSLayoutVersionManager}.
    */
   public SCMNodeManager(
       OzoneConfiguration conf,
@@ -178,9 +212,12 @@ public class SCMNodeManager implements NodeManager {
       SCMContext scmContext,
       HDDSLayoutVersionManager layoutVersionManager) {
     this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
-        layoutVersionManager, hostname -> null);
+        null, layoutVersionManager, hostname -> null);
   }
 
+  /**
+   * Legacy constructor for Recon and tests that still use {@link HDDSLayoutVersionManager}.
+   */
   public SCMNodeManager(
       OzoneConfiguration conf,
       SCMStorageConfig scmStorageConfig,
@@ -189,12 +226,31 @@ public class SCMNodeManager implements NodeManager {
       SCMContext scmContext,
       HDDSLayoutVersionManager layoutVersionManager,
       Function<String, String> nodeResolver) {
+    this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
+        null, layoutVersionManager, nodeResolver);
+  }
+
+  @SuppressWarnings("checkstyle:ParameterNumber")
+  private SCMNodeManager(
+      OzoneConfiguration conf,
+      SCMStorageConfig scmStorageConfig,
+      EventPublisher eventPublisher,
+      NetworkTopology networkTopology,
+      SCMContext scmContext,
+      FinalizationManager finalizationManager,
+      HDDSLayoutVersionManager legacyLayoutVersionManager,
+      Function<String, String> nodeResolver) {
+    if ((finalizationManager == null) == (legacyLayoutVersionManager == null)) {
+      throw new IllegalArgumentException(
+          "Specify exactly one of finalizationManager or legacyLayoutVersionManager");
+    }
     this.scmNodeEventPublisher = eventPublisher;
     this.nodeStateManager = new NodeStateManager(conf, eventPublisher, scmContext);
     this.version = VersionInfo.getLatestVersion();
     this.commandQueue = new CommandQueue();
     this.scmStorageConfig = scmStorageConfig;
-    this.scmLayoutVersionManager = layoutVersionManager;
+    this.finalizationManager = finalizationManager;
+    this.legacyLayoutVersionManager = legacyLayoutVersionManager;
     LOG.info("Entering startup safe mode.");
     registerMXBean();
     this.metrics = SCMNodeMetrics.create(this);
@@ -220,6 +276,24 @@ public class SCMNodeManager implements NodeManager {
     this.scmContext = scmContext;
     this.sendCommandNotifyMap = new HashMap<>();
     this.nonWritableNodeFilter = new NonWritableNodeFilter(conf);
+  }
+
+  private int scmSoftwareLayoutVersionSerialized() {
+    return finalizationManager != null
+        ? finalizationManager.getSoftwareVersion().serialize()
+        : legacyLayoutVersionManager.getSoftwareLayoutVersion();
+  }
+
+  private int scmMetadataLayoutVersionSerialized() {
+    return finalizationManager != null
+        ? finalizationManager.getApparentVersion().serialize()
+        : legacyLayoutVersionManager.getMetadataLayoutVersion();
+  }
+
+  private boolean scmNeedsFinalization() {
+    return finalizationManager != null
+        ? finalizationManager.needsFinalization()
+        : legacyLayoutVersionManager.needsFinalization();
   }
 
   @Override
@@ -384,10 +458,8 @@ public class SCMNodeManager implements NodeManager {
       PipelineReportsProto pipelineReportsProto) {
     return register(datanodeDetails, nodeReport, pipelineReportsProto,
         LayoutVersionProto.newBuilder()
-            .setMetadataLayoutVersion(
-                scmLayoutVersionManager.getMetadataLayoutVersion())
-            .setSoftwareLayoutVersion(
-                scmLayoutVersionManager.getSoftwareLayoutVersion())
+            .setMetadataLayoutVersion(scmMetadataLayoutVersionSerialized())
+            .setSoftwareLayoutVersion(scmSoftwareLayoutVersionSerialized())
             .build());
   }
 
@@ -409,7 +481,7 @@ public class SCMNodeManager implements NodeManager {
       PipelineReportsProto pipelineReportsProto,
       LayoutVersionProto layoutInfo) {
     int dnSlvRegister = layoutInfo.getSoftwareLayoutVersion();
-    int scmSlvRegister = scmLayoutVersionManager.getSoftwareLayoutVersion();
+    int scmSlvRegister = scmSoftwareLayoutVersionSerialized();
     if (shouldFenceDatanode(dnSlvRegister, scmSlvRegister)) {
       return RegisteredCommand.newBuilder()
           .setErrorCode(ErrorCode.errorNodeNotPermitted)
@@ -765,7 +837,7 @@ public class SCMNodeManager implements NodeManager {
   protected void sendFinalizeToDatanodeIfNeeded(DatanodeDetails datanodeDetails,
       LayoutVersionProto layoutVersionReport) {
     // Software layout version is hardcoded to the SCM.
-    int scmSlv = scmLayoutVersionManager.getSoftwareLayoutVersion();
+    int scmSlv = scmSoftwareLayoutVersionSerialized();
     int dnSlv = layoutVersionReport.getSoftwareLayoutVersion();
     int dnMlv = layoutVersionReport.getMetadataLayoutVersion();
 
@@ -781,11 +853,11 @@ public class SCMNodeManager implements NodeManager {
       return;
     }
 
-    if (!scmContext.isLeader() || scmLayoutVersionManager.needsFinalization()) {
+    if (!scmContext.isLeader() || scmNeedsFinalization()) {
       return;
     }
 
-    int scmMlv = scmLayoutVersionManager.getMetadataLayoutVersion();
+    int scmMlv = scmMetadataLayoutVersionSerialized();
     if (dnMlv == scmMlv) {
       // datanode is already finalized, so there is nothing to do
       return;
@@ -1990,10 +2062,15 @@ public class SCMNodeManager implements NodeManager {
   /**
    * @return  HDDSLayoutVersionManager
    */
+  @Override
+  public FinalizationManager getFinalizationManager() {
+    return finalizationManager;
+  }
+
   @VisibleForTesting
   @Override
   public HDDSLayoutVersionManager getLayoutVersionManager() {
-    return scmLayoutVersionManager;
+    return legacyLayoutVersionManager;
   }
 
   private ReentrantReadWriteLock.WriteLock writeLock() {

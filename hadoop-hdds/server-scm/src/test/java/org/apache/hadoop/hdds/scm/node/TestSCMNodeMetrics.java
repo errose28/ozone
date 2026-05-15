@@ -18,7 +18,6 @@
 package org.apache.hadoop.hdds.scm.node;
 
 import static java.lang.Thread.sleep;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
 import static org.apache.ozone.test.MetricsAsserts.assertGauge;
 import static org.apache.ozone.test.MetricsAsserts.getLongCounter;
 import static org.apache.ozone.test.MetricsAsserts.getMetrics;
@@ -29,6 +28,7 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.MockDatanodeDetails;
@@ -40,8 +40,8 @@ import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.net.NetworkTopologyImpl;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventQueue;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.metrics2.MetricsRecordBuilder;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -63,12 +63,12 @@ public class TestSCMNodeMetrics {
     EventQueue publisher = new EventQueue();
     SCMStorageConfig config =
         new SCMStorageConfig(NodeType.DATANODE, new File("/tmp"), "storage");
-    HDDSLayoutVersionManager versionManager = mock(HDDSLayoutVersionManager.class);
-    when(versionManager.getMetadataLayoutVersion()).thenReturn(maxLayoutVersion());
-    when(versionManager.getSoftwareLayoutVersion()).thenReturn(maxLayoutVersion());
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    when(finalizationManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(finalizationManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     nodeManager = new SCMNodeManager(source, config, publisher,
         new NetworkTopologyImpl(source), SCMContext.emptyContext(),
-            versionManager);
+            finalizationManager);
 
     registeredDatanode = DatanodeDetails.newBuilder()
         .setHostName("localhost")

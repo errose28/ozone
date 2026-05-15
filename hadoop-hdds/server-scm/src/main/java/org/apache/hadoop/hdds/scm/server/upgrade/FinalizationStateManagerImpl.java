@@ -88,6 +88,11 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
     }
   }
 
+  @Override
+  public void close() {
+    versionManager.close();
+  }
+
   /**
    * Builds a {@link FinalizationManagerImpl}.
    */

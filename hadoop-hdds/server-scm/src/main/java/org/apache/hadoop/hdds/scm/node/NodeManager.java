@@ -42,6 +42,7 @@ import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventHandler;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ozone.protocol.StorageContainerNodeProtocol;
@@ -473,6 +474,9 @@ public interface NodeManager extends StorageContainerNodeProtocol,
     return null;
   }
 
+  FinalizationManager getFinalizationManager();
+
+  // TODO only used by Recon
   default HDDSLayoutVersionManager getLayoutVersionManager() {
     return null;
   }

@@ -750,12 +750,12 @@ public class TestSCMNodeManager {
           "Initial datanode should be counted as finalized");
 
       int softwareVersion =
-          nodeManager.getLayoutVersionManager().getSoftwareLayoutVersion();
-      int metadataVersion =
-          nodeManager.getLayoutVersionManager().getMetadataLayoutVersion();
+          nodeManager.getFinalizationManager().getSoftwareVersion().serialize();
+      int apparentVersion =
+          nodeManager.getFinalizationManager().getApparentVersion().serialize();
       nodeManager.processLayoutVersionReport(node,
           LayoutVersionProto.newBuilder()
-              .setMetadataLayoutVersion(metadataVersion - 1)
+              .setMetadataLayoutVersion(apparentVersion - 1)
               .setSoftwareLayoutVersion(softwareVersion)
               .build());
       assertEquals(0, nodeManager.getDatanodeFinalizationCounts()
@@ -764,7 +764,7 @@ public class TestSCMNodeManager {
 
       nodeManager.processLayoutVersionReport(node,
           LayoutVersionProto.newBuilder()
-              .setMetadataLayoutVersion(metadataVersion)
+              .setMetadataLayoutVersion(apparentVersion)
               .setSoftwareLayoutVersion(softwareVersion)
               .build());
       assertEquals(1, nodeManager.getDatanodeFinalizationCounts()

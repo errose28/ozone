@@ -170,7 +170,7 @@ public class TestScmHAFinalization {
     GenericTestUtils.waitFor(() -> !scm.isInSafeMode(), 500, 5000);
     GenericTestUtils.waitFor(() -> {
       LOG.info("Waiting for SCM {} (leader? {}) to finalize.", scm.getSCMNodeId(), scm.checkLeader());
-      return !scm.getLayoutVersionManager().needsFinalization();
+      return !scm.getFinalizationManager().needsFinalization();
     }, 2_000, 60_000);
   }
 }

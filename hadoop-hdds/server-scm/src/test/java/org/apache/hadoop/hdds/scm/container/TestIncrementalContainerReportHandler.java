@@ -26,7 +26,6 @@ import static org.apache.hadoop.hdds.scm.HddsTestUtils.getReplicas;
 import static org.apache.hadoop.hdds.scm.container.TestContainerReportHandler.createMatchingDataChecksumForReplica;
 import static org.apache.hadoop.hdds.scm.container.TestContainerReportHandler.createUniqueDataChecksumForReplica;
 import static org.apache.hadoop.hdds.scm.container.TestContainerReportHandler.getContainerReportsProto;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -53,6 +52,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
@@ -81,9 +81,9 @@ import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.ContainerReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.IncrementalContainerReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
@@ -119,12 +119,12 @@ public class TestIncrementalContainerReportHandler {
     NetworkTopology clusterMap = new NetworkTopologyImpl(conf);
     EventQueue eventQueue = new EventQueue();
     SCMStorageConfig storageConfig = new SCMStorageConfig(conf);
-    HDDSLayoutVersionManager versionManager = mock(HDDSLayoutVersionManager.class);
-    when(versionManager.getMetadataLayoutVersion()).thenReturn(maxLayoutVersion());
-    when(versionManager.getSoftwareLayoutVersion()).thenReturn(maxLayoutVersion());
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    when(finalizationManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(finalizationManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     this.nodeManager =
         new SCMNodeManager(conf, storageConfig, eventQueue, clusterMap,
-            scmContext, versionManager);
+            scmContext, finalizationManager);
     SCMHAManager scmhaManager = SCMHAManagerStub.getInstance(true);
     dbStore = DBStoreBuilder.createDBStore(conf, SCMDBDefinition.get());
 

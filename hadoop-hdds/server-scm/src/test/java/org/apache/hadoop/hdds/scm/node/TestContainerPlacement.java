@@ -22,7 +22,6 @@ import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeState.HEALTHY
 import static org.apache.hadoop.hdds.scm.net.NetConstants.LEAF_SCHEMA;
 import static org.apache.hadoop.hdds.scm.net.NetConstants.RACK_SCHEMA;
 import static org.apache.hadoop.hdds.scm.net.NetConstants.ROOT_SCHEMA;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +37,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.commons.io.IOUtils;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
@@ -71,8 +71,8 @@ import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.MockPipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventQueue;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -143,17 +143,16 @@ public class TestContainerPlacement {
     SCMStorageConfig storageConfig = mock(SCMStorageConfig.class);
     when(storageConfig.getClusterID()).thenReturn("cluster1");
 
-    HDDSLayoutVersionManager versionManager = mock(HDDSLayoutVersionManager.class);
-    when(versionManager.getMetadataLayoutVersion()).thenReturn(maxLayoutVersion());
-    when(versionManager.getSoftwareLayoutVersion()).thenReturn(maxLayoutVersion());
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    when(finalizationManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(finalizationManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     NodeSchema[] schemas = new NodeSchema[]
         {ROOT_SCHEMA, RACK_SCHEMA, LEAF_SCHEMA};
     NodeSchemaManager.getInstance().init(schemas, true);
     NetworkTopology networkTopology =
         new NetworkTopologyImpl(NodeSchemaManager.getInstance());
-    SCMNodeManager scmNodeManager = new SCMNodeManager(config, storageConfig,
-        eventQueue, networkTopology, SCMContext.emptyContext(), versionManager);
-    return scmNodeManager;
+    return new SCMNodeManager(config, storageConfig,
+        eventQueue, networkTopology, SCMContext.emptyContext(), finalizationManager);
   }
 
   ContainerManager createContainerManager()
