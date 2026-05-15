@@ -10,7 +10,6 @@ share/ozone/lib/asm-commons.jar
 share/ozone/lib/asm.jar
 share/ozone/lib/asm-tree.jar
 share/ozone/lib/asm-util.jar
-share/ozone/lib/aspectjrt.jar
 share/ozone/lib/avro.jar
 share/ozone/lib/aws-java-sdk-core.jar
 share/ozone/lib/aws-java-sdk-kms.jar

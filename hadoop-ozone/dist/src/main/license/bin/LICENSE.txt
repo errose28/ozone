@@ -221,7 +221,6 @@ EPL 2.0
    com.github.jnr:jnr-posix
    jakarta.annotation:jakarta.annotation-api
    jakarta.ws.rs:jakarta.ws.rs-api
-   org.aspectj:aspectjrt
    org.glassfish.hk2.external:aopalliance-repackaged
    org.glassfish.hk2.external:jakarta.inject
    org.glassfish.hk2.external:javax.inject
