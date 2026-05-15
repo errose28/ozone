@@ -52,7 +52,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Snapsho
 
 /**
  * Handles OMSnapshotMoveTableKeysRequest Request.
- * This is an OM internal request. Does not need @RequireSnapshotFeatureState.
+ * This is an OM internal request (submitted through OM Ratis, not the public RPC gate).
  */
 public class OMSnapshotMoveTableKeysRequest extends OMClientRequest {
   private static final AuditLogger AUDIT = new AuditLogger(AuditLoggerType.OMSYSTEMLOGGER);

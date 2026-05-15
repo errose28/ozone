@@ -171,7 +171,7 @@ public final class RequestValidator {
         if (!context.isSnapshotEnabled()) {
           throw new OMException(String.format(
               "Operation %s cannot be invoked because Ozone snapshot feature is disabled.",
-              context.getRequest()),
+              context.getRequest().getCmdType()),
               FEATURE_NOT_ENABLED);
         }
         return context.getRequest();

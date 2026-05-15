@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Handles OMSnapshotPurge Request.
- * This is an OM internal request. Does not need @RequireSnapshotFeatureState.
+ * This is an OM internal request (submitted through OM Ratis, not the public RPC gate).
  */
 public class OMSnapshotPurgeRequest extends OMClientRequest {
 

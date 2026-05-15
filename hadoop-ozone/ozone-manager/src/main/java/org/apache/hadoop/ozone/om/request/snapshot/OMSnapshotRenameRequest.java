@@ -44,7 +44,6 @@ import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotRenameResponse;
-import org.apache.hadoop.ozone.om.snapshot.RequireSnapshotFeatureState;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.OMResponse;
@@ -65,7 +64,6 @@ public class OMSnapshotRenameRequest extends OMClientRequest {
   }
 
   @Override
-  @RequireSnapshotFeatureState(true)
   public OMRequest preExecute(OzoneManager ozoneManager) throws IOException {
     final OMRequest omRequest = super.preExecute(ozoneManager);
 
