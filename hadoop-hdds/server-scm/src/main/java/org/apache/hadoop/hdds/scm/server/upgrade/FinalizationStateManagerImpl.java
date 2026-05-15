@@ -19,14 +19,13 @@ package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
 import java.util.Objects;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.scm.metadata.DBTransactionBuffer;
-import org.apache.hadoop.hdds.scm.metadata.Replicate;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
+import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.OzoneConsts;
-import org.apache.hadoop.ozone.upgrade.LayoutFeature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,110 +39,52 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
 
   private Table<String, String> finalizationStore;
   private final DBTransactionBuffer transactionBuffer;
-  private final HDDSLayoutVersionManager versionManager;
-  // Ensures that we are not in the process of updating checkpoint state as
-  // we read it to determine the current checkpoint.
-  private SCMUpgradeFinalizationContext upgradeContext;
-  private final SCMUpgradeFinalizer upgradeFinalizer;
+  private final ScmVersionManager versionManager;
 
   protected FinalizationStateManagerImpl(Builder builder) throws IOException {
     this.finalizationStore = builder.finalizationStore;
     this.transactionBuffer = builder.transactionBuffer;
-    this.upgradeFinalizer = builder.upgradeFinalizer;
-    this.versionManager = this.upgradeFinalizer.getVersionManager();
+    this.versionManager = new ScmVersionManager(builder.storage, builder.upgradeActionArg);
   }
 
   @Override
-  public void setUpgradeContext(SCMUpgradeFinalizationContext context) {
-    this.upgradeContext = context;
-  }
-
-  @Override
-  public synchronized void finalizeLayoutFeatures(Integer toVersion) throws IOException {
-    for (LayoutFeature feature : versionManager.unfinalizedFeatures()) {
-      finalizeLayoutFeatureLocal((HDDSLayoutFeature) feature);
-    }
-  }
-
-  /**
-   * A version of finalizeLayoutFeature without the {@link Replicate}
-   * annotation that can be called by followers to finalize from a snapshot.
-   */
-  private void finalizeLayoutFeatureLocal(HDDSLayoutFeature layoutFeature)
-      throws IOException {
-    // The VERSION file is the source of truth for the current layout
-    // version. This is updated in the replicated finalization steps.
-    // Layout version will be written to the DB as well so followers can
-    // finalize from a snapshot.
-    if (versionManager.getMetadataLayoutVersion() >= layoutFeature.layoutVersion()) {
-      LOG.warn("Attempting to finalize layout feature for layout version {}, but " +
-          "current metadata layout version is {}. Skipping finalization for this layout version.",
-          layoutFeature.layoutVersion(), versionManager.getMetadataLayoutVersion());
-    } else {
-      upgradeFinalizer.replicatedFinalizationSteps(layoutFeature, upgradeContext);
-    }
+  public void finalizeUpgrade() throws IOException {
+    versionManager.finalizeUpgrade();
     transactionBuffer.addToBuffer(finalizationStore,
-        OzoneConsts.APPARENT_VERSION_KEY, String.valueOf(layoutFeature.layoutVersion()));
+        OzoneConsts.APPARENT_VERSION_KEY, String.valueOf(versionManager.getApparentVersion()));
+  }
+
+  @Override
+  public boolean needsFinalization() {
+    return versionManager.needsFinalization();
+  }
+
+  @Override
+  public ComponentVersion getSoftwareVersion() {
+    return versionManager.getSoftwareVersion();
+  }
+
+  @Override
+  public ComponentVersion getApparentVersion() {
+    return versionManager.getApparentVersion();
+  }
+
+  @Override
+  public boolean isAllowed(ComponentVersion version) {
+    return versionManager.isAllowed(version);
   }
 
   /**
    * Called on snapshot installation.
    */
   @Override
-  public synchronized void reinitialize(Table<String, String> newFinalizationStore)
-      throws IOException {
+  public synchronized void reinitialize(Table<String, String> newFinalizationStore) throws IOException {
     try {
       this.finalizationStore = newFinalizationStore;
-
-      int dbLayoutVersion = getDBLayoutVersion();
-      int currentLayoutVersion = versionManager.getMetadataLayoutVersion();
-      if (currentLayoutVersion < dbLayoutVersion) {
-        // Snapshot contained a higher metadata layout version. Finalize this
-        // follower SCM as a result.
-        LOG.info("New SCM snapshot received with metadata layout version {}, " +
-                "which is higher than this SCM's metadata layout version {}." +
-                "Attempting to finalize current SCM to that version.",
-            dbLayoutVersion, currentLayoutVersion);
-        // Since the SCM is finalizing from a snapshot, it is a follower, and
-        // does not need to run the leader only finalization driving actions
-        // that the UpgradeFinalizationExecutor contains. Just run the
-        // upgrade actions for the layout features, set the finalization
-        // checkpoint, and increase the version in the VERSION file.
-        finalizeLayoutFeatures(dbLayoutVersion);
-      }
+      versionManager.finalizeFromSnapshotIfRequired(finalizationStore);
     } catch (Exception ex) {
       LOG.error("Failed to reinitialize finalization state", ex);
       throw new IOException(ex);
-    }
-  }
-
-  /**
-   * Gets the metadata layout version from the SCM RocksDB. This is used for
-   * Ratis snapshot based finalization in a slow follower. In all other
-   * cases, the VERSION file should be the source of truth.
-   *
-   * MLV was not stored in RocksDB until SCM HA supported snapshot based
-   * finalization, which was after a few HDDS layout features
-   * were introduced. If the SCM has not finalized since this code
-   * was added, the layout version will not be there. Defer to the MLV in the
-   * VERSION file in this case, since finalization is not ongoing. The key will
-   * be added once finalization is started with this software version.
-   */
-  private int getDBLayoutVersion() throws IOException {
-    String dbLayoutVersion = finalizationStore.get(
-        OzoneConsts.APPARENT_VERSION_KEY);
-    if (dbLayoutVersion == null) {
-      return versionManager.getMetadataLayoutVersion();
-    } else {
-      try {
-        return Integer.parseInt(dbLayoutVersion);
-      } catch (NumberFormatException ex) {
-        String msg = String.format(
-            "Failed to read layout version from SCM DB. Found string %s",
-            dbLayoutVersion);
-        LOG.error(msg, ex);
-        throw new IOException(msg, ex);
-      }
     }
   }
 
@@ -153,19 +94,25 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
   public static class Builder {
     private Table<String, String> finalizationStore;
     private DBTransactionBuffer transactionBuffer;
-    private SCMRatisServer scmRatisServer;
-    private SCMUpgradeFinalizer upgradeFinalizer;
+    private StorageContainerManager upgradeActionArg;
+    private SCMStorageConfig storage;
+    private SCMRatisServer ratisServer;
 
     public Builder() {
     }
 
-    public Builder setUpgradeFinalizer(final SCMUpgradeFinalizer finalizer) {
-      upgradeFinalizer = finalizer;
+    public Builder setRatisServer(SCMRatisServer ratisServer) {
+      this.ratisServer = ratisServer;
       return this;
     }
 
-    public Builder setRatisServer(final SCMRatisServer ratisServer) {
-      scmRatisServer = ratisServer;
+    public Builder setStorageConfig(SCMStorageConfig storageConfig) {
+      this.storage = storageConfig;
+      return this;
+    }
+
+    public Builder setUpgradeActionArg(StorageContainerManager upgradeActionArg) {
+      this.upgradeActionArg = upgradeActionArg;
       return this;
     }
 
@@ -183,9 +130,10 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
     public FinalizationStateManager build() throws IOException {
       Objects.requireNonNull(finalizationStore, "finalizationStore == null");
       Objects.requireNonNull(transactionBuffer, "transactionBuffer == null");
-      Objects.requireNonNull(upgradeFinalizer, "upgradeFinalizer == null");
+      Objects.requireNonNull(storage, "storageConfig == null");
+      Objects.requireNonNull(upgradeActionArg, "upgradeActionArg == null");
 
-      return scmRatisServer.getProxyHandler(FinalizationStateManager.class, new FinalizationStateManagerImpl(this));
+      return ratisServer.getProxyHandler(FinalizationStateManager.class, new FinalizationStateManagerImpl(this));
     }
   }
 }

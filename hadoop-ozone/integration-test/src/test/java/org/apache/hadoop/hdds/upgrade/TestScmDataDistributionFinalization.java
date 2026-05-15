@@ -59,7 +59,6 @@ import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.server.SCMConfigurator;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
-import org.apache.hadoop.hdds.scm.server.upgrade.SCMUpgradeFinalizationContext;
 import org.apache.hadoop.hdds.utils.db.CodecException;
 import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.apache.hadoop.hdds.utils.db.Table;
@@ -76,7 +75,6 @@ import org.apache.hadoop.ozone.client.OzoneKeyDetails;
 import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.common.DeletedBlock;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeConfiguration;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalizationExecutor;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.tag.Flaky;
 import org.junit.jupiter.api.AfterEach;
@@ -101,11 +99,9 @@ public class TestScmDataDistributionFinalization {
   private static final long BLOCK_SIZE = 1024 * 1024; // 1 MB
   private static final long BLOCKS_PER_TX = 5; // 1 MB
 
-  public void init(OzoneConfiguration conf,
-      UpgradeFinalizationExecutor<SCMUpgradeFinalizationContext> executor, boolean doFinalize) throws Exception {
+  public void init(OzoneConfiguration conf, boolean doFinalize) throws Exception {
 
     SCMConfigurator configurator = new SCMConfigurator();
-    configurator.setUpgradeFinalizationExecutor(executor);
 
     conf.setInt(SCMStorageConfig.TESTING_INIT_LAYOUT_VERSION_KEY, HDDSLayoutFeature.HBASE_SUPPORT.layoutVersion());
     conf.setTimeDuration(OZONE_BLOCK_DELETING_SERVICE_INTERVAL, 100, TimeUnit.MILLISECONDS);
@@ -169,7 +165,7 @@ public class TestScmDataDistributionFinalization {
   @Test
   @Flaky("HDDS-14050")
   public void testFinalizationEmptyClusterDataDistribution() throws Exception {
-    init(new OzoneConfiguration(), null, true);
+    init(new OzoneConfiguration(), true);
     assertEquals(EMPTY_SUMMARY, cluster.getStorageContainerLocationClient().getDeletedBlockSummary());
 
     scmClient.finalizeUpgrade();
@@ -264,7 +260,7 @@ public class TestScmDataDistributionFinalization {
    */
   @Test
   public void testFinalizationNonEmptyClusterDataDistribution() throws Exception {
-    init(new OzoneConfiguration(), null, false);
+    init(new OzoneConfiguration(), false);
     // stop SCMBlockDeletingService
     for (StorageContainerManager scm: cluster.getStorageContainerManagersList()) {
       scm.getScmBlockManager().getSCMBlockDeletingService().stop();

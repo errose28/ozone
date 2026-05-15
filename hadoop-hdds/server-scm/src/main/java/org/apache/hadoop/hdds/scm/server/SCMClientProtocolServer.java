@@ -29,6 +29,8 @@ import static org.apache.hadoop.hdds.scm.server.StorageContainerManager.startRpc
 import static org.apache.hadoop.hdds.server.ServerUtils.getRemoteUserName;
 import static org.apache.hadoop.hdds.server.ServerUtils.updateRPCListenAddress;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getRemoteUser;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_DONE_MSG;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_REQUIRED_MSG;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.ALREADY_FINALIZED;
 import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.STARTING_FINALIZATION;
 
@@ -1187,12 +1189,13 @@ public class SCMClientProtocolServer implements
     auditMap.put("readonly", String.valueOf(readonly));
 
     try {
-      // check admin authorization
-      if (!readonly) {
-        getScm().checkAdminAccess(getRemoteUser(), true);
+      getScm().checkAdminAccess(getRemoteUser(), true);
+      StatusAndMessages result;
+      if (scm.getFinalizationManager().needsFinalization()) {
+        result = FINALIZATION_REQUIRED_MSG;
+      } else {
+        result = FINALIZATION_DONE_MSG;
       }
-      StatusAndMessages result = scm.getFinalizationManager()
-          .queryUpgradeFinalizationProgress(upgradeClientID, force, readonly);
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(
           SCMAction.QUERY_UPGRADE_FINALIZATION_PROGRESS, auditMap));
       return result;

@@ -52,6 +52,7 @@ import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.ScmConfigKeys;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeAction;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeActionProvider;
@@ -105,7 +106,7 @@ class TestScmVersionManager extends AbstractComponentVersionManagerTest {
   private ScmVersionManager createManager(int serializedApparentVersion,
       ComponentUpgradeActionProvider<ScmUpgradeAction> actions) throws IOException {
     SCMStorageConfig storage = newScmStorage(serializedApparentVersion);
-    SCMUpgradeFinalizationContext context = mock(SCMUpgradeFinalizationContext.class);
+    StorageContainerManager context = mock(StorageContainerManager.class);
     return new ScmVersionManager(storage, context, actions);
   }
 
@@ -204,7 +205,7 @@ class TestScmVersionManager extends AbstractComponentVersionManagerTest {
     }).when(storage).setApparentVersion(anyInt());
     doThrow(new IOException("persist failed")).when(storage).persistCurrentState();
 
-    SCMUpgradeFinalizationContext context = mock(SCMUpgradeFinalizationContext.class);
+    StorageContainerManager context = mock(StorageContainerManager.class);
     try (ScmVersionManager versionManager = new ScmVersionManager(storage, context, HashMap::new)) {
       assertEquals(INITIAL_VERSION, versionManager.getApparentVersion());
       UpgradeException thrown = assertThrows(UpgradeException.class, versionManager::finalizeUpgrade);

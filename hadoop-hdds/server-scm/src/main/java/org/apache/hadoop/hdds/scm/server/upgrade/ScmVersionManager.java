@@ -21,32 +21,34 @@ import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.hdds.ComponentVersion;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.upgrade.HDDSVersionManager;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
+import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeAction;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeActionProvider;
 import org.apache.hadoop.ozone.upgrade.ComponentUpgradeActionProvider;
+import org.apache.hadoop.ozone.upgrade.RatisBasedVersionManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeException;
 
 /**
  * SCM-specific version manager that wires upgrade actions internally.
  */
-public class ScmVersionManager extends HDDSVersionManager {
+public class ScmVersionManager extends RatisBasedVersionManager {
 
   private final Map<ComponentVersion, ScmUpgradeAction> upgradeActions;
-  private final SCMUpgradeFinalizationContext upgradeActionArg;
+  private final StorageContainerManager upgradeActionArg;
 
-  public ScmVersionManager(SCMStorageConfig storage,
-      SCMUpgradeFinalizationContext upgradeActionArg) throws IOException {
+  public ScmVersionManager(SCMStorageConfig storage, StorageContainerManager upgradeActionArg) throws IOException {
     this(storage, upgradeActionArg, new ScmUpgradeActionProvider());
   }
 
   @VisibleForTesting
   public ScmVersionManager(SCMStorageConfig storage,
-      SCMUpgradeFinalizationContext upgradeActionArg,
+      StorageContainerManager upgradeActionArg,
       ComponentUpgradeActionProvider<ScmUpgradeAction> upgradeActionProvider)
       throws IOException {
-    super(storage);
+    super(storage, HDDSVersionUtils.computeApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
     this.upgradeActionArg = upgradeActionArg;
     upgradeActions = upgradeActionProvider.load();
   }
@@ -68,5 +70,10 @@ public class ScmVersionManager extends HDDSVersionManager {
       logAndThrow(e, "SCM upgrade action for version " + version + " failed.",
           UpgradeException.ResultCodes.FINALIZE_UPGRADE_ACTION_FAILED);
     }
+  }
+
+  @Override
+  protected ComponentVersion computeApparentVersion(int serializedVersion) throws IOException {
+    return HDDSVersionUtils.computeApparentVersion(serializedVersion);
   }
 }

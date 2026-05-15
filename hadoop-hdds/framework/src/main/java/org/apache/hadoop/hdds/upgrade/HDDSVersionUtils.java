@@ -20,16 +20,12 @@ package org.apache.hadoop.hdds.upgrade;
 import java.io.IOException;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
-import org.apache.hadoop.ozone.common.Storage;
-import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
-import org.apache.hadoop.ozone.upgrade.UpgradeException;
 
 /**
  * Component version manager for HDDS (Datanodes and SCM).
  */
-public abstract class HDDSVersionManager extends ComponentVersionManager {
-  protected HDDSVersionManager(Storage storage) throws IOException {
-    super(storage, computeApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
+public final class HDDSVersionUtils {
+  private HDDSVersionUtils() {
   }
 
   /**
@@ -40,7 +36,7 @@ public abstract class HDDSVersionManager extends ComponentVersionManager {
    * the gap between the largest {@link HDDSLayoutFeature} and ZDU are not valid legacy layout values; startup fails
    * with the persisted integer in the exception message.
    */
-  private static ComponentVersion computeApparentVersion(int serializedApparentVersion) throws IOException {
+  public static ComponentVersion computeApparentVersion(int serializedApparentVersion) throws IOException {
     if (serializedApparentVersion >= HDDSVersion.ZDU.serialize()) {
       HDDSVersion fromHdds = HDDSVersion.deserialize(serializedApparentVersion);
       if (fromHdds != HDDSVersion.FUTURE_VERSION) {
@@ -56,7 +52,4 @@ public abstract class HDDSVersionManager extends ComponentVersionManager {
         " for software version " + HDDSVersion.SOFTWARE_VERSION + ". Make sure this component was not downgraded" +
         " after finalization");
   }
-
-  @Override
-  protected abstract void runUpgradeAction(ComponentVersion version) throws UpgradeException;
 }

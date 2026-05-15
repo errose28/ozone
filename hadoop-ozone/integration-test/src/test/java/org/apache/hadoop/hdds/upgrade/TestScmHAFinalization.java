@@ -31,12 +31,9 @@ import org.apache.hadoop.hdds.scm.server.SCMConfigurator;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationStateManagerImpl;
-import org.apache.hadoop.hdds.scm.server.upgrade.SCMUpgradeFinalizationContext;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.MiniOzoneHAClusterImpl;
 import org.apache.hadoop.ozone.UniformDatanodesFactory;
-import org.apache.hadoop.ozone.upgrade.DefaultUpgradeFinalizationExecutor;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalizationExecutor;
 import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.GenericTestUtils.LogCapturer;
 import org.junit.jupiter.api.AfterEach;
@@ -57,12 +54,9 @@ public class TestScmHAFinalization {
   private static final int NUM_DATANODES = 3;
   private static final int NUM_SCMS = 3;
 
-  public void init(OzoneConfiguration conf,
-      UpgradeFinalizationExecutor<SCMUpgradeFinalizationContext> executor,
-      int numInactiveSCMs) throws Exception {
+  public void init(OzoneConfiguration conf, int numInactiveSCMs) throws Exception {
 
     SCMConfigurator configurator = new SCMConfigurator();
-    configurator.setUpgradeFinalizationExecutor(executor);
 
     conf.setInt(SCMStorageConfig.TESTING_INIT_LAYOUT_VERSION_KEY, HDDSLayoutFeature.INITIAL_VERSION.layoutVersion());
     conf.set(ScmConfigKeys.OZONE_SCM_HA_RATIS_SERVER_RPC_FIRST_ELECTION_TIMEOUT, "5s");
@@ -94,7 +88,7 @@ public class TestScmHAFinalization {
   @Test
   public void testFinalization() throws Exception {
     OzoneConfiguration conf = new OzoneConfiguration();
-    init(conf, new DefaultUpgradeFinalizationExecutor<>(), 0);
+    init(conf, 0);
     scmClient.finalizeUpgrade();
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     // Ensure all SCMs finalize, indicating the message has been propagated across them all
@@ -116,7 +110,7 @@ public class TestScmHAFinalization {
     conf.setLong(ScmConfigKeys.OZONE_SCM_HA_RATIS_SNAPSHOT_THRESHOLD,
         5);
 
-    init(conf, new DefaultUpgradeFinalizationExecutor<>(), numInactiveSCMs);
+    init(conf, numInactiveSCMs);
 
     LogCapturer logCapture = LogCapturer.captureLogs(FinalizationStateManagerImpl.class);
 

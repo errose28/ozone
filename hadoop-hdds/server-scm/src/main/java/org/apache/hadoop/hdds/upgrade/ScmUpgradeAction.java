@@ -17,12 +17,12 @@
 
 package org.apache.hadoop.hdds.upgrade;
 
-import org.apache.hadoop.hdds.scm.server.upgrade.SCMUpgradeFinalizationContext;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeAction;
 
 /**
  * Storage Container Manager Upgrade Action interface. An upgrade action is an operation that
  * needs to be executed during finalization.
  */
-public interface ScmUpgradeAction extends UpgradeAction<SCMUpgradeFinalizationContext> {
+public interface ScmUpgradeAction extends UpgradeAction<StorageContainerManager> {
 }

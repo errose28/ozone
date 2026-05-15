@@ -147,7 +147,6 @@ import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.Containe
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.IncrementalContainerReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManagerImpl;
-import org.apache.hadoop.hdds.scm.server.upgrade.SCMUpgradeFinalizationContext;
 import org.apache.hadoop.hdds.security.SecurityConfig;
 import org.apache.hadoop.hdds.security.symmetric.SecretKeyManager;
 import org.apache.hadoop.hdds.security.token.ContainerTokenGenerator;
@@ -189,8 +188,6 @@ import org.apache.hadoop.ozone.OzoneSecurityUtil;
 import org.apache.hadoop.ozone.common.Storage.StorageState;
 import org.apache.hadoop.ozone.lease.LeaseManager;
 import org.apache.hadoop.ozone.lease.LeaseManagerNotRunningException;
-import org.apache.hadoop.ozone.upgrade.DefaultUpgradeFinalizationExecutor;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalizationExecutor;
 import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -705,19 +702,10 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     scmLayoutVersionManager = new HDDSLayoutVersionManager(
         scmStorageConfig.getApparentVersion(), new ScmUpgradeActionProvider(), null);
 
-    UpgradeFinalizationExecutor<SCMUpgradeFinalizationContext>
-        finalizationExecutor;
-    if (configurator.getUpgradeFinalizationExecutor() != null) {
-      finalizationExecutor = configurator.getUpgradeFinalizationExecutor();
-    } else {
-      finalizationExecutor = new DefaultUpgradeFinalizationExecutor<>();
-    }
     finalizationManager = new FinalizationManagerImpl.Builder()
-        .setLayoutVersionManager(scmLayoutVersionManager)
         .setStorage(scmStorageConfig)
         .setHAManager(scmHAManager)
         .setFinalizationStore(scmMetadataStore.getMetaTable())
-        .setFinalizationExecutor(finalizationExecutor)
         .build();
 
     // inline upgrade for SequenceIdGenerator
@@ -783,8 +771,6 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
               systemClock
               );
     }
-
-    finalizationManager.buildUpgradeContext(scmNodeManager, scmContext);
 
     ReplicationManager.ReplicationManagerConfiguration rmConf =
         conf.getObject(ReplicationManager.ReplicationManagerConfiguration.class);

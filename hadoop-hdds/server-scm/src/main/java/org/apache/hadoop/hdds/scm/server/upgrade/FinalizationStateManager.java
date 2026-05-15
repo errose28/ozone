@@ -18,6 +18,7 @@
 package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol.RequestType;
 import org.apache.hadoop.hdds.scm.ha.SCMHandler;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
@@ -28,11 +29,17 @@ import org.apache.hadoop.hdds.utils.db.Table;
  */
 public interface FinalizationStateManager extends SCMHandler {
 
+  // TODO this will need a parameter for peer version info to validate.
   @Replicate
-  void finalizeLayoutFeatures(Integer toLayoutVersion)
-      throws IOException;
+  void finalizeUpgrade() throws IOException;
 
-  void setUpgradeContext(SCMUpgradeFinalizationContext context);
+  boolean needsFinalization();
+
+  ComponentVersion getSoftwareVersion();
+
+  ComponentVersion getApparentVersion();
+
+  boolean isAllowed(ComponentVersion version);
 
   /**
    * Called on snapshot installation.

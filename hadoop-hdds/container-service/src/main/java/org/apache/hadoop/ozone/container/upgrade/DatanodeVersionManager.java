@@ -21,18 +21,20 @@ import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.hdds.ComponentVersion;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.upgrade.DatanodeUpgradeAction;
 import org.apache.hadoop.hdds.upgrade.DatanodeUpgradeActionProvider;
-import org.apache.hadoop.hdds.upgrade.HDDSVersionManager;
+import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
 import org.apache.hadoop.ozone.container.common.DatanodeStorage;
 import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
 import org.apache.hadoop.ozone.upgrade.ComponentUpgradeActionProvider;
+import org.apache.hadoop.ozone.upgrade.ComponentVersionManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeException;
 
 /**
  * Datanode-specific version manager that wires upgrade actions internally.
  */
-public class DatanodeVersionManager extends HDDSVersionManager {
+public class DatanodeVersionManager extends ComponentVersionManager {
 
   private final Map<ComponentVersion, DatanodeUpgradeAction> upgradeActions;
   private final DatanodeStateMachine upgradeActionArg;
@@ -44,7 +46,7 @@ public class DatanodeVersionManager extends HDDSVersionManager {
   @VisibleForTesting
   public DatanodeVersionManager(DatanodeStorage storage, DatanodeStateMachine upgradeActionArg,
       ComponentUpgradeActionProvider<DatanodeUpgradeAction> upgradeActionProvider) throws IOException {
-    super(storage);
+    super(storage, HDDSVersionUtils.computeApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
     this.upgradeActionArg = upgradeActionArg;
     upgradeActions = upgradeActionProvider.load();
   }
