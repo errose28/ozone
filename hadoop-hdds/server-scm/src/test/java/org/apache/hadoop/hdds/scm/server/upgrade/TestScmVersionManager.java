@@ -81,7 +81,7 @@ class TestScmVersionManager extends AbstractComponentVersionManagerTest {
     ALL_VERSIONS = new ArrayList<>(Arrays.asList(HDDSLayoutFeature.values()));
     for (HDDSVersion version : HDDSVersion.values()) {
       // Add all defined versions after and including ZDU to get the complete version list.
-      if (HDDSVersion.ZDU.isSupportedBy(version) && version != HDDSVersion.FUTURE_VERSION) {
+      if (HDDSVersion.ZDU.isSupportedBy(version) && version != HDDSVersion.UNKNOWN_VERSION) {
         ALL_VERSIONS.add(version);
       }
     }

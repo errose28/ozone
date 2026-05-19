@@ -87,7 +87,7 @@ public class OMVersionManager extends RatisBasedVersionManager {
   private static ComponentVersion computeApparentVersionInternal(int serializedApparentVersion) throws IOException {
     if (serializedApparentVersion >= OzoneManagerVersion.ZDU.serialize()) {
       OzoneManagerVersion fromOm = OzoneManagerVersion.deserialize(serializedApparentVersion);
-      if (fromOm != OzoneManagerVersion.FUTURE_VERSION) {
+      if (fromOm != OzoneManagerVersion.UNKNOWN_VERSION) {
         return fromOm;
       }
     } else {
