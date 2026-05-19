@@ -48,7 +48,7 @@ public class ScmVersionManager extends RatisBasedVersionManager {
       StorageContainerManager upgradeActionArg,
       ComponentUpgradeActionProvider<ScmUpgradeAction> upgradeActionProvider)
       throws IOException {
-    super(storage, HDDSVersionUtils.computeApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
+    super(storage, HDDSVersionUtils.deserializedPersistedApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
     this.upgradeActionArg = upgradeActionArg;
     upgradeActions = upgradeActionProvider.load();
   }
@@ -74,6 +74,6 @@ public class ScmVersionManager extends RatisBasedVersionManager {
 
   @Override
   protected ComponentVersion computeApparentVersion(int serializedVersion) throws IOException {
-    return HDDSVersionUtils.computeApparentVersion(serializedVersion);
+    return HDDSVersionUtils.deserializedPersistedApparentVersion(serializedVersion);
   }
 }

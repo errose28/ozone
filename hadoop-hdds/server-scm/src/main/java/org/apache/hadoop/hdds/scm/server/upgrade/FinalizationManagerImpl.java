@@ -17,38 +17,27 @@
 
 package org.apache.hadoop.hdds.scm.server.upgrade;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.util.Objects;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.utils.db.Table;
 
 /**
  * Class to initiate SCM finalization and query its progress.
  */
 public class FinalizationManagerImpl implements FinalizationManager {
-  private SCMStorageConfig storage;
   private final FinalizationStateManager finalizationStateManager;
 
-  /**
-   * For test classes to inject their own state manager.
-   */
-  @VisibleForTesting
-  protected FinalizationManagerImpl(Builder builder, FinalizationStateManager stateManager) {
-    this.storage = builder.storage;
-    this.finalizationStateManager = stateManager;
-
-  }
-
   private FinalizationManagerImpl(Builder builder) throws IOException {
-    this.storage = builder.storage;
     this.finalizationStateManager = new FinalizationStateManagerImpl.Builder()
         .setStorageConfig(builder.storage)
         .setFinalizationStore(builder.finalizationStore)
         .setTransactionBuffer(builder.scmHAManager.getDBTransactionBuffer())
         .setRatisServer(builder.scmHAManager.getRatisServer())
+        .setUpgradeActionArg(builder.upgradeActionArg)
         .build();
   }
 
@@ -94,6 +83,7 @@ public class FinalizationManagerImpl implements FinalizationManager {
     private SCMStorageConfig storage;
     private Table<String, String> finalizationStore;
     private SCMHAManager scmHAManager;
+    private StorageContainerManager upgradeActionArg;
 
     public Builder() {
     }
@@ -108,6 +98,11 @@ public class FinalizationManagerImpl implements FinalizationManager {
       return this;
     }
 
+    public Builder setUpgradeActionArg(StorageContainerManager upgradeActionArg) {
+      this.upgradeActionArg = upgradeActionArg;
+      return this;
+    }
+
     public Builder setFinalizationStore(
         Table<String, String> finalizationStore) {
       this.finalizationStore = finalizationStore;
@@ -118,6 +113,7 @@ public class FinalizationManagerImpl implements FinalizationManager {
       Objects.requireNonNull(storage, "storage == null");
       Objects.requireNonNull(scmHAManager, "scmHAManager == null");
       Objects.requireNonNull(finalizationStore, "finalizationStore == null");
+      Objects.requireNonNull(upgradeActionArg, "upgradeActionArg == null");
 
       return new FinalizationManagerImpl(this);
     }

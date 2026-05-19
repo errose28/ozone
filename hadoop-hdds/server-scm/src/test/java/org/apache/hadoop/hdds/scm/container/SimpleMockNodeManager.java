@@ -302,8 +302,8 @@ public class SimpleMockNodeManager implements NodeManager {
   }
 
   @Override
-  public void processLayoutVersionReport(DatanodeDetails datanodeDetails,
-                                         LayoutVersionProto layoutReport) {
+  public void processVersionReport(DatanodeDetails datanodeDetails,
+                                   LayoutVersionProto layoutReport) {
   }
 
   /**

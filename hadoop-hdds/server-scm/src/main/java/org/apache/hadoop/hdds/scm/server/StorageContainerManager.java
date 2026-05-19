@@ -700,6 +700,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
         .setStorage(scmStorageConfig)
         .setHAManager(scmHAManager)
         .setFinalizationStore(scmMetadataStore.getMetaTable())
+        .setUpgradeActionArg(this)
         .build();
 
     // inline upgrade for SequenceIdGenerator

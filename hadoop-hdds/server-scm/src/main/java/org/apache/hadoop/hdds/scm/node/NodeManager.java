@@ -17,7 +17,7 @@
 
 package org.apache.hadoop.hdds.scm.node;
 
-import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultLayoutVersionProto;
+import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultVersionProto;
 
 import jakarta.annotation.Nullable;
 import java.io.Closeable;
@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.DatanodeID;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalState;
@@ -92,7 +93,7 @@ public interface NodeManager extends StorageContainerNodeProtocol,
       DatanodeDetails datanodeDetails, NodeReportProto nodeReport,
       PipelineReportsProto pipelineReportsProto) {
     return register(datanodeDetails, nodeReport, pipelineReportsProto,
-        defaultLayoutVersionProto());
+        defaultVersionProto());
   }
 
   /**
@@ -174,19 +175,17 @@ public interface NodeManager extends StorageContainerNodeProtocol,
         totalHealthyNodes++;
         DatanodeInfo datanodeInfo = getDatanodeInfo(dn);
         if (datanodeInfo == null) {
-          LOG.warn("Could not get DatanodeInfo for {}, skipping in " +
-              "finalization wait.", dn.getHostName());
+          LOG.warn("Could not get DatanodeInfo for {}, skip counting for finalization.", dn.getHostName());
           continue;
         }
 
-        LayoutVersionProto dnLayout = datanodeInfo.getLastKnownLayoutVersion();
-        int dnMlv = dnLayout.getMetadataLayoutVersion();
-        int dnSlv = dnLayout.getSoftwareLayoutVersion();
+        ComponentVersion dnApparentVersion = datanodeInfo.getLastKnownApparentVersion();
+        ComponentVersion dnSoftwareVersion = datanodeInfo.getLastKnownSoftwareVersion();
 
-        if (dnMlv < dnSlv) {
+        if (!dnApparentVersion.equals(dnSoftwareVersion)) {
           // Datanode has not yet finalized
-          LOG.debug("Datanode {} has not yet finalized: MLV={}, SLV={}",
-              dn.getHostName(), dnMlv, dnSlv);
+          LOG.debug("Datanode {} has not yet finalized: apparent version={}, software version={}",
+              dn.getHostName(), dnApparentVersion, dnSoftwareVersion);
         } else {
           finalizedNodes++;
         }
@@ -373,8 +372,8 @@ public interface NodeManager extends StorageContainerNodeProtocol,
    * @param datanodeDetails
    * @param layoutReport
    */
-  void processLayoutVersionReport(DatanodeDetails datanodeDetails,
-                         LayoutVersionProto layoutReport);
+  void processVersionReport(DatanodeDetails datanodeDetails,
+                            LayoutVersionProto layoutReport);
 
   /**
    * Get the number of commands of the given type queued on the datanode at the
@@ -476,11 +475,6 @@ public interface NodeManager extends StorageContainerNodeProtocol,
 
   FinalizationManager getFinalizationManager();
 
-  // TODO only used by Recon
-  default HDDSLayoutVersionManager getLayoutVersionManager() {
-    return null;
-  }
-  
   /**
    * This API allows removal of only DECOMMISSIONED, IN_MAINTENANCE and DEAD nodes
    * from NodeManager data structures and cleanup memory.

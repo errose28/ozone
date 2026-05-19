@@ -30,26 +30,42 @@ public final class HDDSVersionUtils {
 
   /**
    * If the apparent version stored on the disk is &gt;= {@link HDDSVersion#ZDU} serialized, the apparent version is
+   * resolved via {@link HDDSVersion#deserialize(int)}.
+   * If the value is below that threshold, the apparent version is resolved as a {@link HDDSLayoutFeature}. Integers in
+   * the gap between the largest {@link HDDSLayoutFeature} and ZDU are not valid legacy layout values.
+   *
+   * If the serialized version does not match any of these known versions, {@link HDDSVersion#UNKNOWN_VERSION} is
+   * returned.
+   */
+  public static ComponentVersion deserializeHDDSVersionOrLayoutVersion(int serializedVersion) {
+    if (serializedVersion >= HDDSVersion.ZDU.serialize()) {
+      return HDDSVersion.deserialize(serializedVersion);
+    } else {
+      ComponentVersion fromLayout = HDDSLayoutFeature.deserialize(serializedVersion);
+      if (fromLayout != null) {
+        return fromLayout;
+      } else {
+        return HDDSVersion.UNKNOWN_VERSION;
+      }
+    }
+  }
+
+  /**
+   * If the apparent version stored on the disk is &gt;= {@link HDDSVersion#ZDU} serialized, the apparent version is
    * resolved via {@link HDDSVersion#deserialize(int)}. Values with no matching {@link HDDSVersion} fail startup with
    * the persisted integer in the exception message.
    * If the value is below that threshold, the apparent version is resolved as a {@link HDDSLayoutFeature}. Integers in
    * the gap between the largest {@link HDDSLayoutFeature} and ZDU are not valid legacy layout values; startup fails
    * with the persisted integer in the exception message.
    */
-  public static ComponentVersion computeApparentVersion(int serializedApparentVersion) throws IOException {
-    if (serializedApparentVersion >= HDDSVersion.ZDU.serialize()) {
-      HDDSVersion fromHdds = HDDSVersion.deserialize(serializedApparentVersion);
-      if (fromHdds != HDDSVersion.UNKNOWN_VERSION) {
-        return fromHdds;
-      }
-    } else {
-      ComponentVersion fromLayout = HDDSLayoutFeature.deserialize(serializedApparentVersion);
-      if (fromLayout != null) {
-        return fromLayout;
-      }
+  public static ComponentVersion deserializedPersistedApparentVersion(int serializedApparentVersion)
+      throws IOException {
+    ComponentVersion persistedVersion = deserializeHDDSVersionOrLayoutVersion(serializedApparentVersion);
+    if (persistedVersion == HDDSVersion.UNKNOWN_VERSION) {
+      throw new IOException("Initialization failed. Disk contains unknown apparent version " + serializedApparentVersion +
+          " for software version " + HDDSVersion.SOFTWARE_VERSION + ". Make sure this component was not downgraded" +
+          " after finalization");
     }
-    throw new IOException("Initialization failed. Disk contains unknown apparent version " + serializedApparentVersion +
-        " for software version " + HDDSVersion.SOFTWARE_VERSION + ". Make sure this component was not downgraded" +
-        " after finalization");
+    return persistedVersion;
   }
 }
