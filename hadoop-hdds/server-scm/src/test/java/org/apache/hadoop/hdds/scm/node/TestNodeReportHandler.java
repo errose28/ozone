@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.hdds.scm.node;
 
+import static org.apache.hadoop.hdds.scm.upgrade.ScmUpgradeTestUtils.mockVersionManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
@@ -26,7 +27,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.MockDatanodeDetails;
@@ -71,9 +71,7 @@ public class TestNodeReportHandler implements EventPublisher {
     when(storageConfig.getClusterID()).thenReturn("cluster1");
     NetworkTopology clusterMap = new NetworkTopologyImpl(conf);
 
-    ScmVersionManager versionManager = mock(ScmVersionManager.class);
-    when(versionManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
-    when(versionManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    ScmVersionManager versionManager = mockVersionManager();
     nodeManager =
         new SCMNodeManager(conf, storageConfig, new EventQueue(), clusterMap,
             SCMContext.emptyContext(), versionManager);

@@ -38,6 +38,7 @@ import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_STALENODE_INTER
 import static org.apache.hadoop.hdds.scm.events.SCMEvents.DATANODE_COMMAND;
 import static org.apache.hadoop.hdds.scm.events.SCMEvents.DATANODE_COMMAND_COUNT_UPDATED;
 import static org.apache.hadoop.hdds.scm.events.SCMEvents.NEW_NODE;
+import static org.apache.hadoop.hdds.scm.upgrade.ScmUpgradeTestUtils.mockVersionManager;
 import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultVersionProto;
 import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.toVersionProto;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -69,7 +69,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.hadoop.fs.FileUtil;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
@@ -127,7 +126,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2181,25 +2179,5 @@ public class TestSCMNodeManager {
         SCMEvents.REPLICATION_MANAGER_NOTIFY, reportedDatanode);
 
     nodeManager.close();
-  }
-
-  /**
-   * Constructs a mock ScmVersionManager for an SCM which may be pre-finalized.
-   */
-  private static ScmVersionManager mockVersionManager(ComponentVersion apparentVersion) {
-    ScmVersionManager manager = mock(ScmVersionManager.class);
-    Mockito.when(manager.getApparentVersion()).thenReturn(apparentVersion);
-    Mockito.when(manager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
-    Mockito.when(manager.isAllowed(any(ComponentVersion.class)))
-        .thenAnswer(v -> v.getArgument(0, ComponentVersion.class).isSupportedBy(apparentVersion));
-    Mockito.when(manager.needsFinalization()).thenReturn(!HDDSVersion.SOFTWARE_VERSION.equals(apparentVersion));
-    return manager;
-  }
-
-  /**
-   * Constructs a mock ScmVersionManager for a finalized SCM.
-   */
-  private static ScmVersionManager mockVersionManager() {
-    return mockVersionManager(HDDSVersion.SOFTWARE_VERSION);
   }
 }
