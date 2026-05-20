@@ -32,8 +32,6 @@ import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeType;
 import org.apache.hadoop.hdds.server.ServerUtils;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
-import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.common.Storage;
 
 /**

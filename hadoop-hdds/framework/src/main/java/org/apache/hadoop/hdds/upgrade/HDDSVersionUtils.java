@@ -62,9 +62,9 @@ public final class HDDSVersionUtils {
       throws IOException {
     ComponentVersion persistedVersion = deserializeHDDSVersionOrLayoutVersion(serializedApparentVersion);
     if (persistedVersion == HDDSVersion.UNKNOWN_VERSION) {
-      throw new IOException("Initialization failed. Disk contains unknown apparent version " + serializedApparentVersion +
-          " for software version " + HDDSVersion.SOFTWARE_VERSION + ". Make sure this component was not downgraded" +
-          " after finalization");
+      throw new IOException("Initialization failed. Disk contains unknown apparent version "
+          + serializedApparentVersion + " for software version " + HDDSVersion.SOFTWARE_VERSION
+          + ". Make sure this component was not downgraded after finalization");
     }
     return persistedVersion;
   }

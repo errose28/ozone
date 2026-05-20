@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.DatanodeID;
@@ -54,6 +55,7 @@ import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TableIterator;
+import org.apache.hadoop.ozone.container.upgrade.UpgradeUtils;
 import org.apache.hadoop.ozone.protocol.VersionResponse;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
 import org.apache.hadoop.ozone.protocol.commands.RegisteredCommand;
@@ -113,13 +115,7 @@ public class ReconNodeManager extends SCMNodeManager {
       int nodeCount = 0;
       while (iterator.hasNext()) {
         DatanodeDetails datanodeDetails = iterator.next().getValue();
-        register(datanodeDetails, null, null,
-            LayoutVersionProto.newBuilder()
-                .setMetadataLayoutVersion(
-                    HDDSLayoutVersionManager.maxLayoutVersion())
-                .setSoftwareLayoutVersion(
-                    HDDSLayoutVersionManager.maxLayoutVersion())
-                .build());
+        register(datanodeDetails, null, null, UpgradeUtils.defaultVersionProto());
         nodeCount++;
       }
       LOG.info("Loaded {} nodes from node DB.", nodeCount);

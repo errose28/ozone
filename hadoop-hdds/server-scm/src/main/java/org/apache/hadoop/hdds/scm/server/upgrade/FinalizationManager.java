@@ -18,7 +18,6 @@
 package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.utils.db.Table;
 
 /**

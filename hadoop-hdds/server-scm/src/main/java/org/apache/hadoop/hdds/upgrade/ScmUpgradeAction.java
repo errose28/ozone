@@ -18,7 +18,6 @@
 package org.apache.hadoop.hdds.upgrade;
 
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
-import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.ozone.upgrade.UpgradeAction;
 
 /**

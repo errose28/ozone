@@ -24,7 +24,6 @@ import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeAction;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeActionProvider;
