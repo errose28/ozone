@@ -93,28 +93,6 @@ final class UpgradeUtils {
     return file.exists();
   }
 
-  public static Pair<HDDSLayoutFeature, HDDSLayoutFeature> getLayoutFeature(
-      DatanodeDetails dnDetail, OzoneConfiguration conf) throws IOException {
-    DatanodeStorage layoutStorage =
-        new DatanodeStorage(conf, dnDetail.getUuidString());
-    HDDSLayoutVersionManager layoutVersionManager =
-        new HDDSLayoutVersionManager(layoutStorage.getApparentVersion(), null, null);
-
-    final int metadataLayoutVersion =
-        layoutVersionManager.getMetadataLayoutVersion();
-    final HDDSLayoutFeature metadataLayoutFeature =
-        (HDDSLayoutFeature) layoutVersionManager.getFeature(
-            metadataLayoutVersion);
-
-    final int softwareLayoutVersion =
-        layoutVersionManager.getSoftwareLayoutVersion();
-    final HDDSLayoutFeature softwareLayoutFeature =
-        (HDDSLayoutFeature) layoutVersionManager.getFeature(
-            softwareLayoutVersion);
-
-    return Pair.of(softwareLayoutFeature, metadataLayoutFeature);
-  }
-
   public static List<HddsVolume> getAllVolume(DatanodeDetails detail,
       OzoneConfiguration configuration) throws IOException {
     final MutableVolumeSet dataVolumeSet = getHddsVolumes(configuration, StorageVolume.VolumeType.DATA_VOLUME,
