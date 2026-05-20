@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Map;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
+import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
@@ -37,18 +38,19 @@ import org.apache.hadoop.ozone.upgrade.UpgradeException;
 public class ScmVersionManager extends RatisBasedVersionManager {
 
   private final Map<ComponentVersion, ScmUpgradeAction> upgradeActions;
-  private final StorageContainerManager upgradeActionArg;
+  private final OzoneStorageContainerManager upgradeActionArg;
 
-  public ScmVersionManager(SCMStorageConfig storage, StorageContainerManager upgradeActionArg) throws IOException {
+  public ScmVersionManager(SCMStorageConfig storage, OzoneStorageContainerManager upgradeActionArg) throws IOException {
     this(storage, upgradeActionArg, new ScmUpgradeActionProvider());
   }
 
   @VisibleForTesting
   public ScmVersionManager(SCMStorageConfig storage,
-      StorageContainerManager upgradeActionArg,
+      OzoneStorageContainerManager upgradeActionArg,
       ComponentUpgradeActionProvider<ScmUpgradeAction> upgradeActionProvider)
       throws IOException {
-    super(storage, HDDSVersionUtils.deserializedPersistedApparentVersion(storage.getApparentVersion()), HDDSVersion.SOFTWARE_VERSION);
+    super(storage, HDDSVersionUtils.deserializedPersistedApparentVersion(storage.getApparentVersion()),
+        HDDSVersion.SOFTWARE_VERSION);
     this.upgradeActionArg = upgradeActionArg;
     upgradeActions = upgradeActionProvider.load();
   }

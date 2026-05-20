@@ -139,7 +139,7 @@ public class TestScmDataDistributionFinalization {
     scmClient = cluster.getStorageContainerLocationClient();
     cluster.waitForClusterToBeReady();
     assertEquals(HDDSLayoutFeature.HBASE_SUPPORT,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     // Create Volume and Bucket
     try (OzoneClient ozoneClient = OzoneClientFactory.getRpcClient(conf)) {
@@ -173,7 +173,7 @@ public class TestScmDataDistributionFinalization {
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
     assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -278,7 +278,7 @@ public class TestScmDataDistributionFinalization {
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
     assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -418,7 +418,7 @@ public class TestScmDataDistributionFinalization {
     GenericTestUtils.waitFor(() -> !scm.isInSafeMode(), 500, 5000);
     GenericTestUtils.waitFor(() -> {
       LOG.info("Waiting for SCM {} (leader? {}) to finalize.", scm.getSCMNodeId(), scm.checkLeader());
-      return !scm.getFinalizationManager().needsFinalization();
+      return !scm.getVersionManager().needsFinalization();
     }, 2_000, 60_000);
   }
 

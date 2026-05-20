@@ -106,7 +106,7 @@ public class TestDNDataDistributionFinalization {
     scmClient = cluster.getStorageContainerLocationClient();
     cluster.waitForClusterToBeReady();
     assertEquals(HDDSLayoutFeature.HBASE_SUPPORT,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     // Create Volume and Bucket
     try (OzoneClient ozoneClient = OzoneClientFactory.getRpcClient(conf)) {
@@ -132,7 +132,7 @@ public class TestDNDataDistributionFinalization {
 
     // Verify initial state - STORAGE_SPACE_DISTRIBUTION should not be finalized yet
     assertEquals(HDDSLayoutFeature.HBASE_SUPPORT,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     // Create some data and delete operations to trigger pending deletion logic
     String keyName1 = "testKey1";
@@ -159,7 +159,7 @@ public class TestDNDataDistributionFinalization {
 
     // Verify finalization completed
     assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion().serialize());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion().serialize());
 
     // Create more data and deletions to test post-finalization behavior
     String keyName3 = "testKey3";
@@ -194,7 +194,7 @@ public class TestDNDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
 
     assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion().serialize());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion().serialize());
 
     // Verify the system can handle scenarios where pendingDeleteBlockCount
     // might be missing and needs recalculation

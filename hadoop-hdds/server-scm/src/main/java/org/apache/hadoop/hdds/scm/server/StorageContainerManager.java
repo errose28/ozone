@@ -147,6 +147,7 @@ import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.Containe
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.IncrementalContainerReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManagerImpl;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.security.SecurityConfig;
 import org.apache.hadoop.hdds.security.symmetric.SecretKeyManager;
 import org.apache.hadoop.hdds.security.token.ContainerTokenGenerator;
@@ -244,6 +245,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
   private NodeDecommissionManager scmDecommissionManager;
   private WritableContainerFactory writableContainerFactory;
   private FinalizationManager finalizationManager;
+  private ScmVersionManager versionManager;
   private LeaseManager<Object> leaseManager;
 
   private SCMMetadataStore scmMetadataStore;
@@ -696,11 +698,11 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       leaseManager = new LeaseManager<>(threadNamePrefix, timeDuration);
     }
 
+    versionManager = new ScmVersionManager(scmStorageConfig, this);
     finalizationManager = new FinalizationManagerImpl.Builder()
-        .setStorage(scmStorageConfig)
         .setHAManager(scmHAManager)
         .setFinalizationStore(scmMetadataStore.getMetaTable())
-        .setUpgradeActionArg(this)
+        .setVersionManager(versionManager)
         .build();
 
     // inline upgrade for SequenceIdGenerator
@@ -736,7 +738,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
       scmNodeManager = configurator.getScmNodeManager();
     } else {
       scmNodeManager = new SCMNodeManager(conf, scmStorageConfig, eventQueue,
-          clusterMap, scmContext, finalizationManager,
+          clusterMap, scmContext, versionManager,
           this::resolveNodeLocation);
     }
 
@@ -1677,7 +1679,7 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     }
 
     LOG.info("Stopping SCM version manager metrics.");
-    getFinalizationManager().close();
+    versionManager.close();
 
     if (getSecurityProtocolServer() != null) {
       getSecurityProtocolServer().stop();
@@ -2090,8 +2092,19 @@ public final class StorageContainerManager extends ServiceRuntimeInfoImpl
     return getScmStorageConfig().getClusterID();
   }
 
+  /**
+   * @return The {@link FinalizationManager} which can be used to finalize an SCM quorum through Ratis.
+   */
   public FinalizationManager getFinalizationManager() {
     return finalizationManager;
+  }
+
+  /**
+   * @return The {@link ScmVersionManager} which can be used to check this SCM's local apparent and software versions.
+   *  To finalize all SCM's via Ratis, use {@link FinalizationManager} instead.
+   */
+  public ScmVersionManager getVersionManager() {
+    return versionManager;
   }
 
   /**

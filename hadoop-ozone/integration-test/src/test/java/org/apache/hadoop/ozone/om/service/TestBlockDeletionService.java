@@ -98,7 +98,7 @@ public class TestBlockDeletionService {
         .build();
     cluster.waitForClusterToBeReady();
     scmClient = cluster.getStorageContainerLocationClient();
-    assertEquals(HBASE_SUPPORT, cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+    assertEquals(HBASE_SUPPORT, cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
     metrics = cluster.getStorageContainerManager().getBlockProtocolServer().getMetrics();
 
     OzoneClient ozoneClient = cluster.newClient();
@@ -140,7 +140,7 @@ public class TestBlockDeletionService {
     scmClient.finalizeUpgrade();
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     assertEquals(STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getFinalizationManager().getApparentVersion());
+        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     // POST-UPGRADE
     //Step 6: Repeat the same steps in pre-upgrade

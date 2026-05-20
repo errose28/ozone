@@ -40,7 +40,7 @@ import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.net.NetworkTopologyImpl;
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.NodeReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.Event;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
@@ -71,12 +71,12 @@ public class TestNodeReportHandler implements EventPublisher {
     when(storageConfig.getClusterID()).thenReturn("cluster1");
     NetworkTopology clusterMap = new NetworkTopologyImpl(conf);
 
-    FinalizationManager finalizationManager = mock(FinalizationManager.class);
-    when(finalizationManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
-    when(finalizationManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    ScmVersionManager versionManager = mock(ScmVersionManager.class);
+    when(versionManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(versionManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     nodeManager =
         new SCMNodeManager(conf, storageConfig, new EventQueue(), clusterMap,
-            SCMContext.emptyContext(), finalizationManager);
+            SCMContext.emptyContext(), versionManager);
     nodeReportHandler = new NodeReportHandler(nodeManager);
   }
 

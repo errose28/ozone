@@ -85,7 +85,7 @@ import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineNotFoundException;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
@@ -139,7 +139,7 @@ public class SCMNodeManager implements NodeManager {
   private final Map<String, Set<DatanodeID>> dnsToDnIdMap = new ConcurrentHashMap<>();
   private final int numPipelinesPerMetadataVolume;
   private final int datanodePipelineLimit;
-  private final FinalizationManager finalizationManager;
+  private final ScmVersionManager versionManager;
   private final EventPublisher scmNodeEventPublisher;
   private final SCMContext scmContext;
   private final Map<SCMCommandProto.Type,
@@ -161,7 +161,7 @@ public class SCMNodeManager implements NodeManager {
   private static final String VERSION = "VERSION";
 
   /**
-   * Constructs SCM machine Manager using {@link FinalizationManager} (production SCM).
+   * Constructs SCM machine Manager using {@link ScmVersionManager} (production SCM).
    */
   @VisibleForTesting
   public SCMNodeManager(
@@ -170,9 +170,9 @@ public class SCMNodeManager implements NodeManager {
       EventPublisher eventPublisher,
       NetworkTopology networkTopology,
       SCMContext scmContext,
-      FinalizationManager finalizationManager) {
+      ScmVersionManager versionManager) {
     this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
-        finalizationManager, hostname -> null);
+        versionManager, hostname -> null);
   }
 
   public SCMNodeManager(
@@ -181,14 +181,14 @@ public class SCMNodeManager implements NodeManager {
       EventPublisher eventPublisher,
       NetworkTopology networkTopology,
       SCMContext scmContext,
-      FinalizationManager finalizationManager,
+      ScmVersionManager versionManager,
       Function<String, String> nodeResolver) {
     this.scmNodeEventPublisher = eventPublisher;
     this.nodeStateManager = new NodeStateManager(conf, eventPublisher, scmContext);
     this.version = VersionInfo.getLatestVersion();
     this.commandQueue = new CommandQueue();
     this.scmStorageConfig = scmStorageConfig;
-    this.finalizationManager = finalizationManager;
+    this.versionManager = versionManager;
     LOG.info("Entering startup safe mode.");
     registerMXBean();
     this.metrics = SCMNodeMetrics.create(this);
@@ -378,8 +378,8 @@ public class SCMNodeManager implements NodeManager {
       PipelineReportsProto pipelineReportsProto) {
     return register(datanodeDetails, nodeReport, pipelineReportsProto,
         LayoutVersionProto.newBuilder()
-            .setMetadataLayoutVersion(finalizationManager.getApparentVersion().serialize())
-            .setSoftwareLayoutVersion(finalizationManager.getSoftwareVersion().serialize())
+            .setMetadataLayoutVersion(versionManager.getApparentVersion().serialize())
+            .setSoftwareLayoutVersion(versionManager.getSoftwareVersion().serialize())
             .build());
   }
 
@@ -758,8 +758,8 @@ public class SCMNodeManager implements NodeManager {
         versionReport.getSoftwareLayoutVersion());
     ComponentVersion dnApparentVersion = HDDSVersionUtils.deserializeHDDSVersionOrLayoutVersion(
         versionReport.getMetadataLayoutVersion());
-    ComponentVersion scmSoftwareVersion = finalizationManager.getSoftwareVersion();
-    ComponentVersion scmApparentVersion = finalizationManager.getApparentVersion();
+    ComponentVersion scmSoftwareVersion = versionManager.getSoftwareVersion();
+    ComponentVersion scmApparentVersion = versionManager.getApparentVersion();
 
     if (shouldFenceDatanode(datanodeDetails, dnSoftwareVersion, dnApparentVersion)) {
       LOG.error("Invalid datanode in the cluster : {}. " +
@@ -772,14 +772,14 @@ public class SCMNodeManager implements NodeManager {
       return;
     }
 
-    if (!scmContext.isLeader() || finalizationManager.needsFinalization()) {
+    if (!scmContext.isLeader() || versionManager.needsFinalization()) {
       return;
     }
 
-    if (finalizationManager.getApparentVersion().equals(dnApparentVersion)) {
+    if (versionManager.getApparentVersion().equals(dnApparentVersion)) {
       // If SCM and DN apparent version match, then the datanode is already finalized.
       LOG.debug("Skip sending finalize command to datanode {} because its apparent version matches SCM's apparent" +
-          "version {}", datanodeDetails, finalizationManager.getApparentVersion());
+          "version {}", datanodeDetails, versionManager.getApparentVersion());
       return;
     }
 
@@ -1711,11 +1711,6 @@ public class SCMNodeManager implements NodeManager {
     return dns;
   }
 
-  @Override
-  public FinalizationManager getFinalizationManager() {
-    return finalizationManager;
-  }
-
   /**
    * Get set of pipelines a datanode is part of.
    *
@@ -2040,20 +2035,20 @@ public class SCMNodeManager implements NodeManager {
   private boolean shouldFenceDatanode(DatanodeDetails dnDetails, ComponentVersion softwareVersion,
                                         ComponentVersion apparentVersion) {
     // Check datanode software version against SCM.
-    if (!finalizationManager.getSoftwareVersion().equals(softwareVersion)) {
+    if (!versionManager.getSoftwareVersion().equals(softwareVersion)) {
       // TODO Once SCM implementation for ZDU is complete, Datanodes with lower software versions will be allowed as
       //  long as SCM is pre-finalized.
       LOG.error("Datanode {} with software version {} which does not match SCM software version {} will not be " +
               "allowed to join the cluster. This requirement will be lifted when ZDU is complete.",
-          dnDetails, softwareVersion, finalizationManager.getSoftwareVersion());
+          dnDetails, softwareVersion, versionManager.getSoftwareVersion());
       return true;
     }
 
     // Check datanode apparent version against SCM.
-    if (!finalizationManager.isAllowed(apparentVersion)) {
+    if (!versionManager.isAllowed(apparentVersion)) {
       // Datanodes can never have a higher apparent version than SCM.
       LOG.error("Datanode {} with apparent version {} which is larger than SCM's apparent version {} will not be " +
-          "allowed to join the cluster.", dnDetails, apparentVersion, finalizationManager.getApparentVersion());
+          "allowed to join the cluster.", dnDetails, apparentVersion, versionManager.getApparentVersion());
       return true;
     }
 

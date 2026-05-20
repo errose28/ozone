@@ -473,8 +473,6 @@ public interface NodeManager extends StorageContainerNodeProtocol,
     return null;
   }
 
-  FinalizationManager getFinalizationManager();
-
   /**
    * This API allows removal of only DECOMMISSIONED, IN_MAINTENANCE and DEAD nodes
    * from NodeManager data structures and cleanup memory.

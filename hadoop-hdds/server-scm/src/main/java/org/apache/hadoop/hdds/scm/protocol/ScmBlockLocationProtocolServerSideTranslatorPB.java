@@ -129,8 +129,7 @@ public final class ScmBlockLocationProtocolServerSideTranslatorPB
     try {
       switch (request.getCmdType()) {
       case AllocateScmBlock:
-        if (!scm.getFinalizationManager()
-                .isAllowed(HDDSLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)
+        if (!scm.getVersionManager().isAllowed(HDDSLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)
         ) {
           if (request.getAllocateScmBlockRequest().hasEcReplicationConfig()) {
             throw new SCMException("Cluster is not finalized yet, it is"

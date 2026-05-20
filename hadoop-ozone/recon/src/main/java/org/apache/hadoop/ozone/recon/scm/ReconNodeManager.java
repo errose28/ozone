@@ -47,7 +47,7 @@ import org.apache.hadoop.hdds.scm.node.NodeStatus;
 import org.apache.hadoop.hdds.scm.node.SCMNodeManager;
 import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
@@ -90,9 +90,9 @@ public class ReconNodeManager extends SCMNodeManager {
                           EventPublisher eventPublisher,
                           NetworkTopology networkTopology,
                           Table<DatanodeID, DatanodeDetails> nodeDB,
-                          FinalizationManager finalizationManager) {
+                          ScmVersionManager versionManager) {
     super(conf, scmStorageConfig, eventPublisher, networkTopology,
-        SCMContext.emptyContext(), finalizationManager);
+        SCMContext.emptyContext(), versionManager);
     final int reconStaleDatanodeMultiplier = 3;
     this.reconDatanodeOutdatedTime = reconStaleDatanodeMultiplier *
         HddsServerUtil.getReconHeartbeatInterval(conf);
@@ -101,8 +101,8 @@ public class ReconNodeManager extends SCMNodeManager {
 
   public ReconNodeManager(OzoneConfiguration conf, SCMStorageConfig scmStorageConfig, EventQueue eventQueue,
                           NetworkTopology clusterMap, Table<DatanodeID, DatanodeDetails> table,
-                          FinalizationManager finalizationManager, ReconContext reconContext) {
-    this(conf, scmStorageConfig, eventQueue, clusterMap, table, finalizationManager);
+                          ScmVersionManager versionManager, ReconContext reconContext) {
+    this(conf, scmStorageConfig, eventQueue, clusterMap, table, versionManager);
     this.reconContext = reconContext;
     loadExistingNodes();
   }

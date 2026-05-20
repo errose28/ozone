@@ -71,7 +71,7 @@ import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.MockPipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.utils.db.DBStore;
 import org.apache.hadoop.hdds.utils.db.DBStoreBuilder;
@@ -143,16 +143,16 @@ public class TestContainerPlacement {
     SCMStorageConfig storageConfig = mock(SCMStorageConfig.class);
     when(storageConfig.getClusterID()).thenReturn("cluster1");
 
-    FinalizationManager finalizationManager = mock(FinalizationManager.class);
-    when(finalizationManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
-    when(finalizationManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    ScmVersionManager versionManager = mock(ScmVersionManager.class);
+    when(versionManager.getApparentVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(versionManager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     NodeSchema[] schemas = new NodeSchema[]
         {ROOT_SCHEMA, RACK_SCHEMA, LEAF_SCHEMA};
     NodeSchemaManager.getInstance().init(schemas, true);
     NetworkTopology networkTopology =
         new NetworkTopologyImpl(NodeSchemaManager.getInstance());
     return new SCMNodeManager(config, storageConfig,
-        eventQueue, networkTopology, SCMContext.emptyContext(), finalizationManager);
+        eventQueue, networkTopology, SCMContext.emptyContext(), versionManager);
   }
 
   ContainerManager createContainerManager()

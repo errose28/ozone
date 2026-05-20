@@ -19,10 +19,7 @@ package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
 import java.util.Objects;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManager;
-import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.utils.db.Table;
 
 /**
@@ -33,11 +30,10 @@ public class FinalizationManagerImpl implements FinalizationManager {
 
   private FinalizationManagerImpl(Builder builder) throws IOException {
     this.finalizationStateManager = new FinalizationStateManagerImpl.Builder()
-        .setStorageConfig(builder.storage)
         .setFinalizationStore(builder.finalizationStore)
         .setTransactionBuffer(builder.scmHAManager.getDBTransactionBuffer())
         .setRatisServer(builder.scmHAManager.getRatisServer())
-        .setUpgradeActionArg(builder.upgradeActionArg)
+        .setVersionManager(builder.versionManager)
         .build();
   }
 
@@ -47,59 +43,28 @@ public class FinalizationManagerImpl implements FinalizationManager {
   }
 
   @Override
-  public boolean needsFinalization() {
-    return finalizationStateManager.needsFinalization();
-  }
-
-  @Override
-  public ComponentVersion getSoftwareVersion() {
-    return finalizationStateManager.getSoftwareVersion();
-  }
-
-  @Override
-  public ComponentVersion getApparentVersion() {
-    return finalizationStateManager.getApparentVersion();
-  }
-
-  @Override
-  public boolean isAllowed(ComponentVersion version) {
-    return finalizationStateManager.isAllowed(version);
-  }
-
-  @Override
   public void reinitialize(Table<String, String> finalizationStore) throws IOException {
     finalizationStateManager.reinitialize(finalizationStore);
-  }
-
-  @Override
-  public void close() {
-    finalizationStateManager.close();
   }
 
   /**
    * Builds a {@link FinalizationManagerImpl}.
    */
   public static class Builder {
-    private SCMStorageConfig storage;
     private Table<String, String> finalizationStore;
     private SCMHAManager scmHAManager;
-    private StorageContainerManager upgradeActionArg;
+    private ScmVersionManager versionManager;
 
     public Builder() {
     }
 
-    public Builder setStorage(SCMStorageConfig storage) {
-      this.storage = storage;
+    public Builder setVersionManager(ScmVersionManager versionManager) {
+      this.versionManager = versionManager;
       return this;
     }
 
     public Builder setHAManager(SCMHAManager haManager) {
       this.scmHAManager = haManager;
-      return this;
-    }
-
-    public Builder setUpgradeActionArg(StorageContainerManager upgradeActionArg) {
-      this.upgradeActionArg = upgradeActionArg;
       return this;
     }
 
@@ -110,10 +75,9 @@ public class FinalizationManagerImpl implements FinalizationManager {
     }
 
     public FinalizationManagerImpl build() throws IOException {
-      Objects.requireNonNull(storage, "storage == null");
       Objects.requireNonNull(scmHAManager, "scmHAManager == null");
       Objects.requireNonNull(finalizationStore, "finalizationStore == null");
-      Objects.requireNonNull(upgradeActionArg, "upgradeActionArg == null");
+      Objects.requireNonNull(versionManager, "versionManager == null");
 
       return new FinalizationManagerImpl(this);
     }

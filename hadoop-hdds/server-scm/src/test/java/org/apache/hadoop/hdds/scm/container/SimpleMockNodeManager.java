@@ -46,7 +46,6 @@ import org.apache.hadoop.hdds.scm.node.NodeStatus;
 import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.ozone.protocol.VersionResponse;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
@@ -444,11 +443,6 @@ public class SimpleMockNodeManager implements NodeManager {
   @Override
   public Boolean isNodeRegistered(DatanodeDetails datanodeDetails) {
     return false;
-  }
-
-  @Override
-  public FinalizationManager getFinalizationManager() {
-    return null;
   }
 
 }

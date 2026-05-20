@@ -28,18 +28,5 @@ public interface FinalizationManager {
 
   void finalizeUpgrade() throws IOException;
 
-  boolean needsFinalization();
-
-  ComponentVersion getSoftwareVersion();
-
-  ComponentVersion getApparentVersion();
-
-  boolean isAllowed(ComponentVersion version);
-
   void reinitialize(Table<String, String> finalizationStore) throws IOException;
-
-  /**
-   * Releases local resources held by the version manager (for example metrics). Called on SCM shutdown.
-   */
-  void close();
 }

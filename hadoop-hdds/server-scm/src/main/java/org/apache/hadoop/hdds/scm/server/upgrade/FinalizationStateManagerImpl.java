@@ -19,11 +19,8 @@ package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
 import java.util.Objects;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.scm.metadata.DBTransactionBuffer;
-import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.slf4j.Logger;
@@ -41,10 +38,10 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
   private final DBTransactionBuffer transactionBuffer;
   private final ScmVersionManager versionManager;
 
-  protected FinalizationStateManagerImpl(Builder builder) throws IOException {
+  protected FinalizationStateManagerImpl(Builder builder) {
     this.finalizationStore = builder.finalizationStore;
     this.transactionBuffer = builder.transactionBuffer;
-    this.versionManager = new ScmVersionManager(builder.storage, builder.upgradeActionArg);
+    this.versionManager = builder.versionManager;
   }
 
   @Override
@@ -52,26 +49,6 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
     versionManager.finalizeUpgrade();
     transactionBuffer.addToBuffer(finalizationStore,
         OzoneConsts.APPARENT_VERSION_KEY, String.valueOf(versionManager.getApparentVersion()));
-  }
-
-  @Override
-  public boolean needsFinalization() {
-    return versionManager.needsFinalization();
-  }
-
-  @Override
-  public ComponentVersion getSoftwareVersion() {
-    return versionManager.getSoftwareVersion();
-  }
-
-  @Override
-  public ComponentVersion getApparentVersion() {
-    return versionManager.getApparentVersion();
-  }
-
-  @Override
-  public boolean isAllowed(ComponentVersion version) {
-    return versionManager.isAllowed(version);
   }
 
   /**
@@ -88,20 +65,14 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
     }
   }
 
-  @Override
-  public void close() {
-    versionManager.close();
-  }
-
   /**
    * Builds a {@link FinalizationManagerImpl}.
    */
   public static class Builder {
     private Table<String, String> finalizationStore;
     private DBTransactionBuffer transactionBuffer;
-    private StorageContainerManager upgradeActionArg;
-    private SCMStorageConfig storage;
     private SCMRatisServer ratisServer;
+    private ScmVersionManager versionManager;
 
     public Builder() {
     }
@@ -111,13 +82,8 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
       return this;
     }
 
-    public Builder setStorageConfig(SCMStorageConfig storageConfig) {
-      this.storage = storageConfig;
-      return this;
-    }
-
-    public Builder setUpgradeActionArg(StorageContainerManager upgradeActionArg) {
-      this.upgradeActionArg = upgradeActionArg;
+    public Builder setVersionManager(ScmVersionManager versionManager) {
+      this.versionManager = versionManager;
       return this;
     }
 
@@ -135,8 +101,7 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
     public FinalizationStateManager build() throws IOException {
       Objects.requireNonNull(finalizationStore, "finalizationStore == null");
       Objects.requireNonNull(transactionBuffer, "transactionBuffer == null");
-      Objects.requireNonNull(storage, "storageConfig == null");
-      Objects.requireNonNull(upgradeActionArg, "upgradeActionArg == null");
+      Objects.requireNonNull(versionManager, "versionManager == null");
 
       return ratisServer.getProxyHandler(FinalizationStateManager.class, new FinalizationStateManagerImpl(this));
     }

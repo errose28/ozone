@@ -18,7 +18,6 @@
 package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import java.io.IOException;
-import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol.RequestType;
 import org.apache.hadoop.hdds.scm.ha.SCMHandler;
 import org.apache.hadoop.hdds.scm.metadata.Replicate;
@@ -33,24 +32,11 @@ public interface FinalizationStateManager extends SCMHandler {
   @Replicate
   void finalizeUpgrade() throws IOException;
 
-  boolean needsFinalization();
-
-  ComponentVersion getSoftwareVersion();
-
-  ComponentVersion getApparentVersion();
-
-  boolean isAllowed(ComponentVersion version);
-
   /**
    * Called on snapshot installation.
    */
   void reinitialize(Table<String, String> newFinalizationStore)
       throws IOException;
-
-  /**
-   * Closes version manager metrics on this SCM instance.
-   */
-  void close();
 
   @Override
   default RequestType getType() {

@@ -497,7 +497,7 @@ public final class StorageContainerLocationProtocolServerSideTranslatorPB
                 request.getScmCloseContainerRequest()))
             .build();
       case AllocatePipeline:
-        if (!scm.getFinalizationManager().isAllowed(
+        if (!scm.getVersionManager().isAllowed(
                 HDDSLayoutFeature.ERASURE_CODED_STORAGE_SUPPORT)
         ) {
           if (request.getPipelineRequest().getReplicationType() ==

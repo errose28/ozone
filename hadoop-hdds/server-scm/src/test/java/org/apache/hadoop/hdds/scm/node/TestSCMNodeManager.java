@@ -101,8 +101,7 @@ import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager;
 import org.apache.hadoop.hdds.scm.server.SCMDatanodeHeartbeatDispatcher.NodeReportFromDatanode;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManagerImpl;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
@@ -902,12 +901,12 @@ public class TestSCMNodeManager {
     SCMStorageConfig scmStorageConfig = mock(SCMStorageConfig.class);
     when(scmStorageConfig.getClusterID()).thenReturn("xyz111");
     EventPublisher eventPublisher = mock(EventPublisher.class);
-    FinalizationManager finalizationManager = mockFinalizationManager();
+    ScmVersionManager versionManager = mockVersionManager();
 
     SCMContext nodeManagerContext = SCMContext.emptyContext();
     SCMNodeManager nodeManager  = new SCMNodeManager(conf,
         scmStorageConfig, eventPublisher, new NetworkTopologyImpl(conf),
-        nodeManagerContext, finalizationManager);
+        nodeManagerContext, versionManager);
 
     // Datanodes should never have higher apparent version than SCM.
     DatanodeDetails node1 =
@@ -925,18 +924,18 @@ public class TestSCMNodeManager {
     when(scmStorageConfig.getClusterID()).thenReturn("xyz111");
     EventPublisher eventPublisher = mock(EventPublisher.class);
 
-    FinalizationManager finalizationManager;
+    ScmVersionManager versionManager;
     if (withScmFinalized) {
-      finalizationManager = mockFinalizationManager();
+      versionManager = mockVersionManager();
     } else {
       // Use an apparent version for SCM that is in between SCM's software version and the datanode's apparent version.
-      finalizationManager = mockFinalizationManager(HDDSLayoutFeature.SCM_HA);
+      versionManager = mockVersionManager(HDDSLayoutFeature.SCM_HA);
     }
 
     SCMContext nodeManagerContext = SCMContext.emptyContext();
     SCMNodeManager nodeManager  = new SCMNodeManager(conf,
         scmStorageConfig, eventPublisher, new NetworkTopologyImpl(conf),
-        nodeManagerContext, finalizationManager);
+        nodeManagerContext, versionManager);
     DatanodeDetails node1 =
         HddsTestUtils.createRandomDatanodeAndRegister(nodeManager);
     verify(eventPublisher,
@@ -944,7 +943,7 @@ public class TestSCMNodeManager {
     nodeManager.processVersionReport(node1,
         LayoutVersionProto.newBuilder()
             .setMetadataLayoutVersion(HDDSLayoutFeature.INITIAL_VERSION.serialize())
-            .setSoftwareLayoutVersion(finalizationManager.getSoftwareVersion().serialize())
+            .setSoftwareLayoutVersion(versionManager.getSoftwareVersion().serialize())
             .build());
     ArgumentCaptor<CommandForDatanode> captor =
         ArgumentCaptor.forClass(CommandForDatanode.class);
@@ -972,7 +971,7 @@ public class TestSCMNodeManager {
     createNodeManager(getConf());
     SCMNodeManager nodeManager  = new SCMNodeManager(conf,
         scmStorageConfig, eventPublisher, new NetworkTopologyImpl(conf),
-        scmContext, mockFinalizationManager());
+        scmContext, mockVersionManager());
 
     DatanodeDetails node1 =
         HddsTestUtils.createRandomDatanodeAndRegister(nodeManager);
@@ -2163,7 +2162,7 @@ public class TestSCMNodeManager {
     createNodeManager(getConf());
     SCMNodeManager nodeManager = new SCMNodeManager(conf,
         scmStorageConfig, eventPublisher, new NetworkTopologyImpl(conf),
-        scmContext, mockFinalizationManager());
+        scmContext, mockVersionManager());
 
     DatanodeDetails datanode = MockDatanodeDetails.randomDatanodeDetails();
     datanode.setPersistedOpState(oldState);
@@ -2185,10 +2184,10 @@ public class TestSCMNodeManager {
   }
 
   /**
-   * Constructs a mock FinalizationManager for an SCM which may be pre-finalized.
+   * Constructs a mock ScmVersionManager for an SCM which may be pre-finalized.
    */
-  private static FinalizationManager mockFinalizationManager(ComponentVersion apparentVersion) {
-    FinalizationManagerImpl manager = mock(FinalizationManagerImpl.class);
+  private static ScmVersionManager mockVersionManager(ComponentVersion apparentVersion) {
+    ScmVersionManager manager = mock(ScmVersionManager.class);
     Mockito.when(manager.getApparentVersion()).thenReturn(apparentVersion);
     Mockito.when(manager.getSoftwareVersion()).thenReturn(HDDSVersion.SOFTWARE_VERSION);
     Mockito.when(manager.isAllowed(any(ComponentVersion.class)))
@@ -2198,9 +2197,9 @@ public class TestSCMNodeManager {
   }
 
   /**
-   * Constructs a mock FinalizationManager for a finalized SCM.
+   * Constructs a mock ScmVersionManager for a finalized SCM.
    */
-  private static FinalizationManager mockFinalizationManager() {
-    return mockFinalizationManager(HDDSVersion.SOFTWARE_VERSION);
+  private static ScmVersionManager mockVersionManager() {
+    return mockVersionManager(HDDSVersion.SOFTWARE_VERSION);
   }
 }

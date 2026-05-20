@@ -59,7 +59,7 @@ public final class TestHddsUpgradeUtils {
       List<StorageContainerManager> scms) {
     for (StorageContainerManager scm : scms) {
       assertEquals(HDDSLayoutFeature.INITIAL_VERSION.layoutVersion(),
-          scm.getFinalizationManager().getApparentVersion().serialize());
+          scm.getVersionManager().getApparentVersion().serialize());
       for (ContainerInfo ci : scm.getContainerManager()
           .getContainers()) {
         assertEquals(HddsProtos.LifeCycleState.OPEN, ci.getState());
@@ -81,9 +81,9 @@ public final class TestHddsUpgradeUtils {
 
   public static void testPostUpgradeConditionsSCM(StorageContainerManager scm,
                                                   int numContainers) {
-    assertEquals(scm.getFinalizationManager().getSoftwareVersion(),
-        scm.getFinalizationManager().getApparentVersion());
-    assertThat(scm.getFinalizationManager().getApparentVersion().serialize()).isGreaterThanOrEqualTo(1);
+    assertEquals(scm.getVersionManager().getSoftwareVersion(),
+        scm.getVersionManager().getApparentVersion());
+    assertThat(scm.getVersionManager().getApparentVersion().serialize()).isGreaterThanOrEqualTo(1);
 
     int countContainers = scm.getContainerManager().getContainers().size();
     assertThat(countContainers).isGreaterThanOrEqualTo(numContainers);
