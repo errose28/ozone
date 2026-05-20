@@ -17,7 +17,6 @@
 
 package org.apache.hadoop.hdds.scm.server;
 
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
 import static org.apache.hadoop.ozone.OzoneConsts.PRIMARY_SCM_NODE_ID;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_CERT_SERIAL_ID;
 import static org.apache.hadoop.ozone.OzoneConsts.SCM_HA;
@@ -54,7 +53,7 @@ public class SCMStorageConfig extends Storage {
 
   public SCMStorageConfig(NodeType type, File root, String sdName)
       throws IOException {
-    super(type, root, sdName, maxLayoutVersion());
+    super(type, root, sdName, HDDSVersion.SOFTWARE_VERSION.serialize());
   }
 
   public void setScmId(String scmId) throws IOException {
