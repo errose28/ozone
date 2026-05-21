@@ -79,16 +79,11 @@ import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.tag.Flaky;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Tests upgrade finalization failure scenarios and corner cases specific to SCM data distribution feature.
  */
 public class TestScmDataDistributionFinalization {
-  private static final Logger LOG =
-      LoggerFactory.getLogger(TestScmDataDistributionFinalization.class);
-
   private StorageContainerLocationProtocol scmClient;
   private MiniOzoneHAClusterImpl cluster;
   private static final int NUM_DATANODES = 3;
@@ -99,7 +94,7 @@ public class TestScmDataDistributionFinalization {
   private static final long BLOCK_SIZE = 1024 * 1024; // 1 MB
   private static final long BLOCKS_PER_TX = 5; // 1 MB
 
-  public void init(OzoneConfiguration conf, boolean doFinalize) throws Exception {
+  public void init(OzoneConfiguration conf) throws Exception {
 
     SCMConfigurator configurator = new SCMConfigurator();
 
@@ -165,7 +160,7 @@ public class TestScmDataDistributionFinalization {
   @Test
   @Flaky("HDDS-14050")
   public void testFinalizationEmptyClusterDataDistribution() throws Exception {
-    init(new OzoneConfiguration(), true);
+    init(new OzoneConfiguration());
     assertEquals(EMPTY_SUMMARY, cluster.getStorageContainerLocationClient().getDeletedBlockSummary());
 
     scmClient.finalizeUpgrade();
@@ -258,7 +253,7 @@ public class TestScmDataDistributionFinalization {
    */
   @Test
   public void testFinalizationNonEmptyClusterDataDistribution() throws Exception {
-    init(new OzoneConfiguration(), false);
+    init(new OzoneConfiguration());
     // stop SCMBlockDeletingService
     for (StorageContainerManager scm: cluster.getStorageContainerManagersList()) {
       scm.getScmBlockManager().getSCMBlockDeletingService().stop();
