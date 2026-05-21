@@ -49,10 +49,10 @@ public abstract class RatisBasedVersionManager extends ComponentVersionManager {
   }
 
   public void finalizeFromSnapshotIfRequired(Table<String, String> finalizationStore) throws IOException {
-    ComponentVersion apparentVersionInDB = getApparentVersionInDB(finalizationStore);
-    if (apparentVersionInDB != null && !isAllowed(apparentVersionInDB)) {
+    ComponentVersion apparentVersionInNewDB = getApparentVersionInDB(finalizationStore);
+    if (apparentVersionInNewDB != null && !isAllowed(apparentVersionInNewDB)) {
       LOG.info("New snapshot received with higher apparent version {}. Attempting to finalize to that version.",
-          apparentVersionInDB);
+          apparentVersionInNewDB);
       finalizeUpgrade();
       // Update the apparent version in the DB to match the VERSION file.
       // When finalization is not done with a snapshot, this DB value is updated by OMFinalizeUpgradeRequest.

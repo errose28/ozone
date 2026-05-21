@@ -48,7 +48,7 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
   public void finalizeUpgrade() throws IOException {
     versionManager.finalizeUpgrade();
     transactionBuffer.addToBuffer(finalizationStore,
-        OzoneConsts.APPARENT_VERSION_KEY, String.valueOf(versionManager.getApparentVersion()));
+        OzoneConsts.APPARENT_VERSION_KEY, String.valueOf(versionManager.getApparentVersion().serialize()));
   }
 
   /**
