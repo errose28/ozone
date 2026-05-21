@@ -52,10 +52,10 @@ public class FinalizationStateManagerImpl implements FinalizationStateManager {
   }
 
   /**
-   * Called on snapshot installation.
+   * Called on snapshot installation, which is coordinated by Ratis.
    */
   @Override
-  public synchronized void reinitialize(Table<String, String> newFinalizationStore) throws IOException {
+  public void reinitialize(Table<String, String> newFinalizationStore) throws IOException {
     try {
       this.finalizationStore = newFinalizationStore;
       versionManager.finalizeFromSnapshotIfRequired(finalizationStore);
