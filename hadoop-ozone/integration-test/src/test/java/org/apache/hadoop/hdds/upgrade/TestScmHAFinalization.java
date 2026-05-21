@@ -17,10 +17,11 @@
 
 package org.apache.hadoop.hdds.upgrade;
 
+import static org.apache.hadoop.hdds.upgrade.TestHddsUpgradeUtils.waitForScmToFinalize;
+import static org.apache.hadoop.hdds.upgrade.TestHddsUpgradeUtils.waitForScmsToFinalize;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -31,14 +32,10 @@ import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.server.SCMConfigurator;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
-import org.apache.hadoop.hdds.utils.db.CodecException;
-import org.apache.hadoop.hdds.utils.db.RocksDatabaseException;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.MiniOzoneHAClusterImpl;
-import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.UniformDatanodesFactory;
 import org.apache.hadoop.ozone.upgrade.RatisBasedVersionManager;
-import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.GenericTestUtils.LogCapturer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -163,41 +160,5 @@ public class TestScmHAFinalization {
     // Use log to verify a snapshot was installed.
     assertThat(logCapture.getOutput()).contains("New snapshot received with higher apparent version " +
         HDDSVersion.SOFTWARE_VERSION + ". Attempting to finalize to that version.");
-  }
-
-  private void waitForScmsToFinalize(Collection<StorageContainerManager> scms)
-      throws Exception {
-    for (StorageContainerManager scm: scms) {
-      // SCM will flush entries to the DB async, the state is kept in memory and the ratis logs.
-      // In the common case, the apparent version will not appear in the DB at the time of finalization since the logs
-      // Will not have been flushed.
-      waitForScmToFinalize(scm, false);
-    }
-  }
-
-  private void waitForScmToFinalize(StorageContainerManager scm, boolean waitForDBKeyFlush)
-      throws Exception {
-    GenericTestUtils.waitFor(() -> isScmFinalized(scm, waitForDBKeyFlush), 2_000, 60_000);
-  }
-
-  private boolean isScmFinalized(StorageContainerManager scm, boolean waitForDBKeyFlush) {
-    boolean exitedSafemode = !scm.isInSafeMode();
-    boolean isFinalized = !scm.getVersionManager().needsFinalization();
-    boolean dbKeyFlushed = false;
-
-    try {
-      dbKeyFlushed = scm.getScmMetadataStore().getMetaTable().get(OzoneConsts.APPARENT_VERSION_KEY) != null;
-    } catch (RocksDatabaseException | CodecException e) {
-      throw new RuntimeException(e);
-    }
-
-    LOG.info("Waiting for SCM {} (leader? {}) to finalize.\n" +
-        "Exited safemode? {}\n" +
-        "version manager finalized? {}\n" +
-        "DB key flushed? {}\n" +
-        "Requiring DB key to flush? {}",
-        scm.getSCMNodeId(), scm.checkLeader(), exitedSafemode, isFinalized, dbKeyFlushed, waitForDBKeyFlush);
-
-    return exitedSafemode && isFinalized && (!waitForDBKeyFlush || dbKeyFlushed);
   }
 }

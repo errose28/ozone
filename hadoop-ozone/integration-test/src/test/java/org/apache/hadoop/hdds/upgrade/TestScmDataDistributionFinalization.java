@@ -28,6 +28,7 @@ import static org.apache.hadoop.hdds.client.ReplicationFactor.THREE;
 import static org.apache.hadoop.hdds.client.ReplicationType.RATIS;
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_HEARTBEAT_PROCESS_INTERVAL;
 import static org.apache.hadoop.hdds.scm.block.SCMDeletedBlockTransactionStatusManager.EMPTY_SUMMARY;
+import static org.apache.hadoop.hdds.upgrade.TestHddsUpgradeUtils.waitForScmsToFinalize;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
 import static org.apache.hadoop.ozone.common.BlockGroup.SIZE_NOT_AVAILABLE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,7 +39,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -172,8 +172,6 @@ public class TestScmDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -277,8 +275,6 @@ public class TestScmDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
     // Make sure old leader has caught up and all SCMs have finalized.
     waitForScmsToFinalize(cluster.getStorageContainerManagersList());
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     TestHddsUpgradeUtils.testPostUpgradeConditionsSCM(
         cluster.getStorageContainerManagersList(), 0);
@@ -404,22 +400,6 @@ public class TestScmDataDistributionFinalization {
       }
     }
     return lastTxId;
-  }
-
-  private void waitForScmsToFinalize(Collection<StorageContainerManager> scms)
-      throws Exception {
-    for (StorageContainerManager scm: scms) {
-      waitForScmToFinalize(scm);
-    }
-  }
-
-  private void waitForScmToFinalize(StorageContainerManager scm)
-      throws Exception {
-    GenericTestUtils.waitFor(() -> !scm.isInSafeMode(), 500, 5000);
-    GenericTestUtils.waitFor(() -> {
-      LOG.info("Waiting for SCM {} (leader? {}) to finalize.", scm.getSCMNodeId(), scm.checkLeader());
-      return !scm.getVersionManager().needsFinalization();
-    }, 2_000, 60_000);
   }
 
   private void flushDBTransactionBuffer(StorageContainerManager scm) throws IOException {

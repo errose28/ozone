@@ -21,6 +21,7 @@ import static org.apache.hadoop.hdds.HddsConfigKeys.HDDS_SCM_WAIT_TIME_AFTER_SAF
 import static org.apache.hadoop.hdds.scm.ScmConfigKeys.OZONE_SCM_HEARTBEAT_PROCESS_INTERVAL;
 import static org.apache.hadoop.ozone.OzoneConfigKeys.OZONE_BLOCK_DELETING_SERVICE_INTERVAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -158,8 +159,7 @@ public class TestDNDataDistributionFinalization {
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
 
     // Verify finalization completed
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getVersionManager().getApparentVersion().serialize());
+    assertFalse(cluster.getStorageContainerManager().getVersionManager().needsFinalization());
 
     // Create more data and deletions to test post-finalization behavior
     String keyName3 = "testKey3";
@@ -193,8 +193,7 @@ public class TestDNDataDistributionFinalization {
     scmClient.finalizeUpgrade();
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
 
-    assertEquals(HDDSLayoutFeature.STORAGE_SPACE_DISTRIBUTION.layoutVersion(),
-        cluster.getStorageContainerManager().getVersionManager().getApparentVersion().serialize());
+    assertFalse(cluster.getStorageContainerManager().getVersionManager().needsFinalization());
 
     // Verify the system can handle scenarios where pendingDeleteBlockCount
     // might be missing and needs recalculation
