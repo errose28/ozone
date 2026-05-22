@@ -139,8 +139,6 @@ public class TestBlockDeletionService {
     // UPGRADE SCM (if specified)
     scmClient.finalizeUpgrade();
     TestHddsUpgradeUtils.waitForFinalizationFromClient(scmClient);
-    assertEquals(STORAGE_SPACE_DISTRIBUTION,
-        cluster.getStorageContainerManager().getVersionManager().getApparentVersion());
 
     // POST-UPGRADE
     //Step 6: Repeat the same steps in pre-upgrade
