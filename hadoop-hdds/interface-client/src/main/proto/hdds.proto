@@ -433,6 +433,10 @@ message UpgradeStatus {
   optional int32 numDatanodesFinalized = 2;
   optional int32 numDatanodesTotal = 3;
   optional bool shouldFinalize = 4;
+  optional uint32 scmSoftwareVersion = 5;
+  optional uint32 scmApparentVersion = 6;
+  optional uint32 minDatanodeApparentVersion = 7;
+  optional uint32 maxDatanodeApparentVersion = 8;
 }
 
 /**

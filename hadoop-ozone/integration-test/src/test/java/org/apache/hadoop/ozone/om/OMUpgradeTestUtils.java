@@ -18,15 +18,15 @@
 package org.apache.hadoop.ozone.om;
 
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.PrepareStatusResponse.PrepareStatus.PREPARE_COMPLETED;
-import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.FINALIZATION_DONE;
 import static org.apache.ozone.test.GenericTestUtils.waitFor;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
-import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.QueryUpgradeStatusResponse;
 import org.apache.ozone.test.LambdaTestUtils;
 
 /**
@@ -71,12 +71,14 @@ public final class OMUpgradeTestUtils {
       throws TimeoutException, InterruptedException {
     waitFor(() -> {
       try {
-        UpgradeFinalization.StatusAndMessages statusAndMessages =
-            omClient.queryUpgradeFinalizationProgress("finalize-test", false,
-                false);
-        System.out.println("Finalization Messages : " +
-            statusAndMessages.msgs());
-        return statusAndMessages.status().equals(FINALIZATION_DONE);
+        QueryUpgradeStatusResponse status = omClient.queryUpgradeStatus();
+        HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
+        System.out.println("Finalization status: omFinalized=" + status.getOmFinalized()
+            + ", scmFinalized=" + hdds.getScmFinalized()
+            + ", datanodes=" + hdds.getNumDatanodesFinalized() + "/" + hdds.getNumDatanodesTotal());
+        return status.getOmFinalized()
+            && hdds.getScmFinalized()
+            && hdds.getNumDatanodesFinalized() == hdds.getNumDatanodesTotal();
       } catch (IOException e) {
         fail(e.getMessage());
       }

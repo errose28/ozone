@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.admin.upgrade;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -25,11 +26,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.helpers.ServiceInfo;
@@ -47,6 +51,7 @@ import picocli.CommandLine;
 public class TestStatusSubCommand {
 
   private static final String DEFAULT_ENCODING = StandardCharsets.UTF_8.name();
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
   private final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
@@ -54,16 +59,23 @@ public class TestStatusSubCommand {
   private final PrintStream originalErr = System.err;
   private OzoneManagerProtocol omClient;
   private StatusSubCommand cmd;
+  private boolean verbose;
 
   @BeforeEach
   public void setup() throws IOException {
     omClient = mock(OzoneManagerProtocol.class);
     when(omClient.getServiceInfo()).thenReturn(serviceInfoWithVersion(OzoneManagerVersion.ZDU));
 
+    verbose = false;
     cmd = new StatusSubCommand() {
       @Override
       protected OzoneManagerProtocol getClient() throws Exception {
         return omClient;
+      }
+
+      @Override
+      protected boolean isVerbose() {
+        return verbose;
       }
     };
     System.setOut(new PrintStream(outContent, false, DEFAULT_ENCODING));
@@ -120,6 +132,123 @@ public class TestStatusSubCommand {
     String errOutput = errContent.toString(DEFAULT_ENCODING);
     assertTrue(errOutput.contains("OM does not support zero downtime upgrade"));
     verify(omClient, never()).queryUpgradeStatus();
+  }
+
+  @Test
+  public void testJsonFlagBasicOutput() throws Exception {
+    when(omClient.queryUpgradeStatus()).thenReturn(basicResponse(false, false, 1, 3));
+
+    new CommandLine(cmd).parseArgs("--json");
+    assertEquals(0, cmd.call());
+
+    JsonNode root = JSON.readTree(outContent.toString(DEFAULT_ENCODING));
+    assertFalse(root.path("omFinalized").asBoolean());
+    assertFalse(root.path("scmFinalized").asBoolean());
+    assertEquals(1, root.path("datanodesFinalized").asInt());
+    assertEquals(3, root.path("datanodesTotal").asInt());
+    // Version fields must be absent when the server did not populate them.
+    assertTrue(root.path("omSoftwareVersion").isMissingNode());
+    assertTrue(root.path("scmSoftwareVersion").isMissingNode());
+    assertTrue(root.path("minDatanodeApparentVersion").isMissingNode());
+  }
+
+  @Test
+  public void testJsonFlagWithVerboseIncludesVersions() throws Exception {
+    int omVersion = OzoneManagerVersion.ZDU.serialize();
+    int hddsVersion = HDDSVersion.SOFTWARE_VERSION.serialize();
+    OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =
+        OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
+            .setOmFinalized(true)
+            .setOmSoftwareVersion(omVersion)
+            .setOmApparentVersion(omVersion)
+            .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
+                .setScmFinalized(true)
+                .setNumDatanodesFinalized(3)
+                .setNumDatanodesTotal(3)
+                .setScmSoftwareVersion(hddsVersion)
+                .setScmApparentVersion(hddsVersion)
+                .setMinDatanodeApparentVersion(hddsVersion)
+                .setMaxDatanodeApparentVersion(hddsVersion)
+                .build())
+            .build();
+    when(omClient.queryUpgradeStatus()).thenReturn(response);
+
+    new CommandLine(cmd).parseArgs("--json");
+    assertEquals(0, cmd.call());
+
+    JsonNode root = JSON.readTree(outContent.toString(DEFAULT_ENCODING));
+    assertTrue(root.path("omFinalized").asBoolean());
+    assertEquals(OzoneManagerVersion.ZDU.toString(), root.path("omSoftwareVersion").asText());
+    assertEquals(OzoneManagerVersion.ZDU.toString(), root.path("omApparentVersion").asText());
+    assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("scmSoftwareVersion").asText());
+    assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("scmApparentVersion").asText());
+    assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("minDatanodeApparentVersion").asText());
+    assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("maxDatanodeApparentVersion").asText());
+  }
+
+  @Test
+  public void testVerboseTextOutputIncludesVersions() throws Exception {
+    verbose = true;
+    int omVersion = OzoneManagerVersion.ZDU.serialize();
+    int hddsVersion = HDDSVersion.SOFTWARE_VERSION.serialize();
+    OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =
+        OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
+            .setOmFinalized(true)
+            .setOmSoftwareVersion(omVersion)
+            .setOmApparentVersion(omVersion)
+            .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
+                .setScmFinalized(true)
+                .setNumDatanodesFinalized(3)
+                .setNumDatanodesTotal(3)
+                .setScmSoftwareVersion(hddsVersion)
+                .setScmApparentVersion(hddsVersion)
+                .setMinDatanodeApparentVersion(hddsVersion)
+                .setMaxDatanodeApparentVersion(hddsVersion)
+                .build())
+            .build();
+    when(omClient.queryUpgradeStatus()).thenReturn(response);
+
+    new CommandLine(cmd).parseArgs();
+    assertEquals(0, cmd.call());
+
+    String output = outContent.toString(DEFAULT_ENCODING);
+    assertTrue(output.contains("OM Finalized?"));
+    assertTrue(output.contains("OM Software Version:"));
+    assertTrue(output.contains("OM Apparent Version:"));
+    assertTrue(output.contains("SCM Finalized?"));
+    assertTrue(output.contains("SCM Software Version:"));
+    assertTrue(output.contains("SCM Apparent Version:"));
+    assertTrue(output.contains("Min DN Apparent Version:"));
+    assertTrue(output.contains("Max DN Apparent Version:"));
+    assertTrue(output.contains(OzoneManagerVersion.ZDU.toString()));
+    assertTrue(output.contains(HDDSVersion.SOFTWARE_VERSION.toString()));
+  }
+
+  @Test
+  public void testVerboseTextDegradesGracefullyForOldServer() throws Exception {
+    verbose = true;
+    // Old server: no version fields populated.
+    when(omClient.queryUpgradeStatus()).thenReturn(basicResponse(true, true, 3, 3));
+
+    new CommandLine(cmd).parseArgs();
+    assertEquals(0, cmd.call());
+
+    String output = outContent.toString(DEFAULT_ENCODING);
+    assertTrue(output.contains("OM Software Version:     (unavailable)"));
+    assertTrue(output.contains("SCM Software Version:    (unavailable)"));
+    assertTrue(output.contains("Min DN Apparent Version: (unavailable)"));
+  }
+
+  private static OzoneManagerProtocolProtos.QueryUpgradeStatusResponse basicResponse(
+      boolean omFinalized, boolean scmFinalized, int dnFinalized, int dnTotal) {
+    return OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
+        .setOmFinalized(omFinalized)
+        .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
+            .setScmFinalized(scmFinalized)
+            .setNumDatanodesFinalized(dnFinalized)
+            .setNumDatanodesTotal(dnTotal)
+            .build())
+        .build();
   }
 
   private ServiceInfoEx serviceInfoWithVersion(OzoneManagerVersion version) {

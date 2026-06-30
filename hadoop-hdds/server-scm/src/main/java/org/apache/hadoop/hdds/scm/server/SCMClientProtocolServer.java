@@ -1226,6 +1226,10 @@ public class SCMClientProtocolServer implements
           .setNumDatanodesFinalized(finalizedDatanodes)
           .setNumDatanodesTotal(healthyDatanodes)
           .setShouldFinalize(shouldFinalize)
+          .setScmSoftwareVersion(scm.getVersionManager().getSoftwareVersion().serialize())
+          .setScmApparentVersion(scm.getVersionManager().getApparentVersion().serialize())
+          .setMinDatanodeApparentVersion(datanodeFinalizationCounts.getMinApparentVersion())
+          .setMaxDatanodeApparentVersion(datanodeFinalizationCounts.getMaxApparentVersion())
           .build();
 
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(SCMAction.QUERY_UPGRADE_STATUS, null));

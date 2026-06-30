@@ -18,12 +18,15 @@
 package org.apache.hadoop.ozone.admin.upgrade;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hdds.cli.AbstractSubcommand;
 import org.apache.hadoop.hdds.cli.HddsVersionProvider;
+import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.admin.om.OmAddressOptions;
 import org.apache.hadoop.ozone.client.rpc.RpcClient;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.QueryUpgradeStatusResponse;
 import picocli.CommandLine;
 
 /**
@@ -37,8 +40,17 @@ import picocli.CommandLine;
 )
 public class FinalizeSubCommand extends AbstractSubcommand implements Callable<Integer> {
 
+  static long pollIntervalMillis = TimeUnit.SECONDS.toMillis(5);
+
   @CommandLine.Mixin
   private OmAddressOptions.OptionalServiceIdOrHostMixin omAddressOptions;
+
+  @CommandLine.Option(names = {"--wait"},
+      defaultValue = "false",
+      description = "After initiating finalization, poll the cluster status until the entire cluster (OM, SCM, "
+          + "and all healthy datanodes) is finalized. Interrupt with Ctrl-C to stop waiting; finalization "
+          + "continues on the server.")
+  private boolean wait;
 
   @Override
   public Integer call() throws Exception {
@@ -51,8 +63,57 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
       }
       client.finalizeUpgrade();
       out().println("Cluster finalization has been started. Monitor progress with `ozone admin upgrade status`");
+
+      if (wait) {
+        return waitForFinalization(client);
+      }
     }
     return 0;
+  }
+
+  /**
+   * Polls the cluster status until OM, SCM and all healthy datanodes report finalized, the operator
+   * interrupts the command, or an RPC fails. {@code --wait} is safe to re-run: if the cluster is already
+   * finalized, the first poll returns done and the command exits 0.
+   */
+  private int waitForFinalization(OzoneManagerProtocol client) {
+    while (true) {
+      try {
+        Thread.sleep(pollIntervalMillis);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        out().println("Waiting interrupted. Use `ozone admin upgrade status` to monitor progress.");
+        return 0;
+      }
+      QueryUpgradeStatusResponse status;
+      try {
+        status = client.queryUpgradeStatus();
+      } catch (Exception e) {
+        err().println("Failed to query upgrade status: " + e.getMessage()
+            + ". Use `ozone admin upgrade status` to monitor progress.");
+        return 1;
+      }
+      if (isVerbose()) {
+        StatusSubCommand.printVerbose(status, out());
+      } else {
+        HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
+        out().printf("Waiting for finalization: OM=%s, SCM=%s, datanodes=%d/%d%n",
+            status.getOmFinalized(), hdds.getScmFinalized(),
+            hdds.getNumDatanodesFinalized(), hdds.getNumDatanodesTotal());
+      }
+      out().flush();
+      if (isClusterFinalized(status)) {
+        out().println("Finalization complete.");
+        return 0;
+      }
+    }
+  }
+
+  static boolean isClusterFinalized(QueryUpgradeStatusResponse status) {
+    HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
+    return status.getOmFinalized()
+        && hdds.getScmFinalized()
+        && hdds.getNumDatanodesFinalized() == hdds.getNumDatanodesTotal();
   }
 
   protected OzoneManagerProtocol getClient() throws Exception {
