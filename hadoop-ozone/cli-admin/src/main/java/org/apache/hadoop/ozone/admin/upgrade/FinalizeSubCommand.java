@@ -44,11 +44,6 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
   /** Poll cadence used by {@code --wait}. Overridable from tests via {@link #setPollIntervalMillis(long)}. */
   private long pollIntervalMillis = TimeUnit.SECONDS.toMillis(5);
 
-  @VisibleForTesting
-  void setPollIntervalMillis(long millis) {
-    this.pollIntervalMillis = millis;
-  }
-
   @CommandLine.Mixin
   private OmAddressOptions.OptionalServiceIdOrHostMixin omAddressOptions;
 
@@ -125,5 +120,10 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
 
   protected OzoneManagerProtocol getClient() throws Exception {
     return omAddressOptions.newClient();
+  }
+
+  @VisibleForTesting
+  void setPollIntervalMillis(long millis) {
+    this.pollIntervalMillis = millis;
   }
 }
