@@ -17,6 +17,7 @@
 
 package org.apache.hadoop.ozone.admin.upgrade;
 
+import com.google.common.annotations.VisibleForTesting;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hdds.cli.AbstractSubcommand;
@@ -40,7 +41,13 @@ import picocli.CommandLine;
 )
 public class FinalizeSubCommand extends AbstractSubcommand implements Callable<Integer> {
 
-  static long pollIntervalMillis = TimeUnit.SECONDS.toMillis(5);
+  /** Poll cadence used by {@code --wait}. Overridable from tests via {@link #setPollIntervalMillis(long)}. */
+  private long pollIntervalMillis = TimeUnit.SECONDS.toMillis(5);
+
+  @VisibleForTesting
+  void setPollIntervalMillis(long millis) {
+    this.pollIntervalMillis = millis;
+  }
 
   @CommandLine.Mixin
   private OmAddressOptions.OptionalServiceIdOrHostMixin omAddressOptions;

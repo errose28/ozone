@@ -57,7 +57,6 @@ public class TestFinalizeSubCommand {
   private final PrintStream originalErr = System.err;
   private FinalizeSubCommand cmd;
   private OzoneManagerProtocol omClient;
-  private long originalPollInterval;
   private boolean verbose;
 
   @BeforeEach
@@ -78,9 +77,8 @@ public class TestFinalizeSubCommand {
         return verbose;
       }
     };
-    originalPollInterval = FinalizeSubCommand.pollIntervalMillis;
     // Keep tests fast — 1 ms per poll instead of the default 5 s.
-    FinalizeSubCommand.pollIntervalMillis = 1;
+    cmd.setPollIntervalMillis(1);
     System.setOut(new PrintStream(outContent, false, DEFAULT_ENCODING));
     System.setErr(new PrintStream(errContent, false, DEFAULT_ENCODING));
   }
@@ -89,7 +87,6 @@ public class TestFinalizeSubCommand {
   public void tearDown() {
     System.setOut(originalOut);
     System.setErr(originalErr);
-    FinalizeSubCommand.pollIntervalMillis = originalPollInterval;
   }
 
   @Test
@@ -173,7 +170,7 @@ public class TestFinalizeSubCommand {
   @Test
   public void testWaitFlagInterruptIsHandledCleanly() throws Exception {
     // Make the poll interval long enough that the interrupt lands during sleep.
-    FinalizeSubCommand.pollIntervalMillis = 60_000;
+    cmd.setPollIntervalMillis(60_000);
     when(omClient.queryUpgradeStatus()).thenReturn(inProgressStatus(0, 3));
 
     new CommandLine(cmd).parseArgs("--wait");
@@ -199,7 +196,7 @@ public class TestFinalizeSubCommand {
   @Test
   public void testWaitFlagIsResumableAfterCancel() throws Exception {
     // First invocation: block forever in Thread.sleep so we can interrupt.
-    FinalizeSubCommand.pollIntervalMillis = 60_000;
+    cmd.setPollIntervalMillis(60_000);
     // Second invocation is expected to see a finalized cluster on the first poll.
     when(omClient.queryUpgradeStatus()).thenReturn(finalizedStatus(3, 3));
 
@@ -225,7 +222,7 @@ public class TestFinalizeSubCommand {
 
     // Second invocation — reset output capture and shrink the poll interval so it exits promptly.
     outContent.reset();
-    FinalizeSubCommand.pollIntervalMillis = 1;
+    cmd.setPollIntervalMillis(1);
 
     new CommandLine(cmd).parseArgs("--wait");
     assertEquals(0, cmd.call());
