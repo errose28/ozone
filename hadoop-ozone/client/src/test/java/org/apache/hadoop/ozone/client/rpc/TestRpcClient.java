@@ -294,12 +294,8 @@ public class TestRpcClient {
   }
 
   private static ServiceInfo om(OzoneManagerVersion version) {
-    return node(HddsProtos.NodeType.OM, version);
-  }
-
-  private static ServiceInfo node(HddsProtos.NodeType nodeType, OzoneManagerVersion version) {
     return new ServiceInfo.Builder()
-        .setNodeType(nodeType)
+        .setNodeType(HddsProtos.NodeType.OM)
         .setHostname("localhost")
         .setOmVersion(version)
         .build();
