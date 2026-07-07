@@ -34,6 +34,7 @@ import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.FILE_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.KEY_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.META_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.MULTIPART_INFO_TABLE;
+import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.MULTIPART_PARTS_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.OPEN_FILE_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.OPEN_KEY_TABLE;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.PREFIX_TABLE;
@@ -122,6 +123,7 @@ public class TestOmMetadataManager {
       DELETED_TABLE,
       OPEN_KEY_TABLE,
       MULTIPART_INFO_TABLE,
+      MULTIPART_PARTS_TABLE,
       S3_SECRET_TABLE,
       DELEGATION_TOKEN_TABLE,
       PREFIX_TABLE,
@@ -1291,5 +1293,30 @@ public class TestOmMetadataManager {
         volumeName, bucketName, prefix, null, null, 10, true);
 
     assertEquals(25, noPagination.size());
+  }
+
+  @Test
+  public void testListKeysSpecialKeyNames() throws Exception {
+    List<String> keyNames = Arrays.asList(" ", "\"",
+        "$", "%", "&", "'", "<", ">", "_", "_ ", "_ _", "__");
+
+    String volumeName = "volumeA";
+    String bucketName = "bucketA";
+    OMRequestTestUtils.addVolumeToDB(volumeName, omMetadataManager);
+    addBucketsToCache(volumeName, bucketName);
+
+    assertEquals("/volumeA/bucketA/ ",
+        omMetadataManager.getOzoneKey(volumeName, bucketName, " "));
+
+    for (int i = 0; i < keyNames.size(); i++) {
+      addKeysToOM(volumeName, bucketName, keyNames.get(i), i);
+    }
+
+    List<String> listedKeys = omMetadataManager.listKeys(volumeName, bucketName,
+        null, null, 100).getKeys().stream()
+        .map(OmKeyInfo::getKeyName)
+        .collect(Collectors.toList());
+
+    assertEquals(keyNames, listedKeys);
   }
 }

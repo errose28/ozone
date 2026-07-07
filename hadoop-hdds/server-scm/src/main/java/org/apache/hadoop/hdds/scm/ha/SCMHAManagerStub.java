@@ -17,6 +17,8 @@
 
 package org.apache.hadoop.hdds.scm.ha;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.UUID;
 import org.apache.hadoop.hdds.protocol.proto.SCMRatisProtocol.RequestType;
 import org.apache.hadoop.hdds.scm.AddSCMRequest;
 import org.apache.hadoop.hdds.scm.RemoveSCMRequest;
+import org.apache.hadoop.hdds.scm.ha.invoker.ScmInvoker;
 import org.apache.hadoop.hdds.scm.metadata.DBTransactionBuffer;
 import org.apache.hadoop.hdds.security.symmetric.ManagedSecretKey;
 import org.apache.hadoop.hdds.utils.IOUtils;
@@ -166,7 +169,7 @@ public final class SCMHAManagerStub implements SCMHAManager {
 
   private class RatisServerStub implements SCMRatisServer {
 
-    private Map<RequestType, Object> handlers =
+    private Map<RequestType, ScmInvoker<?>> invokers =
         new EnumMap<>(RequestType.class);
 
     private RaftPeerId leaderId = RaftPeerId.valueOf(UUID.randomUUID().toString());
@@ -176,9 +179,8 @@ public final class SCMHAManagerStub implements SCMHAManager {
     }
 
     @Override
-    public void registerStateMachineHandler(final RequestType handlerType,
-        final Object handler) {
-      handlers.put(handlerType, handler);
+    public void registerStateMachineHandler(final ScmInvoker<?> handler) {
+      invokers.put(handler.getType(), handler);
     }
 
     @Override
@@ -216,7 +218,9 @@ public final class SCMHAManagerStub implements SCMHAManager {
     }
 
     private Message process(final SCMRatisRequest request) throws Exception {
-      return SCMStateMachine.process(request, handlers.get(request.getType()));
+      final ScmInvoker<?> invoker = invokers.get(request.getType());
+      requireNonNull(invoker, "invoker == null");
+      return invoker.invokeLocal(request.getOperation(), request.getArguments());
     }
 
     @Override

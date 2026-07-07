@@ -39,7 +39,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -65,11 +64,13 @@ import org.apache.hadoop.hdds.cli.HddsVersionProvider;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.ReconfigurationHandler;
+import org.apache.hadoop.hdds.conf.TracingReconfigurationCallback;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.DatanodeID;
 import org.apache.hadoop.hdds.protocol.DiskBalancerProtocol;
 import org.apache.hadoop.hdds.protocol.SecretKeyProtocol;
 import org.apache.hadoop.hdds.protocolPB.SCMSecurityProtocolClientSideTranslatorPB;
+import org.apache.hadoop.hdds.scm.net.HostAndPort;
 import org.apache.hadoop.hdds.security.SecurityConfig;
 import org.apache.hadoop.hdds.security.symmetric.DefaultSecretKeyClient;
 import org.apache.hadoop.hdds.security.symmetric.SecretKeyClient;
@@ -78,7 +79,7 @@ import org.apache.hadoop.hdds.security.x509.certificate.client.DNCertificateClie
 import org.apache.hadoop.hdds.server.OzoneAdmins;
 import org.apache.hadoop.hdds.server.http.HttpConfig;
 import org.apache.hadoop.hdds.server.http.RatisDropwizardExports;
-import org.apache.hadoop.hdds.tracing.TracingUtil;
+import org.apache.hadoop.hdds.tracing.TracingConfig;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
 import org.apache.hadoop.hdds.utils.HddsVersionInfo;
 import org.apache.hadoop.hdds.utils.IOUtils;
@@ -247,14 +248,17 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
       datanodeDetails = initializeDatanodeDetails();
       datanodeDetails.setHostName(hostname);
       serviceRuntimeInfo.setHostName(hostname);
+      serviceRuntimeInfo.setDatanodeUuid(datanodeDetails.getUuidString());
       datanodeDetails.validateDatanodeIpAddress();
       datanodeDetails.setVersion(
           HddsVersionInfo.HDDS_VERSION_INFO.getVersion());
       datanodeDetails.setSetupTime(Time.now());
       datanodeDetails.setRevision(
           HddsVersionInfo.HDDS_VERSION_INFO.getRevision());
-      TracingUtil.initTracing(
-          "HddsDatanodeService." + datanodeDetails.getID(), conf);
+      String tracingServiceName = "HddsDatanodeService." + datanodeDetails.getID();
+      TracingConfig tracingConfig = conf.getObject(TracingConfig.class);
+      TracingReconfigurationCallback tracingReconfigurationCallback =
+          TracingReconfigurationCallback.init(tracingServiceName, tracingConfig);
       LOG.info("HddsDatanodeService {}", datanodeDetails);
       // Authenticate Hdds Datanode service if security is enabled
       if (OzoneSecurityUtil.isSecurityEnabled(conf)) {
@@ -304,6 +308,7 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
 
       reconfigurationHandler =
           new ReconfigurationHandler("DN", conf, this::checkAdminPrivilege)
+              .register(tracingConfig)
               .register(HDDS_DATANODE_BLOCK_DELETE_THREAD_MAX,
                   this::reconfigBlockDeleteThreadMax)
               .register(OZONE_BLOCK_DELETING_SERVICE_WORKERS,
@@ -324,6 +329,7 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
       }
 
       reconfigurationHandler.setReconfigurationCompleteCallback(reconfigurationHandler.defaultLoggingCallback());
+      reconfigurationHandler.registerCompleteCallback(tracingReconfigurationCallback);
 
       datanodeStateMachine = new DatanodeStateMachine(this, datanodeDetails, conf,
           dnCertClient, secretKeyClient, this::terminateDatanode,
@@ -412,6 +418,7 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
       HddsVolume hddsVolume = (HddsVolume) storageVolume;
       boolean result = StorageVolumeUtil.checkVolume(hddsVolume, clusterId, clusterId, conf, LOG, null);
       if (!result) {
+        LOG.error("Marking volume {} as failed", hddsVolume.getStorageDir().getPath());
         volumeSet.failVolume(hddsVolume.getHddsRootDir().getPath());
       }
     }
@@ -704,8 +711,11 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
   }
 
   private String reconfigReplicationStreamsLimit(String value) {
+    int poolSize = Integer.parseInt(value);
     getDatanodeStateMachine().getContainer().getReplicationServer()
-        .setPoolSize(Integer.parseInt(value));
+        .setPoolSize(poolSize);
+    getDatanodeStateMachine().getSupervisor()
+        .setReplicationMaxStreams(poolSize);
     return value;
   }
 
@@ -754,12 +764,12 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
     LOG.info("Reconfiguring SCM nodes for service ID {} with new SCM nodes {} and remove SCM nodes {}",
         scmServiceId, scmNodesIdsToAdd, scmNodesIdsToRemove);
 
-    Collection<Pair<String, InetSocketAddress>> scmToAdd = HddsServerUtil.getSCMAddressForDatanodes(
+    final Collection<Pair<String, HostAndPort>> scmToAdd = HddsServerUtil.getSCMAddressForDatanodes(
         getConf(), scmServiceId, scmNodesIdsToAdd);
     if (scmToAdd == null) {
       throw new IllegalStateException("Reconfiguration failed to get SCM address to add due to wrong configuration");
     }
-    Collection<Pair<String, InetSocketAddress>> scmToRemove = HddsServerUtil.getSCMAddressForDatanodes(
+    final Collection<Pair<String, HostAndPort>> scmToRemove = HddsServerUtil.getSCMAddressForDatanodes(
         getConf(), scmServiceId, scmNodesIdsToRemove);
     if (scmToRemove == null) {
       throw new IllegalArgumentException(
@@ -780,10 +790,10 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
     }
 
     // Add the new SCM servers
-    for (Pair<String, InetSocketAddress> pair : scmToAdd) {
+    for (Pair<String, HostAndPort> pair : scmToAdd) {
       String scmNodeId = pair.getLeft();
-      InetSocketAddress scmAddress = pair.getRight();
-      if (scmAddress.isUnresolved()) {
+      final HostAndPort scmAddress = pair.getRight();
+      if (scmAddress.getAddress().isUnresolved()) {
         LOG.warn("Reconfiguration failed to add SCM address {} for SCM service {} since it can't " +
             "be resolved, skipping", scmAddress, scmServiceId);
         continue;
@@ -799,9 +809,9 @@ public class HddsDatanodeService extends GenericCli implements Callable<Void>, S
     }
 
     // Remove the old SCM server
-    for (Pair<String, InetSocketAddress> pair : scmToRemove) {
+    for (Pair<String, HostAndPort> pair : scmToRemove) {
       String scmNodeId = pair.getLeft();
-      InetSocketAddress scmAddress = pair.getRight();
+      final HostAndPort scmAddress = pair.getRight();
       try {
         connectionManager.removeSCMServer(scmAddress);
         context.removeEndpoint(scmAddress);

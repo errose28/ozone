@@ -85,7 +85,6 @@ import org.apache.hadoop.hdds.scm.pipeline.PipelineNotFoundException;
 import org.apache.hadoop.hdds.scm.server.StorageContainerManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.utils.HddsServerUtil;
-import org.apache.hadoop.ozone.common.statemachine.InvalidStateTransitionException;
 import org.apache.hadoop.ozone.container.replication.ReplicationServer;
 import org.apache.hadoop.ozone.protocol.commands.CloseContainerCommand;
 import org.apache.hadoop.ozone.protocol.commands.DeleteContainerCommand;
@@ -269,7 +268,7 @@ public class ReplicationManager implements SCMService, ContainerReplicaPendingOp
         .addNext(new MismatchedReplicasHandler(this))
         .addNext(new EmptyContainerHandler(this))
         .addNext(new DeletingContainerHandler(this))
-        .addNext(new QuasiClosedStuckReplicationCheck())
+        .addNext(new QuasiClosedStuckReplicationCheck(rmConf))
         .addNext(ecReplicationCheckHandler)
         .addNext(ratisReplicationCheckHandler)
         .addNext(new ClosedWithUnhealthyReplicasHandler(this))
@@ -737,7 +736,7 @@ public class ReplicationManager implements SCMService, ContainerReplicaPendingOp
                                    HddsProtos.LifeCycleEvent event) {
     try {
       containerManager.updateContainerState(containerID, event);
-    } catch (IOException | InvalidStateTransitionException e) {
+    } catch (IOException e) {
       LOG.error("Failed to update the state of container {}, update Event {}",
           containerID, event, e);
     }
@@ -867,6 +866,12 @@ public class ReplicationManager implements SCMService, ContainerReplicaPendingOp
       ReplicationQueue repQueue, ReplicationManagerReport report,
       boolean readOnly) throws ContainerNotFoundException {
     synchronized (containerInfo) {
+      // Filter out suppressed containers early
+      if (containerInfo.isSuppressed()) {
+        LOG.debug("Skipping suppressed container: {}", containerInfo.getContainerID());
+        return false;
+      }
+      
       // Reset health state to HEALTHY before processing this container
       report.resetContainerHealthState();
       final boolean isEC = isEC(containerInfo.getReplicationConfig());
@@ -1285,6 +1290,30 @@ public class ReplicationManager implements SCMService, ContainerReplicaPendingOp
     )
     private int containerSampleLimit = 100;
 
+    @Config(key = "hdds.scm.replication.quasi.closed.stuck.best.origin.copies",
+        type = ConfigType.INT,
+        defaultValue = "3",
+        reconfigurable = true,
+        tags = { SCM },
+        description = "For quasi-closed stuck containers with multiple diverged origins, " +
+            "the number of replicas to maintain for the origin with the highest bcsId " +
+            "among healthy replicas. This origin is considered the 'best' copy and receives " +
+            "extra fault-tolerance. If multiple origins share the same highest bcsId, all of them receive this count."
+    )
+    private int quasiClosedStuckBestOriginCopies = 3;
+
+    @Config(key = "hdds.scm.replication.quasi.closed.stuck.other.origin.copies",
+        type = ConfigType.INT,
+        defaultValue = "2",
+        reconfigurable = true,
+        tags = { SCM },
+        description = "For quasi-closed stuck containers with multiple diverged origins, " +
+            "the number of replicas to maintain for each origin that does not have the " +
+            "highest block commit sequence ID (BCSID). These replicas are kept to preserve " +
+            "data integrity across diverged copies."
+    )
+    private int quasiClosedStuckOtherOriginCopies = 2;
+
     public long getDatanodeTimeoutOffset() {
       return datanodeTimeoutOffset;
     }
@@ -1375,6 +1404,22 @@ public class ReplicationManager implements SCMService, ContainerReplicaPendingOp
 
     public void setContainerSampleLimit(int sampleLimit) {
       this.containerSampleLimit = sampleLimit;
+    }
+
+    public int getQuasiClosedStuckBestOriginCopies() {
+      return quasiClosedStuckBestOriginCopies;
+    }
+
+    public void setQuasiClosedStuckBestOriginCopies(int copies) {
+      this.quasiClosedStuckBestOriginCopies = copies;
+    }
+
+    public int getQuasiClosedStuckOtherOriginCopies() {
+      return quasiClosedStuckOtherOriginCopies;
+    }
+
+    public void setQuasiClosedStuckOtherOriginCopies(int copies) {
+      this.quasiClosedStuckOtherOriginCopies = copies;
     }
 
     @PostConstruct

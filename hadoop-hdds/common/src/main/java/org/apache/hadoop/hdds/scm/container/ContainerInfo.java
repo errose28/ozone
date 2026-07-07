@@ -20,6 +20,7 @@ package org.apache.hadoop.hdds.scm.container;
 import static java.lang.Math.max;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.Clock;
 import java.time.Instant;
@@ -76,17 +77,15 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
   // field and hence maintain the original output.
   @JsonIgnore
   private final ContainerID containerID;
-  // Delete Transaction Id is updated when new transaction for a container
-  // is stored in SCM delete Table.
-  // TODO: Replication Manager should consider deleteTransactionId so that
-  // replica with higher deleteTransactionId is preferred over replica with
-  // lower deleteTransactionId.
+  // Deprecated SCM-side delete transaction ID retained for old persisted data, SCM no longer updates this field.
+  @Deprecated
   private long deleteTransactionId;
   // The sequenceId of a close container cannot change, and all the
   // container replica should have the same sequenceId.
   private long sequenceId;
   // Health state of the container (determined by ReplicationManager)
   private ContainerHealthState healthState;
+  private boolean suppressed;
 
   private ContainerInfo(Builder b) {
     containerID = ContainerID.valueOf(b.containerID);
@@ -102,6 +101,7 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
     replicationConfig = b.replicationConfig;
     clock = b.clock;
     healthState = b.healthState != null ? b.healthState : ContainerHealthState.HEALTHY;
+    suppressed = b.suppressed;
   }
 
   public static Codec<ContainerInfo> getCodec() {
@@ -122,6 +122,10 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
         .setDeleteTransactionId(info.getDeleteTransactionId())
         .setReplicationConfig(config)
         .setSequenceId(info.getSequenceId());
+
+    if (info.hasSuppressed()) {
+      builder.setSuppressed(info.getSuppressed());
+    }
 
     if (info.hasPipelineID()) {
       builder.setPipelineID(PipelineID.getFromProtobuf(info.getPipelineID()));
@@ -211,16 +215,19 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
     numberOfKeys = value;
   }
 
+  /**
+   * Legacy SCM-side delete transaction ID. SCM no longer updates this field.
+   *
+   * @deprecated SCM no longer updates this field. Use DN-side container data
+   *             for delete transaction tracking.
+   */
+  @Deprecated
   public long getDeleteTransactionId() {
     return deleteTransactionId;
   }
 
   public long getSequenceId() {
     return sequenceId;
-  }
-
-  public void updateDeleteTransactionId(long transactionId) {
-    deleteTransactionId = max(transactionId, deleteTransactionId);
   }
 
   public void updateSequenceId(long sequenceID) {
@@ -263,6 +270,26 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
     this.healthState = newHealthState;
   }
 
+  /**
+   * Check if container is suppressed.
+   * Only included in JSON output when true.
+   *
+   * @return boolean
+   */
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
+  public boolean isSuppressed() {
+    return suppressed;
+  }
+
+  /**
+   * Set the boolean for suppressed.
+   *
+   * @param suppressed checks if container is suppressed or not
+   */
+  public void setSuppressed(boolean suppressed) {
+    this.suppressed = suppressed;
+  }
+
   @JsonIgnore
   public HddsProtos.ContainerInfoProto getProtobuf() {
     HddsProtos.ContainerInfoProto.Builder builder =
@@ -286,6 +313,10 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
 
     if (getPipelineID() != null) {
       builder.setPipelineID(getPipelineID().getProtobuf());
+    }
+
+    if (suppressed) {
+      builder.setSuppressed(true);
     }
 
     return builder.build();
@@ -390,6 +421,7 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
     private PipelineID pipelineID;
     private ReplicationConfig replicationConfig;
     private ContainerHealthState healthState;
+    private boolean suppressed;
 
     public Builder setPipelineID(PipelineID pipelineId) {
       this.pipelineID = pipelineId;
@@ -432,6 +464,7 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
       return this;
     }
 
+    @Deprecated
     public Builder setDeleteTransactionId(long deleteTransactionID) {
       this.deleteTransactionId = deleteTransactionID;
       return this;
@@ -444,6 +477,11 @@ public final class ContainerInfo implements Comparable<ContainerInfo> {
 
     public Builder setHealthState(ContainerHealthState healthState) {
       this.healthState = healthState;
+      return this;
+    }
+
+    public Builder setSuppressed(boolean suppressed) {
+      this.suppressed = suppressed;
       return this;
     }
 

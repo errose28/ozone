@@ -43,18 +43,18 @@ import picocli.CommandLine;
 @CommandLine.Command(
     name = "decommission",
     customSynopsis = "ozone admin om decommission --service-id=<om-service-id> " +
-        "-nodeid=<decommission-om-node-id> " +
-        "-hostname=<decommission-om-node-address> [options]",
+        "--nodeid=<decommission-om-node-id> " +
+        "--node-host-address=<decommission-om-node-address> [options]",
     description = "Decommission an OzoneManager. Ensure that the node being " +
         "decommissioned is shutdown first." +
-        "\nNote - Add the node to be decommissioned to " +
+        "%nNote - Add the node to be decommissioned to " +
         OZONE_OM_DECOMMISSIONED_NODES_KEY + "config in ozone-site.xml of all " +
         "OzoneManagers before proceeding with decommission." +
-        "\nNote - DECOMMISSIONING AN OM MIGHT RENDER THE CLUSTER TO LOSE " +
+        "%nNote - DECOMMISSIONING AN OM MIGHT RENDER THE CLUSTER TO LOSE " +
         "HIGH AVAILABILITY." +
-        "\nNote - When there are only two OzoneManagers, do not stop the " +
+        "%nNote - When there are only two OzoneManagers, do not stop the " +
         "OzoneManager before decommissioning as both OzoneManagers are " +
-        "required to reach quorum." + "\n" +
+        "required to reach quorum." + "%n" +
         "It is recommended to add another OzoneManager(s) before " +
         "decommissioning one to maintain HA.",
     mixinStandardHelpOptions = true,
@@ -67,12 +67,12 @@ public class DecommissionOMSubcommand implements Callable<Void> {
   @CommandLine.Mixin
   private OmAddressOptions.MandatoryServiceIdMixin omServiceOption;
 
-  @CommandLine.Option(names = {"-nodeid", "--nodeid"},
+  @CommandLine.Option(names = {"--nodeid"},
       description = "NodeID of the OM to be decommissioned.",
       required = true)
   private String decommNodeId;
 
-  @CommandLine.Option(names = {"-hostname", "--node-host-address"},
+  @CommandLine.Option(names = {"--node-host-address"},
       description = "Host name/address of the OM to be decommissioned.",
       required = true)
   private String hostname;

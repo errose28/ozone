@@ -18,9 +18,11 @@
 
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
+import { rest } from 'msw';
 
 import Capacity from '@/v2/pages/capacity/capacity';
 import { capacityServer } from '@tests/mocks/capacityMocks/capacityServer';
+import * as mockResponses from '@tests/mocks/capacityMocks/capacityResponseMocks';
 
 vi.mock('@/components/autoReloadPanel/autoReloadPanel', () => ({
   default: () => <div data-testid="auto-reload-panel" />,
@@ -91,5 +93,100 @@ describe('Capacity Page', () => {
       expect(datanodeCard).toHaveTextContent(/USED SPACE\s*5\s*KB/i)
     );
     expect(datanodeCard).toHaveTextContent(/FREE SPACE\s*3\s*KB/i);
+  });
+
+  test('clamps pendingBlockSize to 0 when selected datanode reports -1 (offline/unreachable)', async () => {
+    capacityServer.use(
+      rest.get('api/v1/pendingDeletion', (req, res, ctx) => {
+        const component = req.url.searchParams.get('component');
+        if (component === 'dn') {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              ...mockResponses.DnPendingDeletion,
+              pendingDeletionPerDataNode: [
+                { hostName: 'dn-1', datanodeUuid: 'uuid-1', pendingBlockSize: -1 },
+                { hostName: 'dn-2', datanodeUuid: 'uuid-2', pendingBlockSize: 2048 }
+              ]
+            })
+          );
+        }
+        const map: Record<string, object> = {
+          scm: mockResponses.ScmPendingDeletion,
+          om: mockResponses.OmPendingDeletion
+        };
+        const body = component ? map[component] : undefined;
+        return body
+          ? res(ctx.status(200), ctx.json(body))
+          : res(ctx.status(400), ctx.json({ message: 'Unsupported pending deletion component.' }));
+      })
+    );
+
+    render(<Capacity />);
+
+    const downloadLink = await screen.findByText('Download Insights');
+    const datanodeCard = downloadLink.closest('.ant-card');
+    expect(datanodeCard).not.toBeNull();
+    if (!datanodeCard) {
+      return;
+    }
+    // dn-1 is selected by default; its pendingBlockSize is -1 (offline sentinel).
+    // PENDING DELETION should show 0 B, not a negative value.
+    await waitFor(() =>
+      expect(datanodeCard).toHaveTextContent(/PENDING DELETION\s*0\s*B/i)
+    );
+    // USED SPACE = used (4096) + clamped pendingBlockSize (0) = 4 KB
+    expect(datanodeCard).toHaveTextContent(/USED SPACE\s*4\s*KB/i);
+  });
+
+  test('shows scm-only error state when SCM pending deletion returns sentinel failure values', async () => {
+    capacityServer.use(
+      rest.get('api/v1/pendingDeletion', (req, res, ctx) => {
+        const component = req.url.searchParams.get('component');
+        switch (component) {
+        case 'scm':
+          return res(
+            ctx.status(200),
+            ctx.json({
+              totalBlocksize: -1,
+              totalReplicatedBlockSize: -1,
+              totalBlocksCount: -1
+            })
+          );
+        case 'om':
+          return res(
+            ctx.status(200),
+            ctx.json(mockResponses.OmPendingDeletion)
+          );
+        case 'dn':
+          return res(
+            ctx.status(200),
+            ctx.json(mockResponses.DnPendingDeletion)
+          );
+        default:
+          return res(
+            ctx.status(400),
+            ctx.json({ message: 'Unsupported pending deletion component.' })
+          );
+        }
+      })
+    );
+
+    render(<Capacity />);
+
+    const pendingDeletionTitle = await screen.findByText('Pending Deletion');
+    const pendingDeletionCard = pendingDeletionTitle.closest('.ant-card');
+    expect(pendingDeletionCard).not.toBeNull();
+    if (!pendingDeletionCard) {
+      return;
+    }
+
+    await waitFor(() =>
+      expect(pendingDeletionCard).toHaveTextContent(/OZONE MANAGER\s*2\s*KB/i)
+    );
+    expect(pendingDeletionCard).toHaveTextContent(/DATANODES\s*3\s*KB/i);
+    expect(pendingDeletionCard).toHaveTextContent(/STORAGE CONTAINER MANAGER\s*N\/A/i);
+    expect(await screen.findByTestId('pending-deletion-scm-error')).toBeInTheDocument();
+    await waitFor(() => expect(screen.getAllByTestId('echart')).toHaveLength(4));
   });
 });
