@@ -406,7 +406,8 @@ public class TestPendingContainerTracker {
   @Test
   public void testHasAvailableSpaceWithNoStorageReports() {
     DatanodeInfo emptyDn = new DatanodeInfo(
-        MockDatanodeDetails.randomLocalDatanodeDetails(), NodeStatus.inServiceHealthy(), null,
+        MockDatanodeDetails.randomLocalDatanodeDetails(), NodeStatus.inServiceHealthy(),
+        UpgradeUtils.defaultVersionProto(),
         HddsTestUtils.ROLL_INTERVAL_MS_DEFAULT);
     // No storage reports set
     assertFalse(tracker.hasAvailableSpace(emptyDn));

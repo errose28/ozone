@@ -18,7 +18,6 @@
 package org.apache.hadoop.hdds.scm.ha.invoker;
 
 import java.io.IOException;
-import org.apache.hadoop.hdds.scm.ha.SCMRatisResponse;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationStateManager;
 import org.apache.hadoop.hdds.utils.db.Table;
