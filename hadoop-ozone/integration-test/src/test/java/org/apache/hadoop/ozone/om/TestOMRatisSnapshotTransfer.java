@@ -186,6 +186,8 @@ public class TestOMRatisSnapshotTransfer {
     if (cluster != null) {
       cluster.shutdown();
     }
+    AuditLogTestUtils.deleteAuditLogFile();
+    AuditLogTestUtils.deleteSystemAuditLogFile();
   }
 
   @Test
