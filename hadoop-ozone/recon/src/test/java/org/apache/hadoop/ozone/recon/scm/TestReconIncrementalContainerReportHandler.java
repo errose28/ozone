@@ -58,6 +58,7 @@ import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
 import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
 import org.apache.hadoop.hdds.server.events.EventQueue;
+import org.apache.hadoop.ozone.container.upgrade.UpgradeUtils;
 import org.apache.hadoop.ozone.recon.TestReconUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -136,7 +137,7 @@ public class TestReconIncrementalContainerReportHandler
 
       DatanodeInfo datanodeInfo = new DatanodeInfo(
           containerWithPipeline.getPipeline().getFirstNode(),
-          NodeStatus.inServiceHealthy(), null, 1000);
+          NodeStatus.inServiceHealthy(), UpgradeUtils.defaultVersionProto(), 1000);
       NodeManager nodeManagerMock = mock(NodeManager.class);
       when(nodeManagerMock.getNode(any(DatanodeID.class)))
           .thenReturn(datanodeInfo);
@@ -239,7 +240,7 @@ public class TestReconIncrementalContainerReportHandler
       throws NodeNotFoundException {
     NodeManager nodeManagerMock = mock(NodeManager.class);
     DatanodeInfo datanodeInfo = new DatanodeInfo(
-        datanodeDetails, NodeStatus.inServiceHealthy(), null, 1000);
+        datanodeDetails, NodeStatus.inServiceHealthy(), UpgradeUtils.defaultVersionProto(), 1000);
     when(nodeManagerMock.getNode(any(DatanodeID.class)))
         .thenReturn(datanodeInfo);
     return nodeManagerMock;
