@@ -39,6 +39,7 @@ import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyLocationInfoGroup;
 import org.apache.hadoop.ozone.om.helpers.OzoneFileStatus;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.util.Time;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,8 @@ public class TestOzoneManagerRequestHandler {
     config.setMaxListSize(limitListKeySize);
     OzoneManager ozoneManager = Mockito.mock(OzoneManager.class);
     Mockito.when(ozoneManager.getConfig()).thenReturn(config);
+    Mockito.when(ozoneManager.isAdmin(Mockito.any(UserGroupInformation.class)))
+        .thenReturn(true);
     return new OzoneManagerRequestHandler(ozoneManager);
   }
 
