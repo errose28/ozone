@@ -21,7 +21,6 @@ import static org.apache.hadoop.hdds.protocol.DatanodeDetails.Port.Name.HTTP;
 import static org.apache.hadoop.hdds.protocol.DatanodeDetails.Port.Name.HTTPS;
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalState.IN_SERVICE;
 import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeState.HEALTHY;
-import static org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeState.HEALTHY_READONLY;
 import static org.apache.hadoop.hdds.scm.SCMCommonPlacementPolicy.hasEnoughSpace;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -51,6 +50,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.management.ObjectName;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.conf.ConfigurationSource;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
@@ -84,16 +84,16 @@ import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineNotFoundException;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
-import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
+import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
 import org.apache.hadoop.hdds.server.events.EventPublisher;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
+import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
 import org.apache.hadoop.ipc_.Server;
 import org.apache.hadoop.metrics2.util.MBeans;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.protocol.VersionResponse;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
-import org.apache.hadoop.ozone.protocol.commands.FinalizeNewLayoutVersionCommand;
+import org.apache.hadoop.ozone.protocol.commands.FinalizeVersionCommand;
 import org.apache.hadoop.ozone.protocol.commands.RefreshVolumeUsageCommand;
 import org.apache.hadoop.ozone.protocol.commands.RegisteredCommand;
 import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
@@ -126,6 +126,7 @@ public class SCMNodeManager implements NodeManager {
   private final VersionInfo version;
   private final CommandQueue commandQueue;
   private final SCMNodeMetrics metrics;
+  private final PendingContainerTracker pendingContainerTracker;
   // Node manager MXBean
   private ObjectName nmInfoBean;
   private final SCMStorageConfig scmStorageConfig;
@@ -135,7 +136,7 @@ public class SCMNodeManager implements NodeManager {
   private final Map<String, Set<DatanodeID>> dnsToDnIdMap = new ConcurrentHashMap<>();
   private final int numPipelinesPerMetadataVolume;
   private final int datanodePipelineLimit;
-  private final HDDSLayoutVersionManager scmLayoutVersionManager;
+  private final ScmVersionManager versionManager;
   private final EventPublisher scmNodeEventPublisher;
   private final SCMContext scmContext;
   private final Map<SCMCommandProto.Type,
@@ -157,17 +158,18 @@ public class SCMNodeManager implements NodeManager {
   private static final String VERSION = "VERSION";
 
   /**
-   * Constructs SCM machine Manager.
+   * Constructs SCM machine Manager using {@link ScmVersionManager} (production SCM).
    */
+  @VisibleForTesting
   public SCMNodeManager(
       OzoneConfiguration conf,
       SCMStorageConfig scmStorageConfig,
       EventPublisher eventPublisher,
       NetworkTopology networkTopology,
       SCMContext scmContext,
-      HDDSLayoutVersionManager layoutVersionManager) {
+      ScmVersionManager versionManager) {
     this(conf, scmStorageConfig, eventPublisher, networkTopology, scmContext,
-        layoutVersionManager, hostname -> null);
+        versionManager, hostname -> null);
   }
 
   public SCMNodeManager(
@@ -176,18 +178,22 @@ public class SCMNodeManager implements NodeManager {
       EventPublisher eventPublisher,
       NetworkTopology networkTopology,
       SCMContext scmContext,
-      HDDSLayoutVersionManager layoutVersionManager,
+      ScmVersionManager versionManager,
       Function<String, String> nodeResolver) {
     this.scmNodeEventPublisher = eventPublisher;
-    this.nodeStateManager = new NodeStateManager(conf, eventPublisher,
-        layoutVersionManager, scmContext);
+    this.nodeStateManager = new NodeStateManager(conf, eventPublisher, scmContext);
     this.version = VersionInfo.getLatestVersion();
     this.commandQueue = new CommandQueue();
     this.scmStorageConfig = scmStorageConfig;
-    this.scmLayoutVersionManager = layoutVersionManager;
+    this.versionManager = versionManager;
     LOG.info("Entering startup safe mode.");
     registerMXBean();
     this.metrics = SCMNodeMetrics.create(this);
+    this.pendingContainerTracker = new PendingContainerTracker(
+        (long) conf.getStorageSize(ScmConfigKeys.OZONE_SCM_CONTAINER_SIZE,
+            ScmConfigKeys.OZONE_SCM_CONTAINER_SIZE_DEFAULT, StorageUnit.BYTES),
+        5 * 60 * 1000, // TODO
+        this.metrics);
     this.clusterMap = networkTopology;
     this.nodeResolver = nodeResolver;
     this.useHostname = conf.getBoolean(
@@ -369,10 +375,8 @@ public class SCMNodeManager implements NodeManager {
       PipelineReportsProto pipelineReportsProto) {
     return register(datanodeDetails, nodeReport, pipelineReportsProto,
         LayoutVersionProto.newBuilder()
-            .setMetadataLayoutVersion(
-                scmLayoutVersionManager.getMetadataLayoutVersion())
-            .setSoftwareLayoutVersion(
-                scmLayoutVersionManager.getSoftwareLayoutVersion())
+            .setMetadataLayoutVersion(versionManager.getApparentVersion().serialize())
+            .setSoftwareLayoutVersion(versionManager.getSoftwareVersion().serialize())
             .build());
   }
 
@@ -392,9 +396,8 @@ public class SCMNodeManager implements NodeManager {
   public RegisteredCommand register(
       DatanodeDetails datanodeDetails, NodeReportProto nodeReport,
       PipelineReportsProto pipelineReportsProto,
-      LayoutVersionProto layoutInfo) {
-    if (layoutInfo.getSoftwareLayoutVersion() !=
-        scmLayoutVersionManager.getSoftwareLayoutVersion()) {
+      LayoutVersionProto dnVersionInfo) {
+    if (shouldFenceDatanode(datanodeDetails, dnVersionInfo)) {
       return RegisteredCommand.newBuilder()
           .setErrorCode(ErrorCode.errorNodeNotPermitted)
           .setDatanode(datanodeDetails)
@@ -424,7 +427,7 @@ public class SCMNodeManager implements NodeManager {
     if (!isNodeRegistered(datanodeDetails)) {
       try {
         clusterMap.add(datanodeDetails);
-        nodeStateManager.addNode(datanodeDetails, layoutInfo);
+        nodeStateManager.addNode(datanodeDetails, dnVersionInfo);
         // Check that datanode in nodeStateManager has topology parent set
         DatanodeDetails dn = nodeStateManager.getNode(datanodeDetails);
         Preconditions.checkState(dn.getParent() != null);
@@ -450,7 +453,7 @@ public class SCMNodeManager implements NodeManager {
             hostName, ipAddress, dnId)) {
           LOG.info("Updating datanode from {} to {}", oldNode, datanodeDetails);
           clusterMap.update(oldNode, datanodeDetails);
-          nodeStateManager.updateNode(datanodeDetails, layoutInfo);
+          nodeStateManager.updateNode(datanodeDetails, dnVersionInfo);
           DatanodeDetails dn = nodeStateManager.getNode(datanodeDetails);
           Preconditions.checkState(dn.getParent() != null);
           processNodeReport(datanodeDetails, nodeReport);
@@ -460,7 +463,7 @@ public class SCMNodeManager implements NodeManager {
           LOG.info("Update the version for registered datanode {}, " +
               "oldVersion = {}, newVersion = {}.",
               datanodeDetails, oldNode.getVersion(), datanodeDetails.getVersion());
-          nodeStateManager.updateNode(datanodeDetails, layoutInfo);
+          nodeStateManager.updateNode(datanodeDetails, dnVersionInfo);
         }
       } catch (NodeNotFoundException e) {
         LOG.error("Cannot find datanode {} from nodeStateManager",
@@ -719,84 +722,84 @@ public class SCMNodeManager implements NodeManager {
    * Process Layout Version report.
    *
    * @param datanodeDetails
-   * @param layoutVersionReport
+   * @param versionReport
    */
   @Override
-  public void processLayoutVersionReport(DatanodeDetails datanodeDetails,
-                                LayoutVersionProto layoutVersionReport) {
+  public void processVersionReport(DatanodeDetails datanodeDetails,
+                                   LayoutVersionProto versionReport) {
     if (LOG.isDebugEnabled()) {
-      LOG.debug("Processing Layout Version report from [datanode={}]",
+      LOG.debug("Processing version report from [datanode={}]",
           datanodeDetails.getHostName());
     }
     if (LOG.isTraceEnabled()) {
       LOG.trace("HB is received from [datanode={}]: <json>{}</json>",
           datanodeDetails.getHostName(),
-          layoutVersionReport.toString().replaceAll("\n", "\\\\n"));
+          versionReport.toString().replaceAll("\n", "\\\\n"));
     }
 
     try {
-      nodeStateManager.updateLastKnownLayoutVersion(datanodeDetails,
-          layoutVersionReport);
+      nodeStateManager.updateLastKnownVersionInfo(datanodeDetails,
+          versionReport);
     } catch (NodeNotFoundException e) {
-      LOG.error("SCM trying to process Layout Version from an " +
+      LOG.error("SCM trying to process version from an " +
           "unregistered node {}.", datanodeDetails);
       return;
     }
 
-    sendFinalizeToDatanodeIfNeeded(datanodeDetails, layoutVersionReport);
+    sendFinalizeToDatanodeIfNeeded(datanodeDetails, versionReport);
   }
 
   protected void sendFinalizeToDatanodeIfNeeded(DatanodeDetails datanodeDetails,
-      LayoutVersionProto layoutVersionReport) {
-    // Software layout version is hardcoded to the SCM.
-    int scmSlv = scmLayoutVersionManager.getSoftwareLayoutVersion();
-    int dnSlv = layoutVersionReport.getSoftwareLayoutVersion();
-    int dnMlv = layoutVersionReport.getMetadataLayoutVersion();
+      LayoutVersionProto versionReport) {
+    ComponentVersion dnSoftwareVersion = HDDSVersionUtils.deserializeHDDSVersionOrLayoutVersion(
+        versionReport.getSoftwareLayoutVersion());
+    ComponentVersion dnApparentVersion = HDDSVersionUtils.deserializeHDDSVersionOrLayoutVersion(
+        versionReport.getMetadataLayoutVersion());
+    ComponentVersion scmSoftwareVersion = versionManager.getSoftwareVersion();
+    ComponentVersion scmApparentVersion = versionManager.getApparentVersion();
 
-    // A datanode with a larger software layout version is from a future
-    // version of ozone. It should not have been added to the cluster.
-    if (dnSlv > scmSlv) {
-      LOG.error("Invalid data node in the cluster : {}. " +
-              "DataNode SoftwareLayoutVersion = {}, SCM " +
-              "SoftwareLayoutVersion = {}",
-          datanodeDetails.getHostName(), dnSlv, scmSlv);
+    // All versions are validated when Datanodes register after they restart.
+    // After that, their apparent version should only increase, and their software version should remain constant.
+    if (shouldFenceDatanode(datanodeDetails, dnSoftwareVersion, dnApparentVersion)) {
+      LOG.error("Invalid datanode in the cluster : {}. " +
+              "Datanode software version = {}, " +
+              "Datanode apparent version = {}, " +
+              "SCM software version = {} " +
+              "SCM apparent version = {}",
+          datanodeDetails.getHostName(), dnSoftwareVersion, dnApparentVersion,
+          scmSoftwareVersion, scmApparentVersion);
+      return;
     }
 
-    if (FinalizationManager.shouldTellDatanodesToFinalize(
-        scmContext.getFinalizationCheckpoint())) {
-      // Because we have crossed the MLV_EQUALS_SLV checkpoint, SCM metadata
-      // layout version will not change. We can now compare it to the
-      // datanodes' metadata layout versions to tell them to finalize.
-      int scmMlv = scmLayoutVersionManager.getMetadataLayoutVersion();
+    if (!scmContext.isLeader() || versionManager.needsFinalization()) {
+      return;
+    }
 
-      // If the datanode mlv < scm mlv, it can not be allowed to be part of
-      // any pipeline. However it can be allowed to join the cluster
-      if (dnMlv < scmMlv) {
-        LOG.warn("Data node {} can not be used in any pipeline in the " +
-                "cluster. " + "DataNode MetadataLayoutVersion = {}, SCM " +
-                "MetadataLayoutVersion = {}",
-            datanodeDetails.getHostName(), dnMlv, scmMlv);
+    if (versionManager.getApparentVersion().equals(dnApparentVersion)) {
+      // If SCM and DN apparent version match, then the datanode is already finalized.
+      LOG.debug("Skip sending finalize command to datanode {} because its apparent version matches SCM's apparent " +
+          "version {}", datanodeDetails, versionManager.getApparentVersion());
+      return;
+    }
 
-        FinalizeNewLayoutVersionCommand finalizeCmd =
-            new FinalizeNewLayoutVersionCommand(true,
-                LayoutVersionProto.newBuilder()
-                    .setSoftwareLayoutVersion(dnSlv)
-                    .setMetadataLayoutVersion(dnSlv).build());
-        if (scmContext.isLeader()) {
-          try {
-            finalizeCmd.setTerm(scmContext.getTermOfLeader());
+    // Because the finalizationManager / versionManager says finalization is not needed it means any DN reporting a
+    // metadata layout version less than the SCM's metadata layout version can be finalized.
+    LOG.info("Sending finalize command to datanode {} with apparent version {} which is less than SCM's finalized " +
+        "apparent version {}", datanodeDetails, dnApparentVersion, scmApparentVersion);
 
-            // Send Finalize command to the data node. Its OK to
-            // send Finalize command multiple times.
-            scmNodeEventPublisher.fireEvent(SCMEvents.DATANODE_COMMAND,
-                new CommandForDatanode<>(datanodeDetails,
-                    finalizeCmd));
-          } catch (NotLeaderException ex) {
-            LOG.warn("Skip sending finalize upgrade command since current SCM" +
-                " is not leader.", ex);
-          }
-        }
-      }
+    FinalizeVersionCommand finalizeCmd =
+        new FinalizeVersionCommand(true,
+            LayoutVersionProto.newBuilder()
+                .setSoftwareLayoutVersion(dnSoftwareVersion.serialize())
+                .setMetadataLayoutVersion(dnSoftwareVersion.serialize()).build());
+    try {
+      finalizeCmd.setTerm(scmContext.getTermOfLeader());
+      // Send Finalize command to the data node. It's OK to send Finalize command multiple times.
+      scmNodeEventPublisher.fireEvent(SCMEvents.DATANODE_COMMAND,
+          new CommandForDatanode<>(datanodeDetails,
+              finalizeCmd));
+    } catch (NotLeaderException ex) {
+      LOG.warn("Skip sending finalize upgrade command since current SCM is not leader.", ex);
     }
   }
 
@@ -970,12 +973,9 @@ public class SCMNodeManager implements NodeManager {
 
     final List<DatanodeInfo> healthyNodes = nodeStateManager
         .getNodes(null, HEALTHY);
-    final List<DatanodeInfo> healthyReadOnlyNodes = nodeStateManager
-        .getNodes(null, HEALTHY_READONLY);
     final List<DatanodeInfo> staleNodes = nodeStateManager
         .getStaleNodes();
     final List<DatanodeInfo> datanodes = new ArrayList<>(healthyNodes);
-    datanodes.addAll(healthyReadOnlyNodes);
     datanodes.addAll(staleNodes);
 
     for (DatanodeInfo dnInfo : datanodes) {
@@ -1066,6 +1066,30 @@ public class SCMNodeManager implements NodeManager {
   }
 
   /**
+   * Effective space check aligned with container allocation: per-disk slot model minus
+   * SCM pending allocations.
+   */
+  @Override
+  public boolean hasSpaceForNewContainerAllocation(DatanodeID datanodeID) {
+    DatanodeInfo datanodeInfo = getNode(datanodeID);
+    if (datanodeInfo == null) {
+      LOG.warn("DatanodeInfo not found for node {}", datanodeID);
+      return false;
+    }
+    return pendingContainerTracker.hasEffectiveAllocatableSpaceForNewContainer(datanodeInfo);
+  }
+
+  @Override
+  public void recordPendingAllocationForDatanode(DatanodeID datanodeID, ContainerID containerID) {
+    DatanodeInfo datanodeInfo = getNode(datanodeID);
+    if (datanodeInfo == null) {
+      LOG.warn("DatanodeInfo not found for node {}", datanodeID);
+      return;
+    }
+    pendingContainerTracker.recordPendingAllocationForDatanode(datanodeInfo, containerID);
+  }
+
+  /**
    * Return the node stat of the specified datanode.
    *
    * @param datanodeDetails - datanode ID.
@@ -1113,6 +1137,11 @@ public class SCMNodeManager implements NodeManager {
     for (NodeOperationalState opState : NodeOperationalState.values()) {
       Map<String, Integer> states = new HashMap<>();
       for (NodeState health : NodeState.values()) {
+        if (health == NodeState.HEALTHY_READONLY) {
+          // HEALTHY_READONLY is deprecated and can no longer occur in SCM, but it cannot be removed
+          // from the protobuf for compatibility reasons. Skip it here to avoid confusion.
+          continue;
+        }
         states.put(health.name(), 0);
       }
       nodes.put(opState.name(), states);
@@ -1949,21 +1978,6 @@ public class SCMNodeManager implements NodeManager {
     return nodeStateManager.getSkippedHealthChecks();
   }
 
-  /**
-   * @return  HDDSLayoutVersionManager
-   */
-  @VisibleForTesting
-  @Override
-  public HDDSLayoutVersionManager getLayoutVersionManager() {
-    return scmLayoutVersionManager;
-  }
-
-  @VisibleForTesting
-  @Override
-  public void forceNodesToHealthyReadOnly() {
-    nodeStateManager.forceNodesToHealthyReadOnly();
-  }
-
   private ReentrantReadWriteLock.WriteLock writeLock() {
     return lock.writeLock();
   }
@@ -2002,5 +2016,49 @@ public class SCMNodeManager implements NodeManager {
     } finally {
       writeLock().unlock();
     }
+  }
+
+  protected boolean shouldFenceDatanode(DatanodeDetails dnDetails, LayoutVersionProto versionReport) {
+    ComponentVersion dnSoftwareVersion = HDDSVersionUtils.deserializeHDDSVersionOrLayoutVersion(
+        versionReport.getSoftwareLayoutVersion());
+    ComponentVersion dnApparentVersion = HDDSVersionUtils.deserializeHDDSVersionOrLayoutVersion(
+        versionReport.getMetadataLayoutVersion());
+    return shouldFenceDatanode(dnDetails, dnSoftwareVersion, dnApparentVersion);
+  }
+
+  private boolean shouldFenceDatanode(DatanodeDetails dnDetails, ComponentVersion dnSoftwareVersion,
+                                        ComponentVersion dnApparentVersion) {
+    ComponentVersion scmSoftwareVersion = versionManager.getSoftwareVersion();
+    ComponentVersion scmApparentVersion = versionManager.getApparentVersion();
+
+    // DN software newer than SCM violates upgrade order. SCM must always be upgraded first.
+    if (!dnSoftwareVersion.isSupportedBy(scmSoftwareVersion)) {
+      LOG.error("Datanode {} has software version {} which is newer than SCM software version {}. " +
+          "SCM must be upgraded before datanodes.",
+          dnDetails, dnSoftwareVersion, scmSoftwareVersion);
+      return true;
+    }
+
+    // If DN software is older than SCM and SCM is finalized, the old DNs must be upgraded before rejoining.
+    if (!scmSoftwareVersion.isSupportedBy(dnSoftwareVersion) && !versionManager.needsFinalization()) {
+      LOG.error("Datanode {} has software version {} which is older than SCM software version {} and SCM is " +
+              "finalized. Datanode must be upgraded to join the cluster.",
+          dnDetails, dnSoftwareVersion, scmSoftwareVersion);
+      return true;
+    }
+
+    // DN apparent version cannot be higher than SCM apparent version. SCM must finalize first.
+    if (!versionManager.isAllowed(dnApparentVersion)) {
+      LOG.error("Datanode {} has apparent version {} which is higher than SCM apparent version {}. " +
+          "SCM must finalize before datanodes.",
+          dnDetails, dnApparentVersion, scmApparentVersion);
+      return true;
+    }
+
+    // Else, either:
+    // DN software is older than SCM but SCM is pre-finalized: expected since DNs are upgraded after SCM.
+    // DN software matches SCM and DN apparent version <= SCM apparent version: DN can register and will be given a
+    //  finalize command if needed.
+    return false;
   }
 }

@@ -17,8 +17,8 @@
 
 package org.apache.hadoop.ozone.container.upgrade;
 
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
-
+import org.apache.hadoop.hdds.ComponentVersion;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.LayoutVersionProto;
 
 /**
@@ -29,15 +29,17 @@ public final class UpgradeUtils {
   private UpgradeUtils() {
   }
 
-  public static LayoutVersionProto defaultLayoutVersionProto() {
+  public static LayoutVersionProto defaultVersionProto() {
+    int softwareVersion = HDDSVersion.SOFTWARE_VERSION.serialize();
     return LayoutVersionProto.newBuilder()
-        .setMetadataLayoutVersion(maxLayoutVersion())
-        .setSoftwareLayoutVersion(maxLayoutVersion()).build();
+        .setMetadataLayoutVersion(softwareVersion)
+        .setSoftwareLayoutVersion(softwareVersion).build();
   }
 
-  public static LayoutVersionProto toLayoutVersionProto(int mLv, int sLv) {
+  public static LayoutVersionProto toVersionProto(ComponentVersion apparentVersion, ComponentVersion softwareVersion) {
     return LayoutVersionProto.newBuilder()
-        .setMetadataLayoutVersion(mLv)
-        .setSoftwareLayoutVersion(sLv).build();
+        .setMetadataLayoutVersion(apparentVersion.serialize())
+        .setSoftwareLayoutVersion(softwareVersion.serialize())
+        .build();
   }
 }

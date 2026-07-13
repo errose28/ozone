@@ -17,7 +17,7 @@
 
 package org.apache.hadoop.hdds.scm.node;
 
-import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultLayoutVersionProto;
+import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultVersionProto;
 
 import jakarta.annotation.Nullable;
 import java.io.Closeable;
@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.DatanodeID;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalState;
@@ -43,11 +44,12 @@ import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.server.events.EventHandler;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ozone.protocol.StorageContainerNodeProtocol;
 import org.apache.hadoop.ozone.protocol.commands.CommandForDatanode;
 import org.apache.hadoop.ozone.protocol.commands.RegisteredCommand;
 import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A node manager supports a simple interface for managing a datanode.
@@ -74,6 +76,8 @@ import org.apache.hadoop.ozone.protocol.commands.SCMCommand;
 public interface NodeManager extends StorageContainerNodeProtocol,
     EventHandler<CommandForDatanode>, NodeManagerMXBean, Closeable {
 
+  Logger LOG = LoggerFactory.getLogger(NodeManager.class);
+
   /**
    * Register API without a layout version info object passed in. Useful for
    * tests.
@@ -87,7 +91,7 @@ public interface NodeManager extends StorageContainerNodeProtocol,
       DatanodeDetails datanodeDetails, NodeReportProto nodeReport,
       PipelineReportsProto pipelineReportsProto) {
     return register(datanodeDetails, nodeReport, pipelineReportsProto,
-        defaultLayoutVersionProto());
+        defaultVersionProto());
   }
 
   /**
@@ -145,6 +149,55 @@ public interface NodeManager extends StorageContainerNodeProtocol,
   }
 
   /**
+   * @return DatanodeFinalizationCounts, finalized and total healthy node counts
+   */
+  default DatanodeFinalizationCounts getDatanodeFinalizationCounts() {
+    int finalizedNodes = 0;
+    int totalHealthyNodes = 0;
+
+    for (DatanodeDetails dn : getAllNodes()) {
+      try {
+        // Only count HEALTHY nodes. STALE/DEAD nodes are intentionally excluded
+        // for the following reasons:
+        //  - When a node goes STALE, its write pipelines are closed, so it
+        //    cannot be involved in writes regardless of finalization state.
+        //  - The ZDU write path is designed to handle datanodes at different
+        //    layout versions, so an unfinalized STALE node does not block
+        //    correctness if it later returns to HEALTHY.
+        //  - If it recovers to HEALTHY, it will receive a finalize command on
+        //    its next heartbeat and finalize quickly. If it is in bad shape,
+        //    it will likely go DEAD and can be ignored.
+        if (!getNodeStatus(dn).isHealthy()) {
+          continue;
+        }
+        totalHealthyNodes++;
+        DatanodeInfo datanodeInfo = getDatanodeInfo(dn);
+        if (datanodeInfo == null) {
+          LOG.warn("Could not get DatanodeInfo for {}, skip counting for finalization.", dn.getHostName());
+          continue;
+        }
+
+        ComponentVersion dnApparentVersion = datanodeInfo.getLastKnownApparentVersion();
+        ComponentVersion dnSoftwareVersion = datanodeInfo.getLastKnownSoftwareVersion();
+
+        if (!dnApparentVersion.equals(dnSoftwareVersion)) {
+          // Datanode has not yet finalized
+          LOG.debug("Datanode {} has not yet finalized: apparent version={}, software version={}",
+              dn.getHostName(), dnApparentVersion, dnSoftwareVersion);
+        } else {
+          finalizedNodes++;
+        }
+      } catch (NodeNotFoundException e) {
+        // Node was removed while we were iterating. This is OK, skip it.
+        LOG.debug("Node {} not found while waiting for finalization, " +
+            "skipping.", dn);
+      }
+    }
+
+    return new DatanodeFinalizationCounts(finalizedNodes, totalHealthyNodes);
+  }
+
+  /**
    * Returns the aggregated node stats.
    * @return the aggregated node stats.
    */
@@ -183,6 +236,19 @@ public interface NodeManager extends StorageContainerNodeProtocol,
    */
   @Nullable
   DatanodeInfo getDatanodeInfo(DatanodeDetails dn);
+
+  /**
+   * True if the node can accept another container of the given size.
+   */
+  boolean hasSpaceForNewContainerAllocation(DatanodeID datanodeID);
+
+  /**
+   * Records a pending container allocation for a single DataNode identified by its ID.
+   *
+   * @param datanodeID  the ID of the DataNode receiving the allocation
+   * @param containerID the container being allocated
+   */
+  void recordPendingAllocationForDatanode(DatanodeID datanodeID, ContainerID containerID);
 
   /**
    * Return the node stat of the specified datanode.
@@ -304,8 +370,8 @@ public interface NodeManager extends StorageContainerNodeProtocol,
    * @param datanodeDetails
    * @param layoutReport
    */
-  void processLayoutVersionReport(DatanodeDetails datanodeDetails,
-                         LayoutVersionProto layoutReport);
+  void processVersionReport(DatanodeDetails datanodeDetails,
+                            LayoutVersionProto layoutReport);
 
   /**
    * Get the number of commands of the given type queued on the datanode at the
@@ -405,12 +471,6 @@ public interface NodeManager extends StorageContainerNodeProtocol,
     return null;
   }
 
-  default HDDSLayoutVersionManager getLayoutVersionManager() {
-    return null;
-  }
-
-  default void forceNodesToHealthyReadOnly() { }
-
   /**
    * This API allows removal of only DECOMMISSIONED, IN_MAINTENANCE and DEAD nodes
    * from NodeManager data structures and cleanup memory.
@@ -422,4 +482,30 @@ public interface NodeManager extends StorageContainerNodeProtocol,
   }
 
   int openContainerLimit(List<DatanodeDetails> datanodes);
+
+  /**
+   * Class to store the number finalized and healthy datanodes.
+   */
+  final class DatanodeFinalizationCounts {
+    private final int numFinalizedDatanodes;
+    private final int totalHealthyDatanodes;
+
+    public DatanodeFinalizationCounts(int numFinalizedDatanodes,
+                                      int totalHealthyDatanodes) {
+      this.numFinalizedDatanodes = numFinalizedDatanodes;
+      this.totalHealthyDatanodes = totalHealthyDatanodes;
+    }
+
+    public int getNumFinalizedDatanodes() {
+      return numFinalizedDatanodes;
+    }
+
+    public int getTotalHealthyDatanodes() {
+      return totalHealthyDatanodes;
+    }
+
+    public boolean allNodesFinalized() {
+      return numFinalizedDatanodes == totalHealthyDatanodes;
+    }
+  }
 }

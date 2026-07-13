@@ -42,30 +42,30 @@ public class TestRpcClient {
         true), // Should validation pass
     NULL_EXPECTED_ONE_OM(
         null,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         null,
         true),
     NULL_EXPECTED_TWO_OM(
         null,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         true),
     NULL_EXPECTED_ONE_DEFAULT_ONE_CURRENT_OM(
         null,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
         true
     ),
     NULL_EXPECTED_ONE_CURRENT_ONE_FUTURE_OM(
         null,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true
     ),
     NULL_EXPECTED_TWO_FUTURE_OM(
         null,
-        OzoneManagerVersion.FUTURE_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true
     ),
 
@@ -81,12 +81,12 @@ public class TestRpcClient {
         true),
     DEFAULT_EXPECTED_ONE_CURRENT_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         null,
         true),
     DEFAULT_EXPECTED_ONE_FUTURE_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         null,
         true),
     DEFAULT_EXPECTED_TWO_DEFAULT_OM(
@@ -96,79 +96,79 @@ public class TestRpcClient {
         true),
     DEFAULT_EXPECTED_TWO_CURRENT_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         true),
     DEFAULT_EXPECTED_TWO_FUTURE_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true),
     DEFAULT_EXPECTED_ONE_DEFAULT_ONE_CURRENT_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         true),
     DEFAULT_EXPECTED_ONE_DEFAULT_ONE_FUTURE_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true),
     DEFAULT_EXPECTED_ONE_CURRENT_ONE_FUTURE_OM(
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true),
 
     CURRENT_EXPECTED_NO_OM(
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         null,
         null,
         false),
     CURRENT_EXPECTED_ONE_DEFAULT_OM(
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
         null,
         false),
     CURRENT_EXPECTED_ONE_CURRENT_OM(
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         null,
         true),
     CURRENT_EXPECTED_ONE_FUTURE_OM(
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         null,
         true),
     CURRENT_EXPECTED_TWO_DEFAULT_OM(
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
         false),
     CURRENT_EXPECTED_TWO_CURRENT_OM(
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         true),
     CURRENT_EXPECTED_TWO_FUTURE_OM(
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.FUTURE_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true),
     CURRENT_EXPECTED_ONE_DEFAULT_ONE_CURRENT_OM(
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         false),
     CURRENT_EXPECTED_ONE_DEFAULT_ONE_FUTURE_OM(
-        OzoneManagerVersion.CURRENT,
+        OzoneManagerVersion.SOFTWARE_VERSION,
         OzoneManagerVersion.DEFAULT_VERSION,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         false),
     CURRENT_EXPECTED_ONE_CURRENT_ONE_FUTURE_OM(
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.CURRENT,
-        OzoneManagerVersion.FUTURE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.SOFTWARE_VERSION,
+        OzoneManagerVersion.UNKNOWN_VERSION,
         true);
 
     private final OzoneManagerVersion expectedVersion;
@@ -210,9 +210,9 @@ public class TestRpcClient {
   }
 
   @Test
-  public void testFutureVersionShouldNotBeAnExpectedVersion() {
+  public void testUnknownVersionShouldNotBeAnExpectedVersion() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> validateOmVersion(OzoneManagerVersion.FUTURE_VERSION, null));
+        () -> validateOmVersion(OzoneManagerVersion.UNKNOWN_VERSION, null));
   }
 }

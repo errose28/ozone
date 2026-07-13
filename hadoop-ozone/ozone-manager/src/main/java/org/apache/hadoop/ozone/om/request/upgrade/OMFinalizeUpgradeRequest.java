@@ -17,7 +17,7 @@
 
 package org.apache.hadoop.ozone.om.request.upgrade;
 
-import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.APPARENT_VERSION_KEY;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.FinalizeUpgrade;
 
 import java.io.IOException;
@@ -25,6 +25,7 @@ import java.util.HashMap;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.UpgradeFinalizationStatus;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
@@ -59,7 +60,7 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
   @Override
   public OMClientResponse validateAndUpdateCache(OzoneManager ozoneManager, ExecutionContext context) {
     LOG.trace("Request: {}", getOmRequest());
-    AuditLogger auditLogger = ozoneManager.getAuditLogger();
+    AuditLogger auditLogger = ozoneManager.getSystemAuditLogger();
     OzoneManagerProtocolProtos.UserInfo userInfo = getOmRequest().getUserInfo();
     OMResponse.Builder responseBuilder =
         OmResponseUtil.getOMResponseBuilder(getOmRequest());
@@ -68,7 +69,7 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
     Exception exception = null;
 
     try {
-      if (ozoneManager.getAclsEnabled()) {
+      if (ozoneManager.isAdminAuthorizationEnabled()) {
         UserGroupInformation ugi = createUGIForApi();
         if (!ozoneManager.isAdmin(ugi)) {
           throw new OMException("Access denied for user " + ugi + ". "
@@ -79,9 +80,7 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
 
       FinalizeUpgradeRequest request =
           getOmRequest().getFinalizeUpgradeRequest();
-
       String upgradeClientID = request.getUpgradeClientId();
-
       StatusAndMessages omStatus =
           ozoneManager.finalizeUpgrade(upgradeClientID);
 
@@ -93,10 +92,13 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
               .build();
 
       OMMetadataManager omMetadataManager = ozoneManager.getMetadataManager();
-      int lV = ozoneManager.getVersionManager().getMetadataLayoutVersion();
+      int apparentVersion = ozoneManager.getVersionManager().getApparentVersion().serialize();
       omMetadataManager.getMetaTable().addCacheEntry(
-          new CacheKey<>(LAYOUT_VERSION_KEY),
-          CacheValue.get(context.getIndex(), String.valueOf(lV)));
+          new CacheKey<>(APPARENT_VERSION_KEY),
+          CacheValue.get(context.getIndex(), String.valueOf(apparentVersion)));
+      // Clear the finalization_in_progress key from the cache
+      omMetadataManager.getMetaTable().addCacheEntry(
+          new CacheKey<>(OzoneConsts.FINALIZATION_IN_PROGRESS_KEY), CacheValue.get(context.getIndex()));
 
       FinalizeUpgradeResponse omResponse =
           FinalizeUpgradeResponse.newBuilder()
@@ -104,7 +106,7 @@ public class OMFinalizeUpgradeRequest extends OMClientRequest {
               .build();
       responseBuilder.setFinalizeUpgradeResponse(omResponse);
       response = new OMFinalizeUpgradeResponse(responseBuilder.build(),
-          ozoneManager.getVersionManager().getMetadataLayoutVersion());
+          ozoneManager.getVersionManager().getApparentVersion().serialize());
       LOG.trace("Returning response: {}", response);
     } catch (IOException e) {
       exception = e;

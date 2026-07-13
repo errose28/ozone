@@ -82,7 +82,8 @@ import org.apache.hadoop.ozone.om.request.OMRequestTestUtils;
 import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotCreateRequest;
 import org.apache.hadoop.ozone.om.request.snapshot.TestOMSnapshotCreateRequest;
 import org.apache.hadoop.ozone.om.response.snapshot.OMSnapshotCreateResponse;
-import org.apache.hadoop.ozone.om.upgrade.OMLayoutVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManager;
+import org.apache.hadoop.ozone.om.upgrade.OMVersionManagerTestUtils;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.KeyArgs;
 import org.apache.hadoop.ozone.security.acl.OzoneNativeAuthorizer;
@@ -134,10 +135,10 @@ public class TestOMKeyRequest {
   @BeforeEach
   public void setup() throws Exception {
     ozoneManager = mock(OzoneManager.class);
-    omMetrics = OMMetrics.create();
+    OzoneConfiguration ozoneConfiguration = getOzoneConfiguration();
+    omMetrics = OMMetrics.create(ozoneConfiguration);
     perfMetrics = OMPerformanceMetrics.register();
     delMetrics = DeletingServiceMetrics.create();
-    OzoneConfiguration ozoneConfiguration = getOzoneConfiguration();
     ozoneConfiguration.set(OMConfigKeys.OZONE_OM_DB_DIRS,
         folder.toAbsolutePath().toString());
     ozoneConfiguration.set(OzoneConfigKeys.OZONE_METADATA_DIRS,
@@ -152,9 +153,8 @@ public class TestOMKeyRequest {
     when(ozoneManager.getMetadataManager()).thenReturn(omMetadataManager);
     when(ozoneManager.getConfiguration()).thenReturn(ozoneConfiguration);
     when(ozoneManager.getConfig()).thenReturn(ozoneConfiguration.getObject(OmConfig.class));
-    OMLayoutVersionManager lvm = mock(OMLayoutVersionManager.class);
-    when(lvm.isAllowed(anyString())).thenReturn(true);
-    when(ozoneManager.getVersionManager()).thenReturn(lvm);
+    OMVersionManager versionManager = OMVersionManagerTestUtils.mockFinalizedOmVersionManager();
+    when(ozoneManager.getVersionManager()).thenReturn(versionManager);
     when(ozoneManager.isFilesystemSnapshotEnabled()).thenReturn(true);
     auditLogger = mock(AuditLogger.class);
     when(ozoneManager.getAuditLogger()).thenReturn(auditLogger);

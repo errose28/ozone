@@ -17,18 +17,19 @@
 
 package org.apache.hadoop.ozone.om.upgrade;
 
-import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.INITIAL_VERSION;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
+import org.apache.hadoop.ozone.om.request.snapshot.OMSnapshotCreateRequest;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.BeforeEach;
@@ -53,48 +54,35 @@ public class TestOMLayoutFeatureAspect {
   }
 
   /**
-   * This unit test invokes the above 2 layout feature APIs. The first one
-   * should fail, and the second one should pass.
-   * @throws Exception
+   * Exercises {@link OMLayoutFeatureAspect#checkLayoutFeature} for an
+   * {@link org.apache.hadoop.ozone.om.request.OMClientRequest#preExecute} join
+   * point using the real {@link OMSnapshotCreateRequest#preExecute} metadata
+   * (including {@link DisallowedUntilLayoutVersion}).
    */
   @Test
   public void testDisallowedUntilLayoutVersion() throws Throwable {
-    OMLayoutFeatureUtil testObj = new OMLayoutFeatureUtil();
+    OzoneManager om = mock(OzoneManager.class);
+    OMVersionManager ovm = mock(OMVersionManager.class);
+    when(ovm.isAllowed(any(ComponentVersion.class))).thenReturn(false);
+    when(om.getVersionManager()).thenReturn(ovm);
+
+    OMSnapshotCreateRequest request = mock(OMSnapshotCreateRequest.class);
     OMLayoutFeatureAspect aspect = new OMLayoutFeatureAspect();
 
     JoinPoint joinPoint = mock(JoinPoint.class);
-    when(joinPoint.getTarget()).thenReturn(testObj);
+    when(joinPoint.getTarget()).thenReturn(request);
+    when(joinPoint.getArgs()).thenReturn(new Object[]{om});
+    when(joinPoint.toShortString())
+        .thenReturn("OMSnapshotCreateRequest.preExecute(..))");
 
     MethodSignature methodSignature = mock(MethodSignature.class);
     when(methodSignature.getMethod())
-        .thenReturn(OMLayoutFeatureUtil.class.getMethod("ecMethod"));
-    when(methodSignature.toShortString()).thenReturn("ecMethod");
+        .thenReturn(
+            OMSnapshotCreateRequest.class.getMethod("preExecute", OzoneManager.class));
     when(joinPoint.getSignature()).thenReturn(methodSignature);
 
     OMException omException = assertThrows(OMException.class,
         () -> aspect.checkLayoutFeature(joinPoint));
-    assertThat(omException.getMessage())
-        .contains("cannot be invoked before finalization");
-  }
-
-  @Test
-  public void testPreExecuteLayoutCheck() {
-
-    OzoneManager om = mock(OzoneManager.class);
-    OMLayoutVersionManager lvm = mock(OMLayoutVersionManager.class);
-    when(lvm.isAllowed(anyString())).thenReturn(false);
-    when(lvm.getFeature(anyString())).thenReturn(INITIAL_VERSION);
-    when(om.getVersionManager()).thenReturn(lvm);
-
-    MockOmRequest mockOmRequest = new MockOmRequest();
-    OMLayoutFeatureAspect aspect = new OMLayoutFeatureAspect();
-
-    JoinPoint joinPoint = mock(JoinPoint.class);
-    when(joinPoint.getArgs()).thenReturn(new Object[]{om});
-    when(joinPoint.getTarget()).thenReturn(mockOmRequest);
-
-    OMException omException = assertThrows(OMException.class,
-        () -> aspect.beforeRequestApplyTxn(joinPoint));
     assertThat(omException.getMessage())
         .contains("cannot be invoked before finalization");
   }

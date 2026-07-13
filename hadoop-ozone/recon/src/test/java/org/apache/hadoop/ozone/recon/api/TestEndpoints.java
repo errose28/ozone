@@ -18,7 +18,7 @@
 package org.apache.hadoop.ozone.recon.api;
 
 import static org.apache.hadoop.hdds.protocol.MockDatanodeDetails.randomDatanodeDetails;
-import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultLayoutVersionProto;
+import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultVersionProto;
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.getRandomPipeline;
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.getTestReconOmMetadataManager;
 import static org.apache.hadoop.ozone.recon.OMMetadataManagerTestUtils.initializeNewOmMetadataManager;
@@ -65,6 +65,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
@@ -95,7 +96,6 @@ import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineManager;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.hdds.utils.db.Table;
 import org.apache.hadoop.hdds.utils.db.TypedTable;
 import org.apache.hadoop.hdfs.web.URLConnectionFactory;
@@ -141,7 +141,6 @@ import org.apache.hadoop.ozone.recon.tasks.ReconOmTask;
 import org.apache.hadoop.ozone.security.acl.IAccessAuthorizer;
 import org.apache.ozone.recon.schema.UtilizationSchemaDefinition;
 import org.apache.ozone.recon.schema.generated.tables.daos.ContainerCountBySizeDao;
-import org.apache.ozone.recon.schema.generated.tables.daos.GlobalStatsDao;
 import org.apache.ozone.recon.schema.generated.tables.pojos.ContainerCountBySize;
 import org.apache.ozone.recon.schema.generated.tables.pojos.FileCountBySize;
 import org.apache.ozone.test.LambdaTestUtils;
@@ -294,7 +293,6 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
     volumeEndpoint = reconTestInjector.getInstance(VolumeEndpoint.class);
     bucketEndpoint = reconTestInjector.getInstance(BucketEndpoint.class);
     ContainerCountBySizeDao containerCountBySizeDao = reconScm.getContainerCountBySizeDao();
-    GlobalStatsDao globalStatsDao = getDao(GlobalStatsDao.class);
     UtilizationSchemaDefinition utilizationSchemaDefinition =
         getSchemaDefinition(UtilizationSchemaDefinition.class);
     reconFileMetadataManager = reconTestInjector.getInstance(ReconFileMetadataManager.class);
@@ -314,7 +312,7 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
     ContainerHealthSchemaManager containerHealthSchemaManager =
         reconTestInjector.getInstance(ContainerHealthSchemaManager.class);
     clusterStateEndpoint =
-        new ClusterStateEndpoint(reconScm, globalStatsDao, reconGlobalStatsManager,
+        new ClusterStateEndpoint(reconScm, reconGlobalStatsManager,
             containerHealthSchemaManager, mock(OzoneConfiguration.class));
     containerSizeCountTask = reconScm.getContainerSizeCountTask();
     MetricsServiceProviderFactory metricsServiceProviderFactory =
@@ -429,7 +427,7 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
         NodeReportProto.newBuilder()
             .addStorageReport(storageReportProto3)
             .addStorageReport(storageReportProto4).build();
-    LayoutVersionProto layoutInfo = defaultLayoutVersionProto();
+    LayoutVersionProto layoutInfo = defaultVersionProto();
 
     DatanodeDetailsProto datanodeDetailsProto3 =
         DatanodeDetailsProto.newBuilder()
@@ -473,12 +471,12 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
           .register(extendedDatanodeDetailsProto2, nodeReportProto2,
               ContainerReportsProto.newBuilder().build(),
               PipelineReportsProto.newBuilder().build(),
-              defaultLayoutVersionProto());
+              defaultVersionProto());
       reconScm.getDatanodeProtocolServer()
           .register(extendedDatanodeDetailsProto3, nodeReportProto3,
               ContainerReportsProto.newBuilder().build(),
               PipelineReportsProto.newBuilder().build(),
-              defaultLayoutVersionProto());
+              defaultVersionProto());
       // Process all events in the event queue
       reconScm.getEventQueue().processAll(1000);
     });
@@ -656,8 +654,7 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
       fail(String.format("Datanode %s not registered",
           hostname));
     }
-    assertEquals(HDDSLayoutVersionManager.maxLayoutVersion(),
-        datanodeMetadata.getLayoutVersion());
+    assertEquals(HDDSVersion.SOFTWARE_VERSION.serialize(), datanodeMetadata.getApparentVersion());
   }
 
   @Test
@@ -1279,7 +1276,7 @@ public class TestEndpoints extends AbstractReconSqlDBTest {
             .setContainerReport(containerReportsProto)
             .setDatanodeDetails(extendedDatanodeDetailsProto
                 .getDatanodeDetails())
-            .setDataNodeLayoutVersion(defaultLayoutVersionProto())
+            .setDataNodeLayoutVersion(defaultVersionProto())
             .build();
     reconScm.getDatanodeProtocolServer().sendHeartbeat(heartbeatRequestProto);
     LambdaTestUtils.await(30000, 1000, check);

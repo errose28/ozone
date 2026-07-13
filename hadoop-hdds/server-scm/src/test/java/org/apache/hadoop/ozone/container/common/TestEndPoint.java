@@ -18,9 +18,8 @@
 package org.apache.hadoop.ozone.container.common;
 
 import static org.apache.hadoop.hdds.protocol.MockDatanodeDetails.randomDatanodeDetails;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager.maxLayoutVersion;
 import static org.apache.hadoop.ozone.container.common.ContainerTestUtils.createEndpoint;
-import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultLayoutVersionProto;
+import static org.apache.hadoop.ozone.container.upgrade.UpgradeUtils.defaultVersionProto;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -39,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.apache.commons.io.FileUtils;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.DatanodeID;
@@ -60,7 +60,6 @@ import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.VersionInfo;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
 import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutVersionManager;
 import org.apache.hadoop.ipc_.RPC;
 import org.apache.hadoop.ozone.OzoneConfigKeys;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -82,6 +81,7 @@ import org.apache.hadoop.ozone.container.keyvalue.helpers.KeyValueContainerUtil;
 import org.apache.hadoop.ozone.container.ozoneimpl.ContainerController;
 import org.apache.hadoop.ozone.container.ozoneimpl.OzoneContainer;
 import org.apache.hadoop.ozone.container.replication.ReplicationServer.ReplicationConfig;
+import org.apache.hadoop.ozone.container.upgrade.DatanodeVersionManager;
 import org.apache.hadoop.ozone.protocol.commands.CommandStatus;
 import org.apache.hadoop.util.Time;
 import org.apache.ozone.test.GenericTestUtils.LogCapturer;
@@ -115,16 +115,15 @@ public class TestEndPoint {
 
   @BeforeAll
   static void setUp() throws Exception {
-    serverAddress = SCMTestUtils.getReuseableAddress();
     ozoneConf = SCMTestUtils.getConf(testDir);
     scmServerImpl = new ScmTestMock();
     dnDetails = randomDatanodeDetails();
-    DatanodeLayoutStorage layoutStorage = new DatanodeLayoutStorage(ozoneConf,
+    DatanodeStorage layoutStorage = new DatanodeStorage(ozoneConf,
         UUID.randomUUID().toString(),
-        HDDSLayoutFeature.DATANODE_SCHEMA_V3.layoutVersion());
+        HDDSLayoutFeature.DATANODE_SCHEMA_V3.serialize());
     layoutStorage.initialize();
-    scmServer = SCMTestUtils.startScmRpcServer(ozoneConf,
-        scmServerImpl, serverAddress, 10);
+    scmServer = SCMTestUtils.startScmRpcServer(ozoneConf, scmServerImpl);
+    serverAddress = scmServer.getListenerAddress();
     volumeChoosingPolicy = VolumeChoosingPolicyFactory.getPolicy(ozoneConf);
   }
 
@@ -288,8 +287,8 @@ public class TestEndPoint {
 
       // After the version call, the datanode layout file should
       // have its clusterID field set to the clusterID of the scm
-      DatanodeLayoutStorage layout
-          = new DatanodeLayoutStorage(ozoneConf,
+      DatanodeStorage layout
+          = new DatanodeStorage(ozoneConf,
           "na_expect_storage_initialized");
       assertEquals(scmServerImpl.getClusterId(), layout.getClusterID());
 
@@ -311,8 +310,8 @@ public class TestEndPoint {
       // not update its clusterID field.
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       versionTask.call();
-      DatanodeLayoutStorage layout1
-          = new DatanodeLayoutStorage(ozoneConf,
+      DatanodeStorage layout1
+          = new DatanodeStorage(ozoneConf,
           "na_expect_storage_initialized");
 
       assertEquals("different_cluster_id", layout1.getClusterID());
@@ -322,7 +321,7 @@ public class TestEndPoint {
       FileUtils.forceDelete(layout1.getVersionFile());
       rpcEndPoint.setState(EndpointStateMachine.EndPointStates.GETVERSION);
       versionTask.call();
-      assertEquals(StorageState.NOT_INITIALIZED, new DatanodeLayoutStorage(ozoneConf, "any").getState());
+      assertEquals(StorageState.NOT_INITIALIZED, new DatanodeStorage(ozoneConf, "any").getState());
 
       FileUtils.forceDelete(storageDir);
     }
@@ -399,7 +398,7 @@ public class TestEndPoint {
                           nodeToRegister.getID()))),
               HddsTestUtils.getRandomContainerReports(10),
               HddsTestUtils.getRandomPipelineReports(),
-              defaultLayoutVersionProto());
+              defaultVersionProto());
       assertNotNull(responseProto);
       assertEquals(nodeToRegister.getUuidString(), responseProto.getDatanodeUUID());
       assertNotNull(responseProto.getClusterID());
@@ -433,15 +432,18 @@ public class TestEndPoint {
     when(ozoneContainer.getController()).thenReturn(controller);
     when(ozoneContainer.getPipelineReport()).thenReturn(
         HddsTestUtils.getRandomPipelineReports());
-    HDDSLayoutVersionManager versionManager =
-        mock(HDDSLayoutVersionManager.class);
-    when(versionManager.getMetadataLayoutVersion())
-        .thenReturn(maxLayoutVersion());
-    when(versionManager.getSoftwareLayoutVersion())
-        .thenReturn(maxLayoutVersion());
+    DatanodeVersionManager versionManager =
+        mock(DatanodeVersionManager.class);
+    when(versionManager.getApparentVersion())
+        .thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    when(versionManager.getSoftwareVersion())
+        .thenReturn(HDDSVersion.SOFTWARE_VERSION);
+    DatanodeStateMachine dn = mock(DatanodeStateMachine.class);
+    when(dn.getVersionManager()).thenReturn(versionManager);
+    StateContext context = mock(StateContext.class);
+    when(context.getParent()).thenReturn(dn);
     RegisterEndpointTask endpointTask =
-        new RegisterEndpointTask(rpcEndPoint, ozoneContainer,
-            mock(StateContext.class), versionManager);
+        new RegisterEndpointTask(rpcEndPoint, ozoneContainer, context);
     if (!clearDatanodeDetails) {
       DatanodeDetails datanodeDetails = randomDatanodeDetails();
       endpointTask.setDatanodeDetails(datanodeDetails);
@@ -625,8 +627,7 @@ public class TestEndPoint {
               stateMachine, "");
 
       HeartbeatEndpointTask endpointTask =
-          new HeartbeatEndpointTask(rpcEndPoint, conf, stateContext,
-              stateMachine.getLayoutVersionManager());
+          new HeartbeatEndpointTask(rpcEndPoint, conf, stateContext);
       endpointTask.setDatanodeDetailsProto(datanodeDetailsProto);
       endpointTask.call();
       assertNotNull(endpointTask.getDatanodeDetailsProto());

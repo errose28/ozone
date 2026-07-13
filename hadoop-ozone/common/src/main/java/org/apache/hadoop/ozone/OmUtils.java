@@ -38,6 +38,7 @@ import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_LISTENER_NODES_KE
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_NODES_KEY;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_PORT_DEFAULT;
 import static org.apache.hadoop.ozone.om.OMConfigKeys.OZONE_OM_SERVICE_IDS_KEY;
+import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.ReadConsistencyProto.READ_CONSISTENCY_UNSPECIFIED;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -174,28 +175,6 @@ public final class OmUtils {
   }
 
   /**
-   * Retrieve the socket address that should be used by clients to connect
-   * to OM.
-   * @param conf
-   * @return Target InetSocketAddress for the OM service endpoint.
-   */
-  public static InetSocketAddress getOmAddressForClients(
-      ConfigurationSource conf) {
-    final Optional<String> host = getHostNameFromConfigKeys(conf,
-        OZONE_OM_ADDRESS_KEY);
-
-    if (!host.isPresent()) {
-      throw new IllegalArgumentException(
-          OZONE_OM_ADDRESS_KEY + " must be defined. See" +
-              " https://wiki.apache.org/hadoop/Ozone#Configuration for" +
-              " details on configuring Ozone.");
-    }
-
-    return NetUtils.createSocketAddr(
-        host.get() + ":" + getOmRpcPort(conf));
-  }
-
-  /**
    * Returns true if OZONE_OM_SERVICE_IDS_KEY is defined and not empty.
    * @param conf Configuration
    * @return true if OZONE_OM_SERVICE_IDS_KEY is defined and not empty;
@@ -272,6 +251,7 @@ public final class OmUtils {
     case SnapshotDiff:
     case CancelSnapshotDiff:
     case ListSnapshotDiffJobs:
+    case SubmitSnapshotDiff:
     case TransferLeadership:
     case SetSafeMode:
     case PrintCompactionLogDag:
@@ -284,6 +264,7 @@ public final class OmUtils {
     // Prepare and CancelPrepare are now no-ops, but still produce responses for compatability.
     case Prepare:
     case CancelPrepare:
+    case QueryUpgradeStatus:
       return true;
     case CreateVolume:
     case SetVolumeProperty:
@@ -318,6 +299,7 @@ public final class OmUtils {
       // TODO: Remove once migrated to proto3 and mark fields in proto
       // as deprecated
     case FinalizeUpgrade:
+    case StartFinalizeUpgrade:
     case DeleteOpenKeys:
     case SetS3Secret:
     case RevokeS3Secret:
@@ -431,6 +413,7 @@ public final class OmUtils {
       // TODO: Remove once migrated to proto3 and mark fields in proto
       // as deprecated
     case FinalizeUpgrade:
+    case StartFinalizeUpgrade:
     case Prepare:
     case CancelPrepare:
     case DeleteOpenKeys:
@@ -463,6 +446,7 @@ public final class OmUtils {
     case SnapshotDiff:
     case CancelSnapshotDiff:
     case ListSnapshotDiffJobs:
+    case SubmitSnapshotDiff:
     case PrintCompactionLogDag:
       // Snapshot diff is a local to a single OM node so we should not send it arbitrarily
       // to any OM nodes
@@ -473,6 +457,7 @@ public final class OmUtils {
       // Quota repair lifecycle request should be initiated by the leader
     case DBUpdates: // We are currently only interested on the leader DB info
     case UnknownCommand:
+    case QueryUpgradeStatus:
       return false;
     case EchoRPC:
       return omRequest.getEchoRPCRequest().getReadOnly();
@@ -1149,5 +1134,11 @@ public final class OmUtils {
       LOG.error("Failure in resolving OM host address", e);
       throw e;
     }
+  }
+
+  public static boolean specifiedReadConsistency(OMRequest request) {
+    return request.hasReadConsistencyHint()
+        && request.getReadConsistencyHint().hasReadConsistency()
+        && request.getReadConsistencyHint().getReadConsistency() != READ_CONSISTENCY_UNSPECIFIED;
   }
 }

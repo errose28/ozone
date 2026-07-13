@@ -29,7 +29,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
 import com.google.protobuf.ByteString;
-import com.google.protobuf.ProtoUtils;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.UnsafeByteOperations;
 import jakarta.annotation.Nonnull;
 import java.io.IOException;
 import java.time.Instant;
@@ -48,9 +49,11 @@ import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.TransferLeadershipRequestProto;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.UpgradeFinalizationStatus;
 import org.apache.hadoop.hdds.scm.container.common.helpers.ExcludeList;
+import org.apache.hadoop.hdds.tracing.SkipTracing;
 import org.apache.hadoop.hdds.tracing.TracingUtil;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.ipc_.CallerContext;
+import org.apache.hadoop.ipc_.RemoteException;
 import org.apache.hadoop.ozone.ClientVersion;
 import org.apache.hadoop.ozone.OzoneAcl;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -221,6 +224,7 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetTime
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetVolumePropertyRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SetVolumePropertyResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.SnapshotInfoRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.StartFinalizeUpgradeRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantAssignAdminRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantAssignUserAccessIdRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.TenantAssignUserAccessIdResponse;
@@ -244,6 +248,7 @@ import org.apache.hadoop.ozone.snapshot.ListSnapshotResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffReportOzone;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse.JobStatus;
+import org.apache.hadoop.ozone.snapshot.SubmitSnapshotDiffResponse;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization.StatusAndMessages;
 import org.apache.hadoop.ozone.util.ProtobufUtils;
@@ -299,7 +304,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   private OMRequest.Builder createOMRequest(Type cmdType) {
     return OMRequest.newBuilder()
         .setCmdType(cmdType)
-        .setVersion(ClientVersion.CURRENT_VERSION)
+        .setVersion(ClientVersion.CURRENT.serialize())
         .setClientId(clientID);
   }
 
@@ -743,6 +748,9 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
     if (args.getExpectedDataGeneration() != null) {
       keyArgs.setExpectedDataGeneration(args.getExpectedDataGeneration());
     }
+    if (args.getExpectedETag() != null) {
+      keyArgs.setExpectedETag(args.getExpectedETag());
+    }
 
     req.setKeyArgs(keyArgs.build());
 
@@ -843,7 +851,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
         .addAllMetadata(KeyValueUtil.toProtobuf(args.getMetadata()))
         .addAllKeyLocations(locationInfoList.stream()
             // TODO use OM version?
-            .map(info -> info.getProtobuf(ClientVersion.CURRENT_VERSION))
+            .map(info -> info.getProtobuf(ClientVersion.CURRENT.serialize()))
             .collect(Collectors.toList()));
 
     setReplicationConfig(args.getReplicationConfig(), keyArgsBuilder);
@@ -1254,7 +1262,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
     if (!StringUtils.isBlank(snapshotName)) {
       requestBuilder.setSnapshotName(snapshotName);
     }
-      
+
     final OMRequest omRequest = createOMRequest(Type.CreateSnapshot)
         .setCreateSnapshotRequest(requestBuilder)
         .build();
@@ -1378,6 +1386,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
    * {@inheritDoc}
    */
   @Override
+  @Deprecated
   public SnapshotDiffResponse snapshotDiff(String volumeName,
                                            String bucketName,
                                            String fromSnapshot,
@@ -1387,6 +1396,36 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
                                            boolean forceFullDiff,
                                            boolean disableNativeDiff)
       throws IOException {
+    return snapshotDiffInternal(volumeName, bucketName, fromSnapshot, toSnapshot, token,
+        pageSize, forceFullDiff, disableNativeDiff, false);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public SnapshotDiffResponse snapshotDiff(String volumeName,
+                                           String bucketName,
+                                           String fromSnapshot,
+                                           String toSnapshot,
+                                           String token,
+                                           int pageSize)
+      throws IOException {
+    return snapshotDiffInternal(volumeName, bucketName, fromSnapshot, toSnapshot, token,
+        pageSize, null, null, true);
+  }
+
+  @SuppressWarnings("checkstyle:ParameterNumber")
+  private SnapshotDiffResponse snapshotDiffInternal(String volumeName,
+                                                    String bucketName,
+                                                    String fromSnapshot,
+                                                    String toSnapshot,
+                                                    String token,
+                                                    int pageSize,
+                                                    Boolean forceFullDiff,
+                                                    Boolean disableNativeDiff,
+                                                    boolean reportOnly)
+      throws IOException {
     final OzoneManagerProtocolProtos.SnapshotDiffRequest.Builder
         requestBuilder =
         OzoneManagerProtocolProtos.SnapshotDiffRequest.newBuilder()
@@ -1394,9 +1433,15 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
             .setBucketName(bucketName)
             .setFromSnapshot(fromSnapshot)
             .setToSnapshot(toSnapshot)
-            .setPageSize(pageSize)
-            .setForceFullDiff(forceFullDiff)
-            .setDisableNativeDiff(disableNativeDiff);
+            .setPageSize(pageSize);
+
+    if (forceFullDiff != null) {
+      requestBuilder.setForceFullDiff(forceFullDiff);
+    }
+
+    if (disableNativeDiff != null) {
+      requestBuilder.setDisableNativeDiff(disableNativeDiff);
+    }
 
     if (!StringUtils.isBlank(token)) {
       requestBuilder.setToken(token);
@@ -1414,7 +1459,48 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
         diffResponse.getSnapshotDiffReport()),
         JobStatus.fromProtobuf(diffResponse.getJobStatus()),
         diffResponse.getWaitTimeInMs(),
-        diffResponse.getReason());
+        diffResponse.getReason(),
+        reportOnly);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public SubmitSnapshotDiffResponse submitSnapshotDiff(String volumeName,
+                                                       String bucketName,
+                                                       String fromSnapshot,
+                                                       String toSnapshot,
+                                                       boolean forceFullDiff,
+                                                       boolean disableNativeDiff)
+      throws IOException {
+    final OzoneManagerProtocolProtos.SubmitSnapshotDiffRequest.Builder
+        requestBuilder =
+        OzoneManagerProtocolProtos.SubmitSnapshotDiffRequest.newBuilder()
+            .setVolumeName(volumeName)
+            .setBucketName(bucketName)
+            .setFromSnapshot(fromSnapshot)
+            .setToSnapshot(toSnapshot)
+            .setForceFullDiff(forceFullDiff)
+            .setDisableNativeDiff(disableNativeDiff);
+
+    final OMRequest omRequest = createOMRequest(Type.SubmitSnapshotDiff)
+        .setSubmitSnapshotDiffRequest(requestBuilder)
+        .build();
+    final OMResponse omResponse;
+    try {
+      omResponse = submitRequest(omRequest);
+      handleError(omResponse);
+    } catch (IOException ex) {
+      if ((ex instanceof RemoteException) &&
+          (InvalidProtocolBufferException.class.getName().equals(((RemoteException) ex).getClassName()))) {
+        throw new OMException("Server does not support SubmitSnapshotDiff API", ResultCodes.NOT_SUPPORTED_OPERATION);
+      }
+      throw ex;
+    }
+    OzoneManagerProtocolProtos.SubmitSnapshotDiffResponse submitDiffResponse =
+        omResponse.getSubmitSnapshotDiffResponse();
+    return new SubmitSnapshotDiffResponse(submitDiffResponse.getResponse());
   }
 
   /**
@@ -1681,7 +1767,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
         .addAllMetadata(KeyValueUtil.toProtobuf(omKeyArgs.getMetadata()))
         .addAllKeyLocations(locationInfoList.stream()
             // TODO use OM version?
-            .map(info -> info.getProtobuf(ClientVersion.CURRENT_VERSION))
+            .map(info -> info.getProtobuf(ClientVersion.CURRENT.serialize()))
             .collect(Collectors.toList()));
     multipartCommitUploadPartRequest.setClientID(clientId);
     multipartCommitUploadPartRequest.setKeyArgs(keyArgs.build());
@@ -1949,6 +2035,18 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   }
 
   @Override
+  public void finalizeUpgrade() throws IOException {
+    StartFinalizeUpgradeRequest req = StartFinalizeUpgradeRequest.newBuilder()
+        .build();
+
+    OMRequest omRequest = createOMRequest(Type.StartFinalizeUpgrade)
+        .setStartFinalizeUpgradeRequest(req)
+        .build();
+
+    handleError(submitRequest(omRequest));
+  }
+
+  @Override
   public StatusAndMessages queryUpgradeFinalizationProgress(
       String upgradeClientID, boolean takeover, boolean readonly
   ) throws IOException {
@@ -1973,6 +2071,18 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
         UpgradeFinalization.Status.valueOf(status.getStatus().name()),
         status.getMessagesList()
     );
+  }
+
+  @Override
+  public OzoneManagerProtocolProtos.QueryUpgradeStatusResponse queryUpgradeStatus() throws IOException {
+    OzoneManagerProtocolProtos.QueryUpgradeStatusRequest
+        req = OzoneManagerProtocolProtos.QueryUpgradeStatusRequest.newBuilder().build();
+
+    OMRequest omRequest = createOMRequest(Type.QueryUpgradeStatus)
+        .setQueryUpgradeStatusRequest(req)
+        .build();
+
+    return handleError(submitRequest(omRequest)).getQueryUpgradeStatusResponse();
   }
 
   /**
@@ -2088,6 +2198,7 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   }
 
   @Override
+  @SkipTracing
   public S3Auth getThreadLocalS3Auth() {
     return this.threadLocalS3Auth.get();
   }
@@ -2488,9 +2599,13 @@ public final class OzoneManagerProtocolClientSideTranslatorPB
   @Override
   public EchoRPCResponse echoRPCReq(byte[] payloadReq, int payloadSizeRespBytes,
                                     boolean writeToRatis) throws IOException {
+
+    ByteString payload = payloadReq != null && payloadReq.length > 0
+        ? UnsafeByteOperations.unsafeWrap(payloadReq) : ByteString.EMPTY;
+
     EchoRPCRequest echoRPCRequest =
             EchoRPCRequest.newBuilder()
-                    .setPayloadReq(ProtoUtils.unsafeByteString(payloadReq))
+                    .setPayloadReq(payload)
                     .setPayloadSizeResp(payloadSizeRespBytes)
                     .setReadOnly(!writeToRatis)
                     .build();

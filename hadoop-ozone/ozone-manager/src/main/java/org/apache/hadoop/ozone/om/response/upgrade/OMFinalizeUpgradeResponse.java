@@ -17,11 +17,12 @@
 
 package org.apache.hadoop.ozone.om.response.upgrade;
 
-import static org.apache.hadoop.ozone.OzoneConsts.LAYOUT_VERSION_KEY;
+import static org.apache.hadoop.ozone.OzoneConsts.APPARENT_VERSION_KEY;
 import static org.apache.hadoop.ozone.om.codec.OMDBDefinition.META_TABLE;
 
 import java.io.IOException;
 import org.apache.hadoop.hdds.utils.db.BatchOperation;
+import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.response.CleanupTableInfo;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
@@ -36,23 +37,26 @@ import org.slf4j.LoggerFactory;
 public class OMFinalizeUpgradeResponse extends OMClientResponse {
   private static final Logger LOG =
       LoggerFactory.getLogger(OMFinalizeUpgradeResponse.class);
-  private int layoutVersionToWrite = -1;
+  private int serializedApparentVersion = -1;
 
   public OMFinalizeUpgradeResponse(
       OzoneManagerProtocolProtos.OMResponse omResponse,
-      int layoutVersionToWrite) {
+      int serializedApparentVersion) {
     super(omResponse);
-    this.layoutVersionToWrite = layoutVersionToWrite;
+    this.serializedApparentVersion = serializedApparentVersion;
   }
 
   @Override
   protected void addToDBBatch(OMMetadataManager omMetadataManager,
       BatchOperation batchOperation) throws IOException {
-    if (layoutVersionToWrite != -1) {
-      LOG.info("Layout version to persist to DB : {}", layoutVersionToWrite);
+    if (serializedApparentVersion != -1) {
+      LOG.info("Serialized apparent component version to persist to DB : {}",
+          serializedApparentVersion);
       omMetadataManager.getMetaTable().putWithBatch(batchOperation,
-          LAYOUT_VERSION_KEY,
-          String.valueOf(layoutVersionToWrite));
+          APPARENT_VERSION_KEY,
+          String.valueOf(serializedApparentVersion));
     }
+    // Finalization has completed successfully, so the IN_PROGRESS Key should be removed from the database.
+    omMetadataManager.getMetaTable().deleteWithBatch(batchOperation, OzoneConsts.FINALIZATION_IN_PROGRESS_KEY);
   }
 }

@@ -73,6 +73,7 @@ import org.apache.hadoop.ozone.snapshot.CancelSnapshotDiffResponse;
 import org.apache.hadoop.ozone.snapshot.ListSnapshotDiffJobResponse;
 import org.apache.hadoop.ozone.snapshot.ListSnapshotResponse;
 import org.apache.hadoop.ozone.snapshot.SnapshotDiffResponse;
+import org.apache.hadoop.ozone.snapshot.SubmitSnapshotDiffResponse;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization;
 import org.apache.hadoop.security.KerberosInfo;
 import org.apache.hadoop.security.token.TokenInfo;
@@ -491,6 +492,30 @@ public interface OzoneManagerProtocol
   UpgradeFinalization.StatusAndMessages finalizeUpgrade(String upgradeClientID) throws IOException;
 
   /**
+   * Initiate metadata upgrade finalization.
+   * This method when called, performs two actions. First, it will result in OM making a call to SCM to start
+   * finalizing the HDDS layer. After that call completes successfully, the HDDS finalization will be in progress.
+   * Second, a key will be written to the OM database to persist the fact that OM finalization is pending. It will
+   * complete once the HDDS layer has completed. OM will poll SCM periodically to check the status of the SCM
+   * finalization progress, and OM will only finalize when SCM indicates it is OK for it to do so.
+   *
+   * This command is async, and will return before finalization is complete. The caller must issue a Query Finalization
+   * Progress command to monitor the progress.
+   *
+   * @throws IOException If any error occurs. If this happens finalization is not in progress and the command must be
+   *                     retried.
+   */
+  void finalizeUpgrade() throws IOException;
+
+  /**
+   * Returns the upgrade status of the cluster. This call is received by OM which will in turn query SCM to get the
+   * status of it and the datanodes, and return the combined status to the caller.
+   * @return QueryUpgradeStatusResponse containing details of the overall cluster state
+   * @throws IOException If any error occurs.
+   */
+  OzoneManagerProtocolProtos.QueryUpgradeStatusResponse queryUpgradeStatus() throws IOException;
+
+  /**
    * Queries the current status of finalization.
    * This method when called, returns the status messages from the finalization
    * progress, if any. The status returned is
@@ -792,9 +817,13 @@ public interface OzoneManagerProtocol
    * @param token to get the index to return diff report from.
    * @param pageSize maximum entries returned to the report.
    * @param forceFullDiff request to force full diff, skipping DAG optimization
+   * @param disableNativeDiff request to force diff to perform diffs without native lib
    * @return the difference report between two snapshots
+   * @deprecated Use {@link #snapshotDiff(String, String, String, String, String, int)}
+   * instead
    * @throws IOException in case of any exception while generating snapshot diff
    */
+  @Deprecated
   @SuppressWarnings("parameternumber")
   default SnapshotDiffResponse snapshotDiff(String volumeName,
                                             String bucketName,
@@ -804,6 +833,51 @@ public interface OzoneManagerProtocol
                                             int pageSize,
                                             boolean forceFullDiff,
                                             boolean disableNativeDiff)
+      throws IOException {
+    throw new UnsupportedOperationException("OzoneManager does not require " +
+        "this to be implemented");
+  }
+
+  /**
+   * Get the differences between two snapshots.
+   * @param volumeName Name of the volume to which the snapshotted bucket belong
+   * @param bucketName Name of the bucket to which the snapshots belong
+   * @param fromSnapshot The name of the starting snapshot
+   * @param toSnapshot The name of the ending snapshot
+   * @param token to get the index to return diff report from.
+   * @param pageSize maximum entries returned to the report.
+   * @return the difference report between two snapshots
+   * instead
+   * @throws IOException in case of any exception while generating snapshot diff
+   */
+  default SnapshotDiffResponse snapshotDiff(String volumeName,
+                                            String bucketName,
+                                            String fromSnapshot,
+                                            String toSnapshot,
+                                            String token,
+                                            int pageSize)
+      throws IOException {
+    throw new UnsupportedOperationException("OzoneManager does not require " +
+        "this to be implemented");
+  }
+
+  /**
+   * Submit snapshot diff job.
+   * @param volumeName Name of the volume to which the snapshot bucket belong
+   * @param bucketName Name of the bucket to which the snapshots belong
+   * @param fromSnapshot The name of the starting snapshot
+   * @param toSnapshot The name of the ending snapshot
+   * @param forceFullDiff request to force full diff, skipping DAG optimization
+   * @param disableNativeDiff request to force diff to perform diffs without native lib
+   * @return the result of submitting snapshot diff job.
+   * @throws IOException in case of any exception while generating snapshot diff
+   */
+  default SubmitSnapshotDiffResponse submitSnapshotDiff(String volumeName,
+                                                String bucketName,
+                                                String fromSnapshot,
+                                                String toSnapshot,
+                                                boolean forceFullDiff,
+                                                boolean disableNativeDiff)
       throws IOException {
     throw new UnsupportedOperationException("OzoneManager does not require " +
         "this to be implemented");

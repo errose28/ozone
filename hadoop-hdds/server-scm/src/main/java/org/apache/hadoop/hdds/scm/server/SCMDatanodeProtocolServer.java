@@ -94,7 +94,7 @@ import org.apache.hadoop.ozone.protocol.commands.ClosePipelineCommand;
 import org.apache.hadoop.ozone.protocol.commands.CreatePipelineCommand;
 import org.apache.hadoop.ozone.protocol.commands.DeleteBlocksCommand;
 import org.apache.hadoop.ozone.protocol.commands.DeleteContainerCommand;
-import org.apache.hadoop.ozone.protocol.commands.FinalizeNewLayoutVersionCommand;
+import org.apache.hadoop.ozone.protocol.commands.FinalizeVersionCommand;
 import org.apache.hadoop.ozone.protocol.commands.ReconcileContainerCommand;
 import org.apache.hadoop.ozone.protocol.commands.RefreshVolumeUsageCommand;
 import org.apache.hadoop.ozone.protocol.commands.RegisteredCommand;
@@ -280,12 +280,12 @@ public class SCMDatanodeProtocolServer implements
     auditMap.append('[');
     for (SCMCommandProto cmd : cmds) {
       if (cmd.getCommandType().equals(deleteBlocksCommand)) {
-        auditMap.append("commandType: ").append(cmd.getCommandType());
-        auditMap.append(" deleteTransactionsCount: ")
-            .append(cmd.getDeleteBlocksCommandProto().getDeletedBlocksTransactionsCount());
-        auditMap.append(" cmdID: ").append(cmd.getDeleteBlocksCommandProto().getCmdId());
-        auditMap.append(" encodedToken: \"").append(cmd.getEncodedToken()).append('"');
-        auditMap.append(" deadlineMsSinceEpoch: ").append(cmd.getDeadlineMsSinceEpoch());
+        auditMap.append("commandType: ").append(cmd.getCommandType())
+            .append(" deleteTransactionsCount: ")
+            .append(cmd.getDeleteBlocksCommandProto().getDeletedBlocksTransactionsCount())
+            .append(" cmdID: ").append(cmd.getDeleteBlocksCommandProto().getCmdId())
+            .append(" encodedToken: \"").append(cmd.getEncodedToken()).append('"')
+            .append(" deadlineMsSinceEpoch: ").append(cmd.getDeadlineMsSinceEpoch());
       } else {
         auditMap.append(TextFormat.shortDebugString(cmd));
       }
@@ -423,7 +423,7 @@ public class SCMDatanodeProtocolServer implements
       return builder
             .setCommandType(finalizeNewLayoutVersionCommand)
             .setFinalizeNewLayoutVersionCommandProto(
-                ((FinalizeNewLayoutVersionCommand)cmd).getProto())
+                ((FinalizeVersionCommand)cmd).getProto())
             .build();
     case refreshVolumeUsageInfo:
       return builder

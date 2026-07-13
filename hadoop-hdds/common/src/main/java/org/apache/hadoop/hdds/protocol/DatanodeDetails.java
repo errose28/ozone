@@ -17,9 +17,6 @@
 
 package org.apache.hadoop.hdds.protocol;
 
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature.HADOOP_PRC_PORTS_IN_DATANODEDETAILS;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature.RATIS_DATASTREAM_PORT_IN_DATANODEDETAILS;
-import static org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature.WEBUI_PORTS_IN_DATANODEDETAILS;
 import static org.apache.hadoop.ozone.ClientVersion.VERSION_HANDLES_UNKNOWN_DN_PORTS;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -36,7 +33,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.hadoop.hdds.DatanodeVersion;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.HddsUtils;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
 import org.apache.hadoop.hdds.annotation.InterfaceStability;
@@ -46,7 +43,6 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos.ExtendedDatanodeDetailsP
 import org.apache.hadoop.hdds.scm.net.NetConstants;
 import org.apache.hadoop.hdds.scm.net.NetUtils;
 import org.apache.hadoop.hdds.scm.net.NodeImpl;
-import org.apache.hadoop.hdds.upgrade.BelongsToHDDSLayoutVersion;
 import org.apache.hadoop.hdds.utils.db.Codec;
 import org.apache.hadoop.hdds.utils.db.DelegatedCodec;
 import org.apache.hadoop.hdds.utils.db.Proto2Codec;
@@ -384,6 +380,17 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
     return null;
   }
 
+  // CHANGE: add a helper to check whether a port is explicitly present
+  // without applying compatibility fallback.
+  public synchronized boolean hasPort(Port.Name name) {
+    for (Port port : ports) {
+      if (port.getName().equals(name)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Helper method to get the Ratis port.
    * 
@@ -469,7 +476,7 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
       builder.setCurrentVersion(datanodeDetailsProto.getCurrentVersion());
     } else {
       // fallback to version 1 if not present
-      builder.setCurrentVersion(DatanodeVersion.SEPARATE_RATIS_PORTS_AVAILABLE.toProtoValue());
+      builder.setCurrentVersion(HDDSVersion.SEPARATE_RATIS_PORTS_AVAILABLE.serialize());
     }
     return builder;
   }
@@ -517,7 +524,7 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
    */
   @JsonIgnore
   public HddsProtos.DatanodeDetailsProto getProtoBufMessage() {
-    return toProto(ClientVersion.CURRENT_VERSION);
+    return toProto(ClientVersion.CURRENT.serialize());
   }
 
   public HddsProtos.DatanodeDetailsProto toProto(int clientVersion) {
@@ -572,8 +579,7 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
     builder.setPersistedOpStateExpiry(persistedOpStateExpiryEpochSec);
 
     final boolean handlesUnknownPorts =
-        ClientVersion.fromProtoValue(clientVersion)
-        .compareTo(VERSION_HANDLES_UNKNOWN_DN_PORTS) >= 0;
+        VERSION_HANDLES_UNKNOWN_DN_PORTS.isSupportedBy(clientVersion);
     final int requestedPortCount = filterPorts.size();
     final boolean maySkip = requestedPortCount > 0;
     for (Port port : ports) {
@@ -727,7 +733,7 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
     private HddsProtos.NodeOperationalState persistedOpState;
     private long persistedOpStateExpiryEpochSec = 0;
     private int initialVersion;
-    private int currentVersion = DatanodeVersion.CURRENT_VERSION;
+    private int currentVersion = HDDSVersion.SOFTWARE_VERSION.serialize();
 
     /**
      * Default private constructor. To create Builder instance use
@@ -1021,13 +1027,9 @@ public class DatanodeDetails extends NodeImpl implements Comparable<DatanodeDeta
      */
     public enum Name {
       STANDALONE, RATIS, REST, REPLICATION, RATIS_ADMIN, RATIS_SERVER,
-      @BelongsToHDDSLayoutVersion(RATIS_DATASTREAM_PORT_IN_DATANODEDETAILS)
       RATIS_DATASTREAM,
-      @BelongsToHDDSLayoutVersion(WEBUI_PORTS_IN_DATANODEDETAILS)
       HTTP,
-      @BelongsToHDDSLayoutVersion(WEBUI_PORTS_IN_DATANODEDETAILS)
       HTTPS,
-      @BelongsToHDDSLayoutVersion(HADOOP_PRC_PORTS_IN_DATANODEDETAILS)
       CLIENT_RPC;
 
       public static final Set<Name> ALL_PORTS = ImmutableSet.copyOf(

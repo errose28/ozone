@@ -29,6 +29,9 @@ import static org.apache.hadoop.hdds.scm.server.StorageContainerManager.startRpc
 import static org.apache.hadoop.hdds.server.ServerUtils.getRemoteUserName;
 import static org.apache.hadoop.hdds.server.ServerUtils.updateRPCListenAddress;
 import static org.apache.hadoop.hdds.utils.HddsServerUtil.getRemoteUser;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_DONE_MSG;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.FINALIZATION_REQUIRED_MSG;
+import static org.apache.hadoop.ozone.upgrade.UpgradeFinalization.Status.ALREADY_FINALIZED;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -60,6 +63,7 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionInfo;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.DeletedBlocksTransactionSummary;
 import org.apache.hadoop.hdds.protocol.proto.ReconfigureProtocolProtos.ReconfigureProtocolService;
+import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolProtos.StorageReportProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.ContainerBalancerStatusInfoResponseProto;
 import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolProtos.DecommissionScmResponseProto;
@@ -92,6 +96,7 @@ import org.apache.hadoop.hdds.scm.ha.SCMRatisServer;
 import org.apache.hadoop.hdds.scm.ha.SCMRatisServerImpl;
 import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
 import org.apache.hadoop.hdds.scm.node.DatanodeUsageInfo;
+import org.apache.hadoop.hdds.scm.node.NodeManager;
 import org.apache.hadoop.hdds.scm.node.NodeStatus;
 import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
@@ -119,6 +124,7 @@ import org.apache.hadoop.ozone.audit.SCMAction;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization.StatusAndMessages;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.token.Token;
+import org.apache.hadoop.util.StringUtils;
 import org.apache.ratis.grpc.GrpcTlsConfig;
 import org.apache.ratis.protocol.RaftGroup;
 import org.apache.ratis.protocol.RaftPeer;
@@ -387,8 +393,8 @@ public class SCMClientProtocolServer implements
       try {
         ContainerWithPipeline cp = getContainerWithPipelineCommon(containerID);
         cpList.add(cp);
-        strContainerIDs.append(ContainerID.valueOf(containerID).toString());
-        strContainerIDs.append(',');
+        strContainerIDs.append(ContainerID.valueOf(containerID).toString())
+            .append(',');
       } catch (IOException ex) {
         AUDIT.logReadFailure(buildAuditMessageForFailure(
             SCMAction.GET_CONTAINER_WITH_PIPELINE_BATCH,
@@ -450,7 +456,7 @@ public class SCMClientProtocolServer implements
   @Override
   public ContainerListResult listContainer(long startContainerID,
       int count) throws IOException {
-    return listContainer(startContainerID, count, null, null, null);
+    return listContainer(startContainerID, count, null, null, null, null);
   }
 
   /**
@@ -467,7 +473,7 @@ public class SCMClientProtocolServer implements
   @Override
   public ContainerListResult listContainer(long startContainerID,
       int count, HddsProtos.LifeCycleState state) throws IOException {
-    return listContainer(startContainerID, count, state, null, null);
+    return listContainer(startContainerID, count, state, null, null, null);
   }
 
   /**
@@ -486,20 +492,28 @@ public class SCMClientProtocolServer implements
   public ContainerListResult listContainer(long startContainerID,
       int count, HddsProtos.LifeCycleState state,
       HddsProtos.ReplicationFactor factor) throws IOException {
-    return listContainerInternal(startContainerID, count, state, factor, null, null);
+    return listContainerInternal(startContainerID, count, state, factor, null, null, null);
   }
 
   private ContainerListResult listContainerInternal(long startContainerID, int count,
       HddsProtos.LifeCycleState state,
       HddsProtos.ReplicationFactor factor,
       HddsProtos.ReplicationType replicationType,
-      ReplicationConfig repConfig) throws IOException {
+      ReplicationConfig repConfig,
+      Boolean suppressed) throws IOException {
     boolean auditSuccess = true;
-    Map<String, String> auditMap = buildAuditMap(startContainerID, count, state, factor, replicationType, repConfig);
+    Map<String, String> auditMap = buildAuditMap(startContainerID, count, state, factor, 
+        replicationType, repConfig, suppressed);
 
     try {
       Stream<ContainerInfo> containerStream =
           buildContainerStream(factor, replicationType, repConfig, getBaseContainerStream(state));
+      
+      // Filter by suppressed flag only if explicitly specified
+      if (suppressed != null) {
+        containerStream = containerStream.filter(info -> info.isSuppressed() == suppressed);
+      }
+      
       List<ContainerInfo> containerInfos =
           containerStream.filter(info -> info.containerID().getId() >= startContainerID)
               .sorted().collect(Collectors.toList());
@@ -551,7 +565,8 @@ public class SCMClientProtocolServer implements
       HddsProtos.LifeCycleState state,
       HddsProtos.ReplicationFactor factor,
       HddsProtos.ReplicationType replicationType,
-      ReplicationConfig repConfig) {
+      ReplicationConfig repConfig,
+      Boolean suppressed) {
     Map<String, String> auditMap = new HashMap<>();
     auditMap.put("startContainerID", String.valueOf(startContainerID));
     auditMap.put("count", String.valueOf(count));
@@ -566,6 +581,9 @@ public class SCMClientProtocolServer implements
     }
     if (repConfig != null) {
       auditMap.put("replicationConfig", repConfig.toString());
+    }
+    if (suppressed != null) {
+      auditMap.put("suppressed", suppressed.toString());
     }
 
     return auditMap;
@@ -587,7 +605,28 @@ public class SCMClientProtocolServer implements
       int count, HddsProtos.LifeCycleState state,
       HddsProtos.ReplicationType replicationType,
       ReplicationConfig repConfig) throws IOException {
-    return listContainerInternal(startContainerID, count, state, null, replicationType, repConfig);
+    return listContainerInternal(startContainerID, count, state, null, replicationType, repConfig, null);
+  }
+
+  /**
+   * Lists a range of containers and get their info.
+   *
+   * @param startContainerID start containerID.
+   * @param count count must be {@literal >} 0.
+   * @param state Container with this state will be returned.
+   * @param repConfig Replication Config for the container.
+   * @param suppressed container to be suppressed/unsuppressed from report
+   * @return a list of containers capped by max count allowed
+   * in "ozone.scm.container.list.max.count" and total number of containers.
+   * @throws IOException
+   */
+  @Override
+  public ContainerListResult listContainer(long startContainerID,
+      int count, HddsProtos.LifeCycleState state,
+      HddsProtos.ReplicationType replicationType,
+      ReplicationConfig repConfig,
+      Boolean suppressed) throws IOException {
+    return listContainerInternal(startContainerID, count, state, null, replicationType, repConfig, suppressed);
   }
 
   @Override
@@ -654,6 +693,7 @@ public class SCMClientProtocolServer implements
         if (datanodeInfo != null) {
           nodeBuilder.setTotalVolumeCount(datanodeInfo.getStorageReports().size());
           nodeBuilder.setHealthyVolumeCount(datanodeInfo.getHealthyVolumeCount());
+          addFailedVolumes(nodeBuilder, datanodeInfo);
         }
         result.add(nodeBuilder.build());
       }
@@ -686,6 +726,7 @@ public class SCMClientProtocolServer implements
         if (datanodeInfo != null) {
           nodeBuilder.setTotalVolumeCount(datanodeInfo.getStorageReports().size());
           nodeBuilder.setHealthyVolumeCount(datanodeInfo.getHealthyVolumeCount());
+          addFailedVolumes(nodeBuilder, datanodeInfo);
         }
         result = nodeBuilder.build();
       }
@@ -699,6 +740,15 @@ public class SCMClientProtocolServer implements
     AUDIT.logReadSuccess(buildAuditMessageForSuccess(
         SCMAction.QUERY_NODE, auditMap));
     return result;
+  }
+
+  private static void addFailedVolumes(HddsProtos.Node.Builder nodeBuilder,
+      DatanodeInfo datanodeInfo) {
+    for (StorageReportProto report : datanodeInfo.getStorageReports()) {
+      if (report.hasFailed() && report.getFailed()) {
+        nodeBuilder.addFailedVolumes(report.getStorageLocation());
+      }
+    }
   }
 
   @Override
@@ -1099,50 +1149,89 @@ public class SCMClientProtocolServer implements
     return scm.getReplicationManager().getContainerReport();
   }
 
+  /*
+   * This command is deprecated and is retained for backward compatibility. It no longer finalizes SCM
+   * as the process is driven from OM which will trigger the SCM finalize process.
+   */
   @Override
-  public StatusAndMessages finalizeScmUpgrade(String upgradeClientID) throws
-      IOException {
-    final Map<String, String> auditMap = Maps.newHashMap();
-    auditMap.put("upgradeClientID", upgradeClientID);
-    try {
-      // check admin authorization
-      getScm().checkAdminAccess(getRemoteUser(), false);
-      // TODO HDDS-6762: Return to the client once the FINALIZATION_STARTED
-      //  checkpoint has been crossed and continue finalizing asynchronously.
-      StatusAndMessages result = scm.getFinalizationManager().finalizeUpgrade(upgradeClientID);
-      AUDIT.logWriteSuccess(buildAuditMessageForSuccess(
-          SCMAction.FINALIZE_SCM_UPGRADE, auditMap));
-      return result;
-    } catch (Exception ex) {
-      AUDIT.logWriteFailure(buildAuditMessageForFailure(
-          SCMAction.FINALIZE_SCM_UPGRADE, auditMap, ex));
-      throw ex;
-    }
-
+  @Deprecated
+  public StatusAndMessages finalizeScmUpgrade(String upgradeClientID) {
+    // This command is kept only for legacy upgrade scripts which would have first finalized SCM and then
+    // made a call to OM to finalize it. The new flow, is that a single call to OM triggers the finalization process.
+    // The legacy OM command now calls the new one and correctly starts the flow, so this command has become a
+    // noop. Regardless of whether SCM is finalized or not, we return ALREADY_FINALIZED to allow any scripts to move
+    // on and call OM to start the process.
+    return new StatusAndMessages(ALREADY_FINALIZED, Collections.emptyList());
   }
 
   @Override
+  public void finalizeUpgrade() throws IOException {
+    final Map<String, String> auditMap = Collections.emptyMap();
+    try {
+      getScm().checkAdminAccess(getRemoteUser(), false);
+      scm.getFinalizationManager().finalizeUpgrade();
+      AUDIT.logWriteSuccess(buildAuditMessageForSuccess(SCMAction.FINALIZE_SCM_UPGRADE, auditMap));
+    } catch (Exception ex) {
+      AUDIT.logWriteFailure(buildAuditMessageForFailure(SCMAction.FINALIZE_SCM_UPGRADE, auditMap, ex));
+      throw ex;
+    }
+  }
+
+  @Override
+  @Deprecated
   public StatusAndMessages queryUpgradeFinalizationProgress(
       String upgradeClientID, boolean force, boolean readonly)
       throws IOException {
+
+    // This method, we change to call the queryUpgradeStatus and create a StatusAndMessages object that reflects
+    // the state.
+
     Map<String, String> auditMap = Maps.newHashMap();
     auditMap.put("upgradeClientID", upgradeClientID);
     auditMap.put("force", String.valueOf(force));
     auditMap.put("readonly", String.valueOf(readonly));
 
     try {
-      // check admin authorization
-      if (!readonly) {
-        getScm().checkAdminAccess(getRemoteUser(), true);
+      getScm().checkAdminAccess(getRemoteUser(), true);
+      StatusAndMessages result;
+      if (scm.getVersionManager().needsFinalization()) {
+        result = FINALIZATION_REQUIRED_MSG;
+      } else {
+        result = FINALIZATION_DONE_MSG;
       }
-      StatusAndMessages result = scm.getFinalizationManager()
-          .queryUpgradeFinalizationProgress(upgradeClientID, force, readonly);
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(
           SCMAction.QUERY_UPGRADE_FINALIZATION_PROGRESS, auditMap));
       return result;
     } catch (IOException ex) {
       AUDIT.logReadFailure(buildAuditMessageForFailure(
           SCMAction.QUERY_UPGRADE_FINALIZATION_PROGRESS, auditMap, ex));
+      throw ex;
+    }
+  }
+
+  @Override
+  public HddsProtos.UpgradeStatus queryUpgradeStatus() throws IOException {
+    try {
+      getScm().checkAdminAccess(getRemoteUser(), true);
+
+      boolean scmFinalized = !scm.getVersionManager().needsFinalization();
+      NodeManager.DatanodeFinalizationCounts datanodeFinalizationCounts =
+          scm.getScmNodeManager().getDatanodeFinalizationCounts();
+      int finalizedDatanodes = datanodeFinalizationCounts.getNumFinalizedDatanodes();
+      int healthyDatanodes = datanodeFinalizationCounts.getTotalHealthyDatanodes();
+      boolean shouldFinalize = scmFinalized && datanodeFinalizationCounts.allNodesFinalized() && !scm.isInSafeMode();
+
+      HddsProtos.UpgradeStatus result = HddsProtos.UpgradeStatus.newBuilder()
+          .setScmFinalized(scmFinalized)
+          .setNumDatanodesFinalized(finalizedDatanodes)
+          .setNumDatanodesTotal(healthyDatanodes)
+          .setShouldFinalize(shouldFinalize)
+          .build();
+
+      AUDIT.logReadSuccess(buildAuditMessageForSuccess(SCMAction.QUERY_UPGRADE_STATUS, null));
+      return result;
+    } catch (IOException ex) {
+      AUDIT.logReadFailure(buildAuditMessageForFailure(SCMAction.QUERY_UPGRADE_STATUS, null, ex));
       throw ex;
     }
   }
@@ -1159,7 +1248,9 @@ public class SCMClientProtocolServer implements
       Optional<Integer> moveReplicationTimeout,
       Optional<Boolean> networkTopologyEnable,
       Optional<String> includeNodes,
-      Optional<String> excludeNodes) throws IOException {
+      Optional<String> excludeNodes,
+      Optional<String> excludeContainers,
+      Optional<String> includeContainers) throws IOException {
     Map<String, String> auditMap = Maps.newHashMap();
     try {
       getScm().checkAdminAccess(getRemoteUser(), false);
@@ -1267,6 +1358,18 @@ public class SCMClientProtocolServer implements
         String ex = excludeNodes.get();
         auditMap.put("excludeNodes", (ex));
         cbc.setExcludeNodes(ex);
+      }
+
+      if (excludeContainers.isPresent()) {
+        String ec = excludeContainers.get();
+        auditMap.put("excludeContainers", (ec));
+        cbc.setExcludeContainers(ec);
+      }
+
+      if (includeContainers.isPresent()) {
+        String ic = includeContainers.get();
+        auditMap.put("includeContainers", (ic));
+        cbc.setIncludeContainers(ic);
       }
 
       ContainerBalancer containerBalancer = scm.getContainerBalancer();
@@ -1487,7 +1590,7 @@ public class SCMClientProtocolServer implements
     auditMap.put("state", String.valueOf(state));
 
     try {
-      long count = scm.getContainerManager().getContainers(state).size();
+      long count = scm.getContainerManager().getContainerStateCount(state);
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(
           SCMAction.GET_CONTAINER_COUNT, auditMap));
       return count;
@@ -1499,8 +1602,8 @@ public class SCMClientProtocolServer implements
   }
 
   @Override
-  public List<ContainerInfo> getListOfContainers(
-      long startContainerID, int count, HddsProtos.LifeCycleState state)
+  public List<ContainerID> getListOfContainerIDs(
+      ContainerID startContainerID, int count, HddsProtos.LifeCycleState state)
       throws IOException {
 
     final Map<String, String> auditMap = Maps.newHashMap();
@@ -1508,14 +1611,14 @@ public class SCMClientProtocolServer implements
     auditMap.put("count", String.valueOf(count));
     auditMap.put("state", String.valueOf(state));
     try {
-      List<ContainerInfo> results = scm.getContainerManager().getContainers(
-          ContainerID.valueOf(startContainerID), count, state);
+      List<ContainerID> results = scm.getContainerManager().getContainerIDs(
+          startContainerID, count, state);
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(
-          SCMAction.LIST_CONTAINER, auditMap));
+          SCMAction.LIST_CONTAINER_IDS, auditMap));
       return results;
     } catch (Exception ex) {
       AUDIT.logReadFailure(buildAuditMessageForFailure(
-          SCMAction.LIST_CONTAINER, auditMap, ex));
+          SCMAction.LIST_CONTAINER_IDS, auditMap, ex));
       throw ex;
     }
   }
@@ -1619,7 +1722,7 @@ public class SCMClientProtocolServer implements
     } catch (IOException ex) {
       decommissionScmResponseBuilder
           .setSuccess(false)
-          .setErrorMsg(ex.getMessage());
+          .setErrorMsg(ex.getMessage() == null ? StringUtils.stringifyException(ex) : ex.getMessage());
       AUDIT.logWriteFailure(buildAuditMessageForFailure(
           SCMAction.DECOMMISSION_SCM, auditMap, ex));
     }
@@ -1677,6 +1780,38 @@ public class SCMClientProtocolServer implements
       AUDIT.logWriteSuccess(buildAuditMessageForSuccess(SCMAction.RECONCILE_CONTAINER, auditMap));
     } catch (SCMException ex) {
       AUDIT.logWriteFailure(buildAuditMessageForFailure(SCMAction.RECONCILE_CONTAINER, auditMap, ex));
+      throw ex;
+    }
+  }
+
+  @Override
+  public List<Long> suppressContainers(List<Long> containerIds, boolean suppress) throws IOException {
+    getScm().checkAdminAccess(getRemoteUser(), false);
+    SCMAction action = suppress ? SCMAction.SUPPRESS_CONTAINER : SCMAction.UNSUPPRESS_CONTAINER;
+    List<Long> failedContainerIDs = new ArrayList<>();
+    for (long containerId : containerIds) {
+      try {
+        persistContainerSuppression(containerId, suppress, action);
+      } catch (IOException ex) {
+        failedContainerIDs.add(containerId);
+      }
+    }
+    return failedContainerIDs;
+  }
+
+  private void persistContainerSuppression(long longContainerID, boolean suppress, SCMAction action)
+      throws IOException {
+    ContainerID containerID = ContainerID.valueOf(longContainerID);
+    final Map<String, String> auditMap = new HashMap<>();
+    auditMap.put("containerID", containerID.toString());
+    auditMap.put("suppress", String.valueOf(suppress));
+    try {
+      ContainerInfo containerInfo = scm.getContainerManager().getContainer(containerID);
+      containerInfo.setSuppressed(suppress);
+      scm.getContainerManager().updateContainerInfo(containerID, containerInfo.getProtobuf());
+      AUDIT.logWriteSuccess(buildAuditMessageForSuccess(action, auditMap));
+    } catch (IOException ex) {
+      AUDIT.logWriteFailure(buildAuditMessageForFailure(action, auditMap, ex));
       throw ex;
     }
   }

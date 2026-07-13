@@ -29,9 +29,11 @@ import org.apache.hadoop.hdds.protocol.DatanodeID;
 import org.apache.hadoop.hdds.protocol.MockDatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeOperationalState;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos.NodeState;
+import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
 import org.apache.hadoop.hdds.scm.node.NodeStatus;
+import org.apache.hadoop.ozone.container.upgrade.UpgradeUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,8 @@ public class TestNodeStateMap {
   }
 
   void addNode(DatanodeDetails datanode, NodeStatus status) throws NodeAlreadyExistsException {
-    map.addNode(new DatanodeInfo(datanode, status, null));
+    map.addNode(new DatanodeInfo(datanode, status, UpgradeUtils.defaultVersionProto(),
+        HddsTestUtils.ROLL_INTERVAL_MS_DEFAULT));
   }
 
   @BeforeEach
