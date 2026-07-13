@@ -17,25 +17,19 @@
 
 package org.apache.hadoop.ozone.container.upgrade;
 
-import org.apache.hadoop.hdds.ComponentVersion;
+import static org.apache.hadoop.hdds.HDDSVersion.ZDU;
+
 import org.apache.hadoop.hdds.upgrade.DatanodeUpgradeAction;
-import org.apache.hadoop.ozone.upgrade.AbstractUpgradeActionProvider;
-import org.apache.hadoop.ozone.upgrade.UpgradeActionDatanode;
+import org.apache.hadoop.ozone.container.common.statemachine.DatanodeStateMachine;
+import org.apache.hadoop.ozone.upgrade.DatanodeUpgradeActionForVersion;
 
 /**
- * Loads {@link DatanodeUpgradeAction} implementations annotated with {@link UpgradeActionDatanode}.
+ * No-op upgrade action used only to verify that {@link DatanodeUpgradeActionForVersion} is scanned by
+ * {@link org.apache.hadoop.hdds.upgrade.DatanodeUpgradeActionProvider} in tests.
  */
-public final class DatanodeUpgradeActionProvider extends AbstractUpgradeActionProvider<DatanodeUpgradeAction> {
-
-  public static final String DATANODE_UPGRADE_CLASS_PACKAGE = "org.apache.hadoop.ozone.container";
-
-  public DatanodeUpgradeActionProvider() {
-    super(UpgradeActionDatanode.class, DatanodeUpgradeAction.class, DATANODE_UPGRADE_CLASS_PACKAGE);
-  }
-
+@DatanodeUpgradeActionForVersion(version = ZDU)
+public class ZduDatanodeUpgradeActionForTest implements DatanodeUpgradeAction {
   @Override
-  protected ComponentVersion extractVersion(Class<?> clazz) {
-    UpgradeActionDatanode annotation = clazz.getAnnotation(UpgradeActionDatanode.class);
-    return annotation.feature();
+  public void execute(DatanodeStateMachine arg) {
   }
 }

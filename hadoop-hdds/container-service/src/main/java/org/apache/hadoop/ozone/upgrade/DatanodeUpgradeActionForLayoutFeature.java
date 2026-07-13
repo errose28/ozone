@@ -15,18 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.ozone.om.upgrade;
+package org.apache.hadoop.ozone.upgrade;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
 
 /**
- * Annotation to specify upgrade action run during Ozone Manager finalization.
+ * Annotation to specify a Datanode upgrade action tied to an HDDS layout feature.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface UpgradeActionOm {
-  OMLayoutFeature feature();
+public @interface DatanodeUpgradeActionForLayoutFeature {
+  HDDSLayoutFeature feature();
 }

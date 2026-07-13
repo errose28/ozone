@@ -15,24 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.ozone.recon.upgrade;
+package org.apache.hadoop.ozone.om.upgrade;
 
-import javax.sql.DataSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import org.apache.hadoop.ozone.OzoneManagerVersion;
 
 /**
- * Upgrade action for the REPLICATED_SIZE_OF_FILES layout feature.
- * The action triggers a full rebuild of the NSSummary ensuring that the new field: replicatedSizeOfFiles is correctly
- * populated for all objects.
+ * Annotation to specify upgrade action run during Ozone Manager finalization.
  */
-@ReconUpgradeActionForVersion(version = ReconVersion.REPLICATED_SIZE_OF_FILES)
-public class ReplicatedSizeOfFilesUpgradeAction implements ReconUpgradeAction {
-
-  private static final Logger LOG = LoggerFactory.getLogger(ReplicatedSizeOfFilesUpgradeAction.class);
-
-  @Override
-  public void execute(DataSource dataSource) throws Exception {
-    ReconUpgradeAction.queueNSSummaryRebuildIfNeeded(LOG);
-  }
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface OmUpgradeActionForVersion {
+  OzoneManagerVersion version();
 }

@@ -15,24 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.ozone.recon.upgrade;
+package org.apache.hadoop.ozone.om.upgrade;
 
-import javax.sql.DataSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static org.apache.hadoop.ozone.OzoneManagerVersion.ZDU;
+
+import org.apache.hadoop.ozone.om.OzoneManager;
 
 /**
- * Upgrade action for the REPLICATED_SIZE_OF_FILES layout feature.
- * The action triggers a full rebuild of the NSSummary ensuring that the new field: replicatedSizeOfFiles is correctly
- * populated for all objects.
+ * No-op upgrade action used only to verify that {@link OmUpgradeActionForVersion} is scanned by
+ * {@link OMUpgradeActionProvider} in tests.
  */
-@ReconUpgradeActionForVersion(version = ReconVersion.REPLICATED_SIZE_OF_FILES)
-public class ReplicatedSizeOfFilesUpgradeAction implements ReconUpgradeAction {
-
-  private static final Logger LOG = LoggerFactory.getLogger(ReplicatedSizeOfFilesUpgradeAction.class);
-
+@OmUpgradeActionForVersion(version = ZDU)
+public class ZduOmUpgradeActionForTest implements OmUpgradeAction {
   @Override
-  public void execute(DataSource dataSource) throws Exception {
-    ReconUpgradeAction.queueNSSummaryRebuildIfNeeded(LOG);
+  public void execute(OzoneManager arg) {
   }
 }
