@@ -77,6 +77,7 @@ import org.apache.ozone.test.GenericTestUtils;
 import org.apache.ozone.test.GenericTestUtils.LogCapturer;
 import org.apache.ozone.test.tag.Unhealthy;
 import org.apache.ratis.server.protocol.TermIndex;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -186,6 +187,10 @@ public class TestOMRatisSnapshotTransfer {
     if (cluster != null) {
       cluster.shutdown();
     }
+  }
+
+  @AfterAll
+  public static void deleteAuditLogs() {
     AuditLogTestUtils.deleteAuditLogFile();
     AuditLogTestUtils.deleteSystemAuditLogFile();
   }
