@@ -90,12 +90,15 @@ public class StatusSubCommand extends AbstractSubcommand implements Callable<Int
     HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
     out.println("Upgrade status:");
     out.println("    OM Finalized?            " + status.getOmFinalized());
-    out.println("    OM Apparent Version:     " + OzoneManagerVersion.deserialize(status.getOmApparentVersion()).toString());
+    out.println("    OM Apparent Version:     "
+        + OzoneManagerVersion.deserialize(status.getOmApparentVersion()).toString());
     out.println("    SCM Finalized?           " + hdds.getScmFinalized());
     out.println("    SCM Apparent Version:    " + HDDSVersion.deserialize(hdds.getScmApparentVersion()).toString());
     out.println("    Datanodes finalized:     " + hdds.getNumDatanodesFinalized() + "/" + hdds.getNumDatanodesTotal());
-    out.println("    Min Datanode Apparent Version: " + HDDSVersion.deserialize(hdds.getMinDatanodeApparentVersion()).toString());
-    out.println("    Max Datanode Apparent Version: " + HDDSVersion.deserialize(hdds.getMaxDatanodeApparentVersion()).toString());
+    out.println("    Min Datanode Apparent Version: "
+        + HDDSVersion.deserialize(hdds.getMinDatanodeApparentVersion()).toString());
+    out.println("    Max Datanode Apparent Version: "
+        + HDDSVersion.deserialize(hdds.getMaxDatanodeApparentVersion()).toString());
   }
 
   protected OzoneManagerProtocol getClient() throws Exception {
