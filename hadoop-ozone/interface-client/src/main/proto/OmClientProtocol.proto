@@ -1649,8 +1649,7 @@ message QueryUpgradeStatusRequest {
 message QueryUpgradeStatusResponse {
     optional bool omFinalized = 1;
     optional hadoop.hdds.UpgradeStatus hddsStatus = 2;
-    optional int32 omSoftwareVersion = 3;
-    optional int32 omApparentVersion = 4;
+    optional uint32 omApparentVersion = 3;
 }
 
 // deprecated, use QueryUpgradeStatusRequest/Response instead. Retained for wire compatibility.

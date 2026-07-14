@@ -3656,7 +3656,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     return QueryUpgradeStatusResponse.newBuilder()
         .setOmFinalized(!versionManager.needsFinalization())
         .setHddsStatus(scmStatus)
-        .setOmSoftwareVersion(versionManager.getSoftwareVersion().serialize())
         .setOmApparentVersion(versionManager.getApparentVersion().serialize())
         .build();
   }

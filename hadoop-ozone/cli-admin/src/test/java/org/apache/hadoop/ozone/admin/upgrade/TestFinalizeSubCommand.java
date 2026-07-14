@@ -18,6 +18,7 @@
 package org.apache.hadoop.ozone.admin.upgrade;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doNothing;
@@ -33,6 +34,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.helpers.ServiceInfo;
@@ -139,7 +141,7 @@ public class TestFinalizeSubCommand {
   }
 
   @Test
-  public void testWaitFlagCompletesImmediatelyWhenAlreadyFinalized() throws Exception {
+  public void testStatusCalledOnceWhenAlreadyFinalized() throws Exception {
     when(omClient.queryUpgradeStatus()).thenReturn(finalizedStatus(3, 3));
 
     new CommandLine(cmd).parseArgs("--wait");
@@ -169,42 +171,49 @@ public class TestFinalizeSubCommand {
 
   @Test
   public void testWaitFlagInterruptIsHandledCleanly() throws Exception {
-    // Make the poll interval long enough that the interrupt lands during sleep.
+    // Make the poll interval long enough that the interrupt lands during the sleep (after the first poll).
     cmd.setPollIntervalMillis(60_000);
     when(omClient.queryUpgradeStatus()).thenReturn(inProgressStatus(0, 3));
 
     new CommandLine(cmd).parseArgs("--wait");
 
+    AtomicInteger result = new AtomicInteger(-1);
     Thread runner = new Thread(() -> {
       try {
-        cmd.call();
+        result.set(cmd.call());
       } catch (Exception ignored) {
-        // assertion in main thread
+        // The command handles interruption internally and should not throw.
       }
     });
     runner.start();
-    // Give the runner a moment to start sleeping.
+    // Give the runner a moment to complete the first poll and start sleeping.
     Thread.sleep(50);
     runner.interrupt();
     runner.join(5_000);
 
     String output = outContent.toString(DEFAULT_ENCODING);
     assertTrue(output.contains("Waiting interrupted"));
-    verify(omClient, never()).queryUpgradeStatus();
+    // With check-before-sleep, the first poll runs before the interrupting sleep.
+    verify(omClient, times(1)).queryUpgradeStatus();
+    // The command must swallow the interrupt and return success.
+    assertEquals(0, result.get());
   }
 
   @Test
   public void testWaitFlagIsResumableAfterCancel() throws Exception {
-    // First invocation: block forever in Thread.sleep so we can interrupt.
+    // First invocation: one in-progress poll, then blocked in Thread.sleep so we can interrupt it.
     cmd.setPollIntervalMillis(60_000);
-    // Second invocation is expected to see a finalized cluster on the first poll.
-    when(omClient.queryUpgradeStatus()).thenReturn(finalizedStatus(3, 3));
+    // First invocation's poll: in progress (so it sleeps); second invocation's poll: finalized.
+    when(omClient.queryUpgradeStatus())
+        .thenReturn(inProgressStatus(0, 3))
+        .thenReturn(finalizedStatus(3, 3));
 
     new CommandLine(cmd).parseArgs("--wait");
 
+    AtomicInteger firstResult = new AtomicInteger(-1);
     Thread runner = new Thread(() -> {
       try {
-        cmd.call();
+        firstResult.set(cmd.call());
       } catch (Exception ignored) {
         // First call swallows interrupt cleanly; nothing to assert from the side thread.
       }
@@ -217,8 +226,9 @@ public class TestFinalizeSubCommand {
     String firstOutput = outContent.toString(DEFAULT_ENCODING);
     assertTrue(firstOutput.contains("Cluster finalization has been started"));
     assertTrue(firstOutput.contains("Waiting interrupted"));
-    // Side thread was interrupted during the initial sleep, so the first poll never happened.
-    verify(omClient, never()).queryUpgradeStatus();
+    assertEquals(0, firstResult.get());
+    // First invocation performed exactly one poll before being interrupted during the sleep.
+    verify(omClient, times(1)).queryUpgradeStatus();
 
     // Second invocation — reset output capture and shrink the poll interval so it exits promptly.
     outContent.reset();
@@ -232,8 +242,8 @@ public class TestFinalizeSubCommand {
     assertTrue(secondOutput.contains("Finalization complete."));
     // finalizeUpgrade must have been issued on both runs (idempotent server-side).
     verify(omClient, times(2)).finalizeUpgrade();
-    // queryUpgradeStatus only ran during the second invocation.
-    verify(omClient, times(1)).queryUpgradeStatus();
+    // queryUpgradeStatus ran once per invocation.
+    verify(omClient, times(2)).queryUpgradeStatus();
     // The client is closed after each try-with-resources block.
     verify(omClient, times(2)).close();
   }
@@ -248,9 +258,12 @@ public class TestFinalizeSubCommand {
     assertEquals(0, cmd.call());
 
     String output = outContent.toString(DEFAULT_ENCODING);
-    // Verbose output uses the StatusSubCommand.printVerbose layout.
     assertTrue(output.contains("OM Finalized?"));
     assertTrue(output.contains("SCM Finalized?"));
+    assertTrue(output.contains("OM Apparent Version:"));
+    assertTrue(output.contains("SCM Apparent Version:"));
+    assertTrue(output.contains("Min Datanode Apparent Version:"));
+    assertFalse(output.contains("Waiting for finalization:"));
     assertTrue(output.contains("Finalization complete."));
   }
 

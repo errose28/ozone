@@ -28,11 +28,15 @@ import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.QueryUpgradeStatusResponse;
 import org.apache.ozone.test.LambdaTestUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Utility class to help test OM upgrade scenarios.
  */
 public final class OMUpgradeTestUtils {
+
+  private static final Logger LOG = LoggerFactory.getLogger(OMUpgradeTestUtils.class);
 
   private OMUpgradeTestUtils() {
     // Utility class.
@@ -73,9 +77,9 @@ public final class OMUpgradeTestUtils {
       try {
         QueryUpgradeStatusResponse status = omClient.queryUpgradeStatus();
         HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
-        System.out.println("Finalization status: omFinalized=" + status.getOmFinalized()
-            + ", scmFinalized=" + hdds.getScmFinalized()
-            + ", datanodes=" + hdds.getNumDatanodesFinalized() + "/" + hdds.getNumDatanodesTotal());
+        LOG.info("Finalization status: omFinalized={}, scmFinalized={}, datanodes={}/{}",
+            status.getOmFinalized(), hdds.getScmFinalized(),
+            hdds.getNumDatanodesFinalized(), hdds.getNumDatanodesTotal());
         return status.getOmFinalized()
             && hdds.getScmFinalized()
             && hdds.getNumDatanodesFinalized() == hdds.getNumDatanodesTotal();

@@ -1214,19 +1214,23 @@ public class SCMClientProtocolServer implements
     try {
       getScm().checkAdminAccess(getRemoteUser(), true);
 
+      if (scm.getScmContext().isInSafeMode()) {
+        throw new SCMException("Cannot query upgrade status while SCM is in safe mode. Wait until SCM exits "
+            + "safe mode and try again.", ResultCodes.SAFE_MODE_EXCEPTION);
+      }
+
       boolean scmFinalized = !scm.getVersionManager().needsFinalization();
       NodeManager.DatanodeFinalizationCounts datanodeFinalizationCounts =
           scm.getScmNodeManager().getDatanodeFinalizationCounts();
       int finalizedDatanodes = datanodeFinalizationCounts.getNumFinalizedDatanodes();
       int healthyDatanodes = datanodeFinalizationCounts.getTotalHealthyDatanodes();
-      boolean shouldFinalize = scmFinalized && datanodeFinalizationCounts.allNodesFinalized() && !scm.isInSafeMode();
+      boolean shouldFinalize = scmFinalized && datanodeFinalizationCounts.allNodesFinalized();
 
       HddsProtos.UpgradeStatus result = HddsProtos.UpgradeStatus.newBuilder()
           .setScmFinalized(scmFinalized)
           .setNumDatanodesFinalized(finalizedDatanodes)
           .setNumDatanodesTotal(healthyDatanodes)
           .setShouldFinalize(shouldFinalize)
-          .setScmSoftwareVersion(scm.getVersionManager().getSoftwareVersion().serialize())
           .setScmApparentVersion(scm.getVersionManager().getApparentVersion().serialize())
           .setMinDatanodeApparentVersion(datanodeFinalizationCounts.getMinApparentVersion())
           .setMaxDatanodeApparentVersion(datanodeFinalizationCounts.getMaxApparentVersion())

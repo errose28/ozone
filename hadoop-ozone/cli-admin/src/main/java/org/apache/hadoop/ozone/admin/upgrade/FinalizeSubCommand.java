@@ -80,13 +80,6 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
    */
   private int waitForFinalization(OzoneManagerProtocol client) {
     while (true) {
-      try {
-        Thread.sleep(pollIntervalMillis);
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-        out().println("Waiting interrupted. Use `ozone admin upgrade status` to monitor progress.");
-        return 0;
-      }
       QueryUpgradeStatusResponse status;
       try {
         status = client.queryUpgradeStatus();
@@ -95,6 +88,13 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
             + ". Use `ozone admin upgrade status` to monitor progress.");
         return 1;
       }
+
+      // Check if cluster is already finalized
+      if (isClusterFinalized(status)) {
+        out().println("Finalization complete.");
+        return 0;
+      }
+
       if (isVerbose()) {
         StatusSubCommand.printVerbose(status, out());
       } else {
@@ -104,8 +104,13 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
             hdds.getNumDatanodesFinalized(), hdds.getNumDatanodesTotal());
       }
       out().flush();
-      if (isClusterFinalized(status)) {
-        out().println("Finalization complete.");
+
+      // Finalization checks before sleeping, so an already-finalized cluster returns without waiting a poll interval.
+      try {
+        Thread.sleep(pollIntervalMillis);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        out().println("Waiting interrupted. Use `ozone admin upgrade status` to monitor progress.");
         return 0;
       }
     }

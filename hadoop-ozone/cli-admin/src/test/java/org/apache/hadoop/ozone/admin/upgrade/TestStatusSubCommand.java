@@ -146,10 +146,6 @@ public class TestStatusSubCommand {
     assertFalse(root.path("scmFinalized").asBoolean());
     assertEquals(1, root.path("datanodesFinalized").asInt());
     assertEquals(3, root.path("datanodesTotal").asInt());
-    // Version fields must be absent when the server did not populate them.
-    assertTrue(root.path("omSoftwareVersion").isMissingNode());
-    assertTrue(root.path("scmSoftwareVersion").isMissingNode());
-    assertTrue(root.path("minDatanodeApparentVersion").isMissingNode());
   }
 
   @Test
@@ -159,13 +155,11 @@ public class TestStatusSubCommand {
     OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =
         OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
             .setOmFinalized(true)
-            .setOmSoftwareVersion(omVersion)
             .setOmApparentVersion(omVersion)
             .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
                 .setScmFinalized(true)
                 .setNumDatanodesFinalized(3)
                 .setNumDatanodesTotal(3)
-                .setScmSoftwareVersion(hddsVersion)
                 .setScmApparentVersion(hddsVersion)
                 .setMinDatanodeApparentVersion(hddsVersion)
                 .setMaxDatanodeApparentVersion(hddsVersion)
@@ -178,9 +172,7 @@ public class TestStatusSubCommand {
 
     JsonNode root = JSON.readTree(outContent.toString(DEFAULT_ENCODING));
     assertTrue(root.path("omFinalized").asBoolean());
-    assertEquals(OzoneManagerVersion.ZDU.toString(), root.path("omSoftwareVersion").asText());
     assertEquals(OzoneManagerVersion.ZDU.toString(), root.path("omApparentVersion").asText());
-    assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("scmSoftwareVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("scmApparentVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("minDatanodeApparentVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("maxDatanodeApparentVersion").asText());
@@ -194,13 +186,11 @@ public class TestStatusSubCommand {
     OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =
         OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
             .setOmFinalized(true)
-            .setOmSoftwareVersion(omVersion)
             .setOmApparentVersion(omVersion)
             .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
                 .setScmFinalized(true)
                 .setNumDatanodesFinalized(3)
                 .setNumDatanodesTotal(3)
-                .setScmSoftwareVersion(hddsVersion)
                 .setScmApparentVersion(hddsVersion)
                 .setMinDatanodeApparentVersion(hddsVersion)
                 .setMaxDatanodeApparentVersion(hddsVersion)
@@ -213,30 +203,13 @@ public class TestStatusSubCommand {
 
     String output = outContent.toString(DEFAULT_ENCODING);
     assertTrue(output.contains("OM Finalized?"));
-    assertTrue(output.contains("OM Software Version:"));
     assertTrue(output.contains("OM Apparent Version:"));
     assertTrue(output.contains("SCM Finalized?"));
-    assertTrue(output.contains("SCM Software Version:"));
     assertTrue(output.contains("SCM Apparent Version:"));
-    assertTrue(output.contains("Min DN Apparent Version:"));
-    assertTrue(output.contains("Max DN Apparent Version:"));
+    assertTrue(output.contains("Min Datanode Apparent Version:"));
+    assertTrue(output.contains("Max Datanode Apparent Version:"));
     assertTrue(output.contains(OzoneManagerVersion.ZDU.toString()));
     assertTrue(output.contains(HDDSVersion.SOFTWARE_VERSION.toString()));
-  }
-
-  @Test
-  public void testVerboseTextDegradesGracefullyForOldServer() throws Exception {
-    verbose = true;
-    // Old server: no version fields populated.
-    when(omClient.queryUpgradeStatus()).thenReturn(basicResponse(true, true, 3, 3));
-
-    new CommandLine(cmd).parseArgs();
-    assertEquals(0, cmd.call());
-
-    String output = outContent.toString(DEFAULT_ENCODING);
-    assertTrue(output.contains("OM Software Version:     (unavailable)"));
-    assertTrue(output.contains("SCM Software Version:    (unavailable)"));
-    assertTrue(output.contains("Min DN Apparent Version: (unavailable)"));
   }
 
   private static OzoneManagerProtocolProtos.QueryUpgradeStatusResponse basicResponse(

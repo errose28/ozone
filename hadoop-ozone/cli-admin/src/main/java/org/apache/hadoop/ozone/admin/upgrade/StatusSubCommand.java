@@ -83,37 +83,19 @@ public class StatusSubCommand extends AbstractSubcommand implements Callable<Int
   }
 
   /**
-   * Verbose human-readable status that includes the software/apparent versions reported by OM
-   * and SCM, and the range of apparent versions across healthy datanodes (last known from heartbeat).
-   * Version fields that are not populated by the server (e.g. when running against an older
-   * cluster that does not yet ship these fields) are reported as "(unavailable)".
+   * Verbose human-readable status that includes the apparent versions reported by OM and SCM, and the
+   * range of apparent versions across healthy datanodes.
    */
   static void printVerbose(QueryUpgradeStatusResponse status, PrintWriter out) {
     HddsProtos.UpgradeStatus hdds = status.getHddsStatus();
     out.println("Upgrade status:");
     out.println("    OM Finalized?            " + status.getOmFinalized());
-    out.println("    OM Software Version:     " + formatOmVersion(status.hasOmSoftwareVersion(),
-        status.getOmSoftwareVersion()));
-    out.println("    OM Apparent Version:     " + formatOmVersion(status.hasOmApparentVersion(),
-        status.getOmApparentVersion()));
+    out.println("    OM Apparent Version:     " + OzoneManagerVersion.deserialize(status.getOmApparentVersion()).toString());
     out.println("    SCM Finalized?           " + hdds.getScmFinalized());
-    out.println("    SCM Software Version:    " + formatHddsVersion(hdds.hasScmSoftwareVersion(),
-        hdds.getScmSoftwareVersion()));
-    out.println("    SCM Apparent Version:    " + formatHddsVersion(hdds.hasScmApparentVersion(),
-        hdds.getScmApparentVersion()));
+    out.println("    SCM Apparent Version:    " + HDDSVersion.deserialize(hdds.getScmApparentVersion()).toString());
     out.println("    Datanodes finalized:     " + hdds.getNumDatanodesFinalized() + "/" + hdds.getNumDatanodesTotal());
-    out.println("    Min DN Apparent Version: " + formatHddsVersion(hdds.hasMinDatanodeApparentVersion(),
-        hdds.getMinDatanodeApparentVersion()));
-    out.println("    Max DN Apparent Version: " + formatHddsVersion(hdds.hasMaxDatanodeApparentVersion(),
-        hdds.getMaxDatanodeApparentVersion()));
-  }
-
-  private static String formatOmVersion(boolean present, int serialized) {
-    return present ? OzoneManagerVersion.deserialize(serialized).toString() : "(unavailable)";
-  }
-
-  private static String formatHddsVersion(boolean present, int serialized) {
-    return present ? HDDSVersion.deserialize(serialized).toString() : "(unavailable)";
+    out.println("    Min Datanode Apparent Version: " + HDDSVersion.deserialize(hdds.getMinDatanodeApparentVersion()).toString());
+    out.println("    Max Datanode Apparent Version: " + HDDSVersion.deserialize(hdds.getMaxDatanodeApparentVersion()).toString());
   }
 
   protected OzoneManagerProtocol getClient() throws Exception {
@@ -121,16 +103,12 @@ public class StatusSubCommand extends AbstractSubcommand implements Callable<Int
   }
 
   /**
-   * JSON-friendly DTO mirroring {@link QueryUpgradeStatusResponse}. Optional version fields use boxed types
-   * so that values absent from the server's response are omitted from the rendered JSON via
-   * {@link JsonUtils}' NON_NULL inclusion policy.
+   * JSON-friendly DTO mirroring {@link QueryUpgradeStatusResponse}.
    */
   public static final class UpgradeStatusDto {
     private boolean omFinalized;
-    private String omSoftwareVersion;
     private String omApparentVersion;
     private boolean scmFinalized;
-    private String scmSoftwareVersion;
     private String scmApparentVersion;
     private int datanodesFinalized;
     private int datanodesTotal;
@@ -144,33 +122,15 @@ public class StatusSubCommand extends AbstractSubcommand implements Callable<Int
       dto.scmFinalized = hdds.getScmFinalized();
       dto.datanodesFinalized = hdds.getNumDatanodesFinalized();
       dto.datanodesTotal = hdds.getNumDatanodesTotal();
-      if (status.hasOmSoftwareVersion()) {
-        dto.omSoftwareVersion = OzoneManagerVersion.deserialize(status.getOmSoftwareVersion()).toString();
-      }
-      if (status.hasOmApparentVersion()) {
-        dto.omApparentVersion = OzoneManagerVersion.deserialize(status.getOmApparentVersion()).toString();
-      }
-      if (hdds.hasScmSoftwareVersion()) {
-        dto.scmSoftwareVersion = HDDSVersion.deserialize(hdds.getScmSoftwareVersion()).toString();
-      }
-      if (hdds.hasScmApparentVersion()) {
-        dto.scmApparentVersion = HDDSVersion.deserialize(hdds.getScmApparentVersion()).toString();
-      }
-      if (hdds.hasMinDatanodeApparentVersion()) {
-        dto.minDatanodeApparentVersion = HDDSVersion.deserialize(hdds.getMinDatanodeApparentVersion()).toString();
-      }
-      if (hdds.hasMaxDatanodeApparentVersion()) {
-        dto.maxDatanodeApparentVersion = HDDSVersion.deserialize(hdds.getMaxDatanodeApparentVersion()).toString();
-      }
+      dto.omApparentVersion = OzoneManagerVersion.deserialize(status.getOmApparentVersion()).toString();
+      dto.scmApparentVersion = HDDSVersion.deserialize(hdds.getScmApparentVersion()).toString();
+      dto.minDatanodeApparentVersion = HDDSVersion.deserialize(hdds.getMinDatanodeApparentVersion()).toString();
+      dto.maxDatanodeApparentVersion = HDDSVersion.deserialize(hdds.getMaxDatanodeApparentVersion()).toString();
       return dto;
     }
 
     public boolean isOmFinalized() {
       return omFinalized;
-    }
-
-    public String getOmSoftwareVersion() {
-      return omSoftwareVersion;
     }
 
     public String getOmApparentVersion() {
@@ -179,10 +139,6 @@ public class StatusSubCommand extends AbstractSubcommand implements Callable<Int
 
     public boolean isScmFinalized() {
       return scmFinalized;
-    }
-
-    public String getScmSoftwareVersion() {
-      return scmSoftwareVersion;
     }
 
     public String getScmApparentVersion() {
