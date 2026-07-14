@@ -75,6 +75,7 @@ import org.apache.hadoop.ozone.om.helpers.ListKeysLightResult;
 import org.apache.hadoop.ozone.om.helpers.ListKeysResult;
 import org.apache.hadoop.ozone.om.helpers.ListOpenFilesResult;
 import org.apache.hadoop.ozone.om.helpers.OMAuditLogger;
+import org.apache.hadoop.ozone.om.helpers.OmBucketArgs;
 import org.apache.hadoop.ozone.om.helpers.OmBucketInfo;
 import org.apache.hadoop.ozone.om.helpers.OmKeyArgs;
 import org.apache.hadoop.ozone.om.helpers.OmKeyInfo;
@@ -101,6 +102,7 @@ import org.apache.hadoop.ozone.om.request.validation.ValidationContext;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.om.upgrade.DisallowedUntilLayoutVersion;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.BucketArgs;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CancelPrepareResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CancelSnapshotDiffRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.CancelSnapshotDiffResponse;
@@ -110,6 +112,8 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.EchoRPC
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.EchoRPCResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.FinalizeUpgradeProgressRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.FinalizeUpgradeProgressResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetBucketTaggingRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetBucketTaggingResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetFileStatusResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.GetKeyInfoRequest;
@@ -412,11 +416,15 @@ public class OzoneManagerRequestHandler implements RequestHandler {
             getObjectTagging(request.getGetObjectTaggingRequest());
         responseBuilder.setGetObjectTaggingResponse(getObjectTaggingResponse);
         break;
+      case GetBucketTagging:
+        GetBucketTaggingResponse getBucketTaggingResponse =
+            getBucketTagging(request.getGetBucketTaggingRequest());
+        responseBuilder.setGetBucketTaggingResponse(getBucketTaggingResponse);
+        break;
       case QueryUpgradeStatus:
         OzoneManagerProtocolProtos.QueryUpgradeStatusResponse queryUpgradeStatusResponse =
             getOzoneManager().queryUpgradeStatus();
         responseBuilder.setQueryUpgradeStatusResponse(queryUpgradeStatusResponse);
-        break;
       default:
         responseBuilder.setSuccess(false);
         responseBuilder.setMessage("Unrecognized Command Type: " + cmdType);
@@ -1636,6 +1644,20 @@ public class OzoneManagerRequestHandler implements RequestHandler {
         GetObjectTaggingResponse.newBuilder();
 
     Map<String, String> result = impl.getObjectTagging(omKeyArgs);
+
+    resp.addAllTags(KeyValueUtil.toProtobuf(result));
+    return resp.build();
+  }
+
+  private GetBucketTaggingResponse getBucketTagging(GetBucketTaggingRequest request)
+      throws IOException {
+    BucketArgs bucketArgs = request.getBucketArgs();
+    OmBucketArgs omBucketArgs = OmBucketArgs.getFromProtobuf(bucketArgs);
+
+    GetBucketTaggingResponse.Builder resp =
+        GetBucketTaggingResponse.newBuilder();
+
+    Map<String, String> result = impl.getBucketTagging(omBucketArgs);
 
     resp.addAllTags(KeyValueUtil.toProtobuf(result));
     return resp.build();
