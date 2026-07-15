@@ -32,7 +32,7 @@ import java.io.IOException;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
-import org.apache.hadoop.ozone.om.request.key.TestOMKeyRequest;
+import org.apache.hadoop.ozone.om.request.key.OMKeyRequestTests;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.security.UserGroupInformation;
@@ -43,7 +43,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for OMStartFinalizeUpgradeRequest.
  */
-public class TestOMStartFinalizeUpgradeRequest extends TestOMKeyRequest {
+public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
   
   @Test
   public void testPreExecuteCallsScmFinalizeUpgrade() throws IOException {
