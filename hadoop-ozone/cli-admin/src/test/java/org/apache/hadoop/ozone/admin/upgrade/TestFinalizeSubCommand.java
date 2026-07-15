@@ -251,7 +251,9 @@ public class TestFinalizeSubCommand {
   @Test
   public void testWaitFlagWithVerbosePrintsFullStatus() throws Exception {
     verbose = true;
+    // Return one in-progress poll first so the verbose status is printed.
     when(omClient.queryUpgradeStatus())
+        .thenReturn(inProgressStatus(1, 2))
         .thenReturn(finalizedStatus(2, 2));
 
     new CommandLine(cmd).parseArgs("--wait");
