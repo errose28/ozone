@@ -17,19 +17,26 @@
 
 package org.apache.hadoop.ozone.om.request.upgrade;
 
+import static org.apache.hadoop.hdds.utils.HddsServerUtil.getRemoteUser;
 import static org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos.Type.StartFinalizeUpgrade;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.OzoneConsts;
+import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.audit.AuditLogger;
 import org.apache.hadoop.ozone.audit.OMAction;
 import org.apache.hadoop.ozone.om.OMMetadataManager;
 import org.apache.hadoop.ozone.om.OzoneManager;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
+import org.apache.hadoop.ozone.om.helpers.OMNodeDetails;
+import org.apache.hadoop.ozone.om.protocolPB.OMAdminProtocolClientSideImpl;
 import org.apache.hadoop.ozone.om.request.OMClientRequest;
 import org.apache.hadoop.ozone.om.request.util.OmResponseUtil;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
@@ -61,6 +68,7 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
             + "Superuser privilege is required to start finalize upgrade.", OMException.ResultCodes.ACCESS_DENIED);
       }
     }
+    validatePeerOmVersionsBeforeFinalize(ozoneManager.getPeerNodes(), ozoneManager.getConfiguration());
     ozoneManager.getScmClient().getContainerClient().finalizeUpgrade();
     LOG.info("Successfully triggered the finalize upgrade process in SCM");
     return omRequest;
@@ -95,6 +103,35 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
 
     markForAudit(auditLogger, buildAuditMessage(OMAction.UPGRADE_FINALIZE, new HashMap<>(), exception, userInfo));
     return response;
+  }
+
+  private static void validatePeerOmVersionsBeforeFinalize(List<OMNodeDetails> peerNodes,
+      OzoneConfiguration configuration) throws OMException {
+    if (peerNodes.isEmpty()) {
+      return;
+    }
+    OzoneManagerVersion leaderVersion = OzoneManagerVersion.SOFTWARE_VERSION;
+    List<String> failedPeers = new ArrayList<>();
+    for (OMNodeDetails peerDetails : peerNodes) {
+      String peerId = peerDetails.getNodeId();
+      try (OMAdminProtocolClientSideImpl client =
+               OMAdminProtocolClientSideImpl.createProxyForSingleOM(configuration, getRemoteUser(), peerDetails)) {
+        OzoneManagerVersion peerVersion = client.getUpgradeStatus().getSoftwareVersion();
+        if (!peerVersion.equals(leaderVersion)) {
+          LOG.warn("OM peer {} is running software version {} but leader is running version {}. "
+              + "Rejecting finalize command.", peerId, peerVersion, leaderVersion);
+          failedPeers.add(peerId + " (version: " + peerVersion + ")");
+        }
+      } catch (IOException e) {
+        LOG.warn("Failed to contact OM peer {} to check software version before finalize.", peerId, e);
+        failedPeers.add(peerId + " (unreachable: " + e.getMessage() + ")");
+      }
+    }
+    if (!failedPeers.isEmpty()) {
+      throw new OMException("Finalize rejected: the following OM peers did not confirm matching software version "
+          + "(expected version=" + leaderVersion + "): " + String.join(", ", failedPeers),
+          OMException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED);
+    }
   }
 
 }

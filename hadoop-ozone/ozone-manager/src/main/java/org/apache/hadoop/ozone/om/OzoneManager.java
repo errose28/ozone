@@ -4583,7 +4583,6 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     return omNodeDetails.getServiceId();
   }
 
-  @VisibleForTesting
   public List<OMNodeDetails> getPeerNodes() {
     return new ArrayList<>(peerNodesMap.values());
   }

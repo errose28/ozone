@@ -57,4 +57,11 @@ public interface OMAdminProtocol extends Closeable {
    *         or if the task was triggered successfully (when noWait is true)
    */
   boolean triggerSnapshotDefrag(boolean noWait) throws IOException;
+
+  /**
+   * Returns the local upgrade status of this OM peer without contacting SCM.
+   * Intended for use by the OM leader to verify that all Ratis group members
+   * are running the same software version before accepting a finalize command.
+   */
+  OMPeerUpgradeStatus getUpgradeStatus() throws IOException;
 }
