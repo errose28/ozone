@@ -35,6 +35,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.ozone.OzoneConsts;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
@@ -88,6 +89,38 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
     // The exception raised by SCM must propagate out of preExecute so the OM
     // client sees the failure instead of a successful finalize.
     IOException ex = assertThrows(IOException.class, () -> request.preExecute(ozoneManager));
+    assertSame(scmFailure, ex);
+
+    verify(scmContainerLocationProtocol).finalizeUpgrade();
+  }
+
+  @Test
+  public void testScmUnsupportedOperationBecomesOmNotSupportedOperation() throws IOException {
+    SCMException scmFailure =
+        new SCMException("SCM version mismatch", SCMException.ResultCodes.UNSUPPORTED_OPERATION);
+    doThrow(scmFailure).when(scmContainerLocationProtocol).finalizeUpgrade();
+
+    OMStartFinalizeUpgradeRequest request = new OMStartFinalizeUpgradeRequest(buildRequest());
+
+    // An SCM UNSUPPORTED_OPERATION is re-mapped to an OM NOT_SUPPORTED_OPERATION,
+    // preserving the original message and chaining the SCM exception as the cause.
+    OMException ex = assertThrows(OMException.class, () -> request.preExecute(ozoneManager));
+    assertEquals(OMException.ResultCodes.NOT_SUPPORTED_OPERATION, ex.getResult());
+    assertEquals(scmFailure.getMessage(), ex.getMessage());
+    assertSame(scmFailure, ex.getCause());
+
+    verify(scmContainerLocationProtocol).finalizeUpgrade();
+  }
+
+  @Test
+  public void testOtherScmExceptionPropagatesUnchanged() throws IOException {
+    SCMException scmFailure = new SCMException("SCM is in safe mode", SCMException.ResultCodes.SAFE_MODE_EXCEPTION);
+    doThrow(scmFailure).when(scmContainerLocationProtocol).finalizeUpgrade();
+
+    OMStartFinalizeUpgradeRequest request = new OMStartFinalizeUpgradeRequest(buildRequest());
+
+    // Only UNSUPPORTED_OPERATION is re-mapped; any other SCM exception propagates as-is.
+    SCMException ex = assertThrows(SCMException.class, () -> request.preExecute(ozoneManager));
     assertSame(scmFailure, ex);
 
     verify(scmContainerLocationProtocol).finalizeUpgrade();

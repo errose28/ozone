@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
@@ -70,7 +71,14 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
       }
     }
     validatePeerOmVersionsBeforeFinalize(ozoneManager.getPeerNodes(), ozoneManager.getConfiguration());
-    ozoneManager.getScmClient().getContainerClient().finalizeUpgrade();
+    try {
+      ozoneManager.getScmClient().getContainerClient().finalizeUpgrade();
+    } catch (SCMException e) {
+      if (e.getResult() == SCMException.ResultCodes.UNSUPPORTED_OPERATION) {
+        throw new OMException(e.getMessage(), e, OMException.ResultCodes.NOT_SUPPORTED_OPERATION);
+      }
+      throw e;
+    }
     LOG.info("Successfully triggered the finalize upgrade process in SCM");
     return omRequest;
   }
