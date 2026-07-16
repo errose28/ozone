@@ -21,13 +21,13 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
+import org.apache.hadoop.hdds.HDDSVersion;
 
 /**
- * Annotation to specify an SCM upgrade action.
+ * Annotation to specify a Datanode upgrade action tied to an HDDS component version.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface UpgradeActionScm {
-  HDDSLayoutFeature feature();
+public @interface DatanodeUpgradeActionForVersion {
+  HDDSVersion version();
 }
