@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
+import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.hadoop.hdds.utils.db.cache.CacheKey;
 import org.apache.hadoop.hdds.utils.db.cache.CacheValue;
 import org.apache.hadoop.ozone.OzoneConsts;
@@ -114,8 +115,9 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
     List<String> failedPeers = new ArrayList<>();
     for (OMNodeDetails peerDetails : peerNodes) {
       String peerId = peerDetails.getNodeId();
-      try (OMAdminProtocolClientSideImpl client =
-               OMAdminProtocolClientSideImpl.createProxyForSingleOM(configuration, getRemoteUser(), peerDetails)) {
+      OMAdminProtocolClientSideImpl client = null;
+      try {
+        client = OMAdminProtocolClientSideImpl.createProxyForSingleOM(configuration, getRemoteUser(), peerDetails);
         OzoneManagerVersion peerVersion = client.getPeerUpgradeStatus();
         if (!peerVersion.equals(leaderVersion)) {
           LOG.warn("OM peer {} is running software version {} but leader is running version {}. "
@@ -125,12 +127,14 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
       } catch (IOException e) {
         LOG.warn("Failed to contact OM peer {} to check software version before finalize.", peerId, e);
         failedPeers.add(peerId + " (unreachable: " + e.getMessage() + ")");
+      } finally {
+        IOUtils.cleanupWithLogger(LOG, client);
       }
     }
     if (!failedPeers.isEmpty()) {
       throw new OMException("Finalize rejected: the following OM peers did not confirm matching software version "
           + "(expected version=" + leaderVersion + "): " + String.join(", ", failedPeers),
-          OMException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED);
+          OMException.ResultCodes.NOT_SUPPORTED_OPERATION);
     }
   }
 
