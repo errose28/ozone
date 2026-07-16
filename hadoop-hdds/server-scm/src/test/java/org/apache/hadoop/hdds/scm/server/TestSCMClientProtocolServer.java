@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,8 +39,10 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.client.RatisReplicationConfig;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.ReconfigurationHandler;
@@ -50,14 +53,18 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerLocationProtocolPro
 import org.apache.hadoop.hdds.scm.HddsTestUtils;
 import org.apache.hadoop.hdds.scm.container.ContainerInfo;
 import org.apache.hadoop.hdds.scm.container.ContainerManagerImpl;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.ha.SCMHAManagerStub;
+import org.apache.hadoop.hdds.scm.ha.SCMHANodeDetails;
 import org.apache.hadoop.hdds.scm.ha.SCMNodeDetails;
 import org.apache.hadoop.hdds.scm.pipeline.PipelineID;
+import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocol;
 import org.apache.hadoop.hdds.scm.protocol.StorageContainerLocationProtocolServerSideTranslatorPB;
 import org.apache.hadoop.hdds.scm.safemode.SCMSafeModeManager;
 import org.apache.hadoop.hdds.scm.server.upgrade.FinalizationManager;
 import org.apache.hadoop.hdds.scm.server.upgrade.ScmVersionManager;
+import org.apache.hadoop.hdds.utils.HAUtils;
 import org.apache.hadoop.hdds.utils.ProtocolMessageMetrics;
 import org.apache.hadoop.ozone.container.common.SCMTestUtils;
 import org.apache.hadoop.ozone.upgrade.UpgradeFinalization.StatusAndMessages;
@@ -68,6 +75,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.MockedStatic;
 
 /**
  * Unit tests to validate the SCMClientProtocolServer
@@ -273,6 +281,106 @@ public class TestSCMClientProtocolServer {
 
     return new SCMClientProtocolServer(
         new OzoneConfiguration(), mockScm, mock(ReconfigurationHandler.class));
+  }
+
+  @Test
+  public void testGetSoftwareVersionReturnsLocalVersion() throws IOException {
+    assertEquals(HDDSVersion.SOFTWARE_VERSION, server.getSoftwareVersion());
+  }
+
+  @Test
+  public void testFinalizeProceedsWhenNoPeers() throws IOException {
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    try (SCMClientProtocolServer testServer =
+        peerCheckServer(finalizationManager, Collections.emptyList())) {
+      testServer.finalizeUpgrade();
+      verify(finalizationManager).finalizeUpgrade();
+    }
+  }
+
+  @Test
+  public void testFinalizeProceedsWhenAllPeersMatch() throws IOException {
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    StorageContainerLocationProtocol matching = peerClient(HDDSVersion.SOFTWARE_VERSION);
+
+    try (SCMClientProtocolServer testServer =
+             peerCheckServer(finalizationManager, Arrays.asList(peerNode("scm2"), peerNode("scm3")));
+         MockedStatic<HAUtils> haUtils = mockStatic(HAUtils.class)) {
+      haUtils.when(() -> HAUtils.getScmContainerClientForNode(any(), any())).thenReturn(matching);
+      testServer.finalizeUpgrade();
+    }
+    verify(finalizationManager).finalizeUpgrade();
+  }
+
+  @Test
+  public void testFinalizeRejectsOlderPeer() throws IOException {
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    StorageContainerLocationProtocol matching = peerClient(HDDSVersion.SOFTWARE_VERSION);
+    StorageContainerLocationProtocol older = peerClient(HDDSVersion.DEFAULT_VERSION);
+
+    try (SCMClientProtocolServer testServer =
+             peerCheckServer(finalizationManager, Arrays.asList(peerNode("scm2"), peerNode("scm3")));
+         MockedStatic<HAUtils> haUtils = mockStatic(HAUtils.class)) {
+      haUtils.when(() -> HAUtils.getScmContainerClientForNode(any(), any())).thenReturn(matching, older);
+      assertThrows(SCMException.class, testServer::finalizeUpgrade);
+    }
+    verify(finalizationManager, never()).finalizeUpgrade();
+  }
+
+  @Test
+  public void testFinalizeRejectsUnknownFuturePeer() throws IOException {
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    StorageContainerLocationProtocol matching = peerClient(HDDSVersion.SOFTWARE_VERSION);
+    // A version not recognized by this binary deserializes to UNKNOWN_VERSION in the client translator.
+    StorageContainerLocationProtocol unknown = peerClient(HDDSVersion.UNKNOWN_VERSION);
+
+    try (SCMClientProtocolServer testServer =
+             peerCheckServer(finalizationManager, Arrays.asList(peerNode("scm2"), peerNode("scm3")));
+         MockedStatic<HAUtils> haUtils = mockStatic(HAUtils.class)) {
+      haUtils.when(() -> HAUtils.getScmContainerClientForNode(any(), any()))
+          .thenReturn(matching, unknown);
+      assertThrows(SCMException.class, testServer::finalizeUpgrade);
+    }
+    verify(finalizationManager, never()).finalizeUpgrade();
+  }
+
+  @Test
+  public void testFinalizeRejectsUnreachablePeer() throws IOException {
+    FinalizationManager finalizationManager = mock(FinalizationManager.class);
+    StorageContainerLocationProtocol unreachable = mock(StorageContainerLocationProtocol.class);
+    when(unreachable.getSoftwareVersion()).thenThrow(new IOException("connection refused"));
+
+    try (SCMClientProtocolServer testServer =
+             peerCheckServer(finalizationManager, Collections.singletonList(peerNode("scm2")));
+         MockedStatic<HAUtils> haUtils = mockStatic(HAUtils.class)) {
+      haUtils.when(() -> HAUtils.getScmContainerClientForNode(any(), any())).thenReturn(unreachable);
+      assertThrows(SCMException.class, testServer::finalizeUpgrade);
+    }
+    verify(finalizationManager, never()).finalizeUpgrade();
+  }
+
+  private SCMClientProtocolServer peerCheckServer(
+      FinalizationManager finalizationManager, List<SCMNodeDetails> peers) throws IOException {
+    StorageContainerManager mockScm = mockStorageContainerManager();
+    when(mockScm.getFinalizationManager()).thenReturn(finalizationManager);
+    when(mockScm.getConfiguration()).thenReturn(new OzoneConfiguration());
+    SCMHANodeDetails haNodeDetails = mock(SCMHANodeDetails.class);
+    when(haNodeDetails.getPeerNodeDetails()).thenReturn(peers);
+    when(mockScm.getSCMHANodeDetails()).thenReturn(haNodeDetails);
+    return new SCMClientProtocolServer(
+        new OzoneConfiguration(), mockScm, mock(ReconfigurationHandler.class));
+  }
+
+  private StorageContainerLocationProtocol peerClient(HDDSVersion version) throws IOException {
+    StorageContainerLocationProtocol client = mock(StorageContainerLocationProtocol.class);
+    when(client.getSoftwareVersion()).thenReturn(version);
+    return client;
+  }
+
+  private SCMNodeDetails peerNode(String nodeId) {
+    SCMNodeDetails node = mock(SCMNodeDetails.class);
+    when(node.getNodeId()).thenReturn(nodeId);
+    return node;
   }
 
   @Test

@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.annotation.InterfaceAudience;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicatedReplicationConfig;
@@ -1238,6 +1239,19 @@ public final class StorageContainerLocationProtocolClientSideTranslatorPB
         submitRequest(Type.QueryUpgradeStatus, builder -> builder.setQueryUpgradeStatusRequest(req))
             .getQueryUpgradeStatusResponse();
     return response.getStatus();
+  }
+
+  @Override
+  public HDDSVersion getSoftwareVersion() throws IOException {
+    StorageContainerLocationProtocolProtos.GetSoftwareVersionRequestProto req =
+        StorageContainerLocationProtocolProtos.GetSoftwareVersionRequestProto
+            .newBuilder()
+            .build();
+
+    StorageContainerLocationProtocolProtos.GetSoftwareVersionResponseProto response =
+        submitRequest(Type.GetSoftwareVersion, builder -> builder.setGetSoftwareVersionRequest(req))
+            .getGetSoftwareVersionResponse();
+    return HDDSVersion.deserialize(response.getScmSoftwareVersion());
   }
 
   @Override

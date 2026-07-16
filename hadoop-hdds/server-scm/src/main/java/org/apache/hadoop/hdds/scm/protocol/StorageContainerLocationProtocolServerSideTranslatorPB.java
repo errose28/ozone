@@ -779,6 +779,12 @@ public final class StorageContainerLocationProtocolServerSideTranslatorPB
             .setCmdType(request.getCmdType())
             .setStatus(Status.OK)
             .build();
+      case GetSoftwareVersion:
+        return ScmContainerLocationResponse.newBuilder()
+            .setCmdType(request.getCmdType())
+            .setStatus(Status.OK)
+            .setGetSoftwareVersionResponse(getSoftwareVersion(request.getGetSoftwareVersionRequest()))
+            .build();
       default:
         throw new IllegalArgumentException(
             "Unknown command type: " + request.getCmdType());
@@ -1129,6 +1135,15 @@ public final class StorageContainerLocationProtocolServerSideTranslatorPB
     return StorageContainerLocationProtocolProtos.QueryUpgradeStatusResponseProto
         .newBuilder()
         .setStatus(response)
+        .build();
+  }
+
+  public StorageContainerLocationProtocolProtos.GetSoftwareVersionResponseProto getSoftwareVersion(
+      StorageContainerLocationProtocolProtos.GetSoftwareVersionRequestProto request) throws IOException {
+
+    return StorageContainerLocationProtocolProtos.GetSoftwareVersionResponseProto
+        .newBuilder()
+        .setScmSoftwareVersion(impl.getSoftwareVersion().serialize())
         .build();
   }
 

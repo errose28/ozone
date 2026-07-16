@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
 import org.apache.hadoop.hdds.protocol.DatanodeDetails;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
@@ -79,7 +80,8 @@ public interface StorageContainerLocationProtocol extends Closeable {
    */
   Set<Type> FOLLOWER_READABLE_COMMAND_TYPES = Collections.unmodifiableSet(EnumSet.of(
       Type.InSafeMode,
-      Type.GetSafeModeRuleStatuses));
+      Type.GetSafeModeRuleStatuses,
+      Type.GetSoftwareVersion));
   
   /**
    * Asks SCM where a container should be allocated. SCM responds with the
@@ -523,6 +525,15 @@ public interface StorageContainerLocationProtocol extends Closeable {
       throws IOException;
 
   HddsProtos.UpgradeStatus queryUpgradeStatus() throws IOException;
+
+  /**
+   * Returns the {@link HDDSVersion#SOFTWARE_VERSION} of the responding SCM binary. Intended for the
+   * SCM leader to verify that all peer SCMs run a matching software version before starting
+   * finalization. This is a node-local read (follower-readable): combined with a {@code ScmNodeTarget}
+   * it queries one specific SCM without a leader round-trip. A version not recognized by the calling
+   * binary deserializes to {@link HDDSVersion#UNKNOWN_VERSION}.
+   */
+  HDDSVersion getSoftwareVersion() throws IOException;
 
   /**
    * Obtain a token which can be used to let datanodes verify authentication of
