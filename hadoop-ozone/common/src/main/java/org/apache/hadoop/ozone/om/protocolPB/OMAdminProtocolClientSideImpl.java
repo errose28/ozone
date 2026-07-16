@@ -37,10 +37,10 @@ import org.apache.hadoop.ozone.om.OMConfigKeys;
 import org.apache.hadoop.ozone.om.exceptions.OMLeaderNotReadyException;
 import org.apache.hadoop.ozone.om.exceptions.OMNotLeaderException;
 import org.apache.hadoop.ozone.om.ha.HadoopRpcOMFailoverProxyProvider;
+import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.helpers.OMNodeDetails;
 import org.apache.hadoop.ozone.om.protocol.OMAdminProtocol;
 import org.apache.hadoop.ozone.om.protocol.OMConfiguration;
-import org.apache.hadoop.ozone.om.protocol.OMPeerUpgradeStatus;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.CompactRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.CompactResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.DecommissionOMRequest;
@@ -264,11 +264,11 @@ public final class OMAdminProtocolClientSideImpl implements OMAdminProtocol {
   }
 
   @Override
-  public OMPeerUpgradeStatus getUpgradeStatus() throws IOException {
+  public OzoneManagerVersion getUpgradeStatus() throws IOException {
     try {
       GetUpgradeStatusResponse response = rpcProxy.getUpgradeStatus(
           NULL_RPC_CONTROLLER, GetUpgradeStatusRequest.newBuilder().build());
-      return new OMPeerUpgradeStatus(response);
+      return OzoneManagerVersion.deserialize(response.getOmSoftwareVersion());
     } catch (ServiceException e) {
       throw ProtobufHelper.getRemoteException(e);
     }

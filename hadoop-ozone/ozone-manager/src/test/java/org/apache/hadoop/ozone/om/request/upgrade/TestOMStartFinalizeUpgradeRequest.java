@@ -38,11 +38,9 @@ import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.exceptions.OMException;
 import org.apache.hadoop.ozone.om.execution.flowcontrol.ExecutionContext;
 import org.apache.hadoop.ozone.om.helpers.OMNodeDetails;
-import org.apache.hadoop.ozone.om.protocol.OMPeerUpgradeStatus;
 import org.apache.hadoop.ozone.om.protocolPB.OMAdminProtocolClientSideImpl;
 import org.apache.hadoop.ozone.om.request.key.OMKeyRequestTests;
 import org.apache.hadoop.ozone.om.response.OMClientResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.GetUpgradeStatusResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerProtocolProtos;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.ratis.protocol.ClientId;
@@ -212,10 +210,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
 
   private static OMAdminProtocolClientSideImpl peerClientWithVersion(OzoneManagerVersion version) throws IOException {
     OMAdminProtocolClientSideImpl client = mock(OMAdminProtocolClientSideImpl.class);
-    GetUpgradeStatusResponse response = GetUpgradeStatusResponse.newBuilder()
-        .setOmSoftwareVersion(version.serialize())
-        .build();
-    when(client.getUpgradeStatus()).thenReturn(new OMPeerUpgradeStatus(response));
+    when(client.getUpgradeStatus()).thenReturn(version);
     return client;
   }
 

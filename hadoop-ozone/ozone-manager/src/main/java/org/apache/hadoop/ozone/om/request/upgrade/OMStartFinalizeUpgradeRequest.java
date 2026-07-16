@@ -116,7 +116,7 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
       String peerId = peerDetails.getNodeId();
       try (OMAdminProtocolClientSideImpl client =
                OMAdminProtocolClientSideImpl.createProxyForSingleOM(configuration, getRemoteUser(), peerDetails)) {
-        OzoneManagerVersion peerVersion = client.getUpgradeStatus().getSoftwareVersion();
+        OzoneManagerVersion peerVersion = client.getUpgradeStatus();
         if (!peerVersion.equals(leaderVersion)) {
           LOG.warn("OM peer {} is running software version {} but leader is running version {}. "
               + "Rejecting finalize command.", peerId, peerVersion, leaderVersion);
