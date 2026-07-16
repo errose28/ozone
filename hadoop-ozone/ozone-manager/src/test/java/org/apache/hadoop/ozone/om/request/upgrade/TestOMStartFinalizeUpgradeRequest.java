@@ -184,7 +184,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
   public void testPeerVersionCheckRejectsUnreachablePeer() throws IOException {
     when(ozoneManager.getPeerNodes()).thenReturn(Collections.singletonList(buildPeer("om2")));
     OMAdminProtocolClientSideImpl unreachableClient = mock(OMAdminProtocolClientSideImpl.class);
-    when(unreachableClient.getUpgradeStatus()).thenThrow(new IOException("connection refused"));
+    when(unreachableClient.getPeerUpgradeStatus()).thenThrow(new IOException("connection refused"));
 
     try (MockedStatic<OMAdminProtocolClientSideImpl> factory =
              mockStatic(OMAdminProtocolClientSideImpl.class)) {
@@ -210,7 +210,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
 
   private static OMAdminProtocolClientSideImpl peerClientWithVersion(OzoneManagerVersion version) throws IOException {
     OMAdminProtocolClientSideImpl client = mock(OMAdminProtocolClientSideImpl.class);
-    when(client.getUpgradeStatus()).thenReturn(version);
+    when(client.getPeerUpgradeStatus()).thenReturn(version);
     return client;
   }
 

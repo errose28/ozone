@@ -64,5 +64,5 @@ public interface OMAdminProtocol extends Closeable {
    * Intended for use by the OM leader to verify that all Ratis group members
    * are running the same software version before accepting a finalize command.
    */
-  OzoneManagerVersion getUpgradeStatus() throws IOException;
+  OzoneManagerVersion getPeerUpgradeStatus() throws IOException;
 }

@@ -38,8 +38,8 @@ import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.Co
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.CompactResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.DecommissionOMRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.DecommissionOMResponse;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.GetUpgradeStatusRequest;
-import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.GetUpgradeStatusResponse;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.GetPeerUpgradeStatusRequest;
+import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.GetPeerUpgradeStatusResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.OMConfigurationRequest;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.OMConfigurationResponse;
 import org.apache.hadoop.ozone.protocol.proto.OzoneManagerAdminProtocolProtos.OMNodeInfo;
@@ -159,9 +159,9 @@ public class OMAdminProtocolServerSideImpl implements OMAdminProtocolPB {
   }
 
   @Override
-  public GetUpgradeStatusResponse getUpgradeStatus(RpcController controller,
-      GetUpgradeStatusRequest request) throws ServiceException {
-    return GetUpgradeStatusResponse.newBuilder()
+  public GetPeerUpgradeStatusResponse getPeerUpgradeStatus(RpcController controller,
+      GetPeerUpgradeStatusRequest request) throws ServiceException {
+    return GetPeerUpgradeStatusResponse.newBuilder()
         .setOmSoftwareVersion(OzoneManagerVersion.SOFTWARE_VERSION.serialize())
         .build();
   }

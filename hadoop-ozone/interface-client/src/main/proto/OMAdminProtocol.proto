@@ -95,10 +95,10 @@ message TriggerSnapshotDefragResponse {
 
 // Request from an OM leader to a peer OM to read its local upgrade status.
 // Intentionally OM-local: no SCM round-trip is performed by the server.
-message GetUpgradeStatusRequest {
+message GetPeerUpgradeStatusRequest {
 }
 
-message GetUpgradeStatusResponse {
+message GetPeerUpgradeStatusResponse {
     // Serialized OzoneManagerVersion.SOFTWARE_VERSION of the responding OM binary.
     optional int32 omSoftwareVersion = 2;
 }
@@ -125,6 +125,6 @@ service OzoneManagerAdminService {
     returns(TriggerSnapshotDefragResponse);
 
     // RPC request from the OM leader to a peer OM to read its local upgrade status.
-    rpc getUpgradeStatus(GetUpgradeStatusRequest)
-    returns(GetUpgradeStatusResponse);
+    rpc getPeerUpgradeStatus(GetPeerUpgradeStatusRequest)
+    returns(GetPeerUpgradeStatusResponse);
 }
