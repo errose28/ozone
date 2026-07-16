@@ -21,9 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
@@ -73,6 +75,21 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
     assertNotNull(modified.getUserInfo());
 
     // SCM must have been asked to begin finalization.
+    verify(scmContainerLocationProtocol).finalizeUpgrade();
+  }
+
+  @Test
+  public void testScmFinalizeFailurePropagatesToClient() throws IOException {
+    IOException scmFailure = new IOException("SCM finalize upgrade failed");
+    doThrow(scmFailure).when(scmContainerLocationProtocol).finalizeUpgrade();
+
+    OMStartFinalizeUpgradeRequest request = new OMStartFinalizeUpgradeRequest(buildRequest());
+
+    // The exception raised by SCM must propagate out of preExecute so the OM
+    // client sees the failure instead of a successful finalize.
+    IOException ex = assertThrows(IOException.class, () -> request.preExecute(ozoneManager));
+    assertSame(scmFailure, ex);
+
     verify(scmContainerLocationProtocol).finalizeUpgrade();
   }
 
@@ -155,7 +172,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
 
       OMException ex = assertThrows(OMException.class,
           () -> new OMStartFinalizeUpgradeRequest(buildRequest()).preExecute(ozoneManager));
-      assertEquals(OMException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED, ex.getResult());
+      assertEquals(OMException.ResultCodes.NOT_SUPPORTED_OPERATION, ex.getResult());
     }
 
     verify(scmContainerLocationProtocol, never()).finalizeUpgrade();
@@ -174,7 +191,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
 
       OMException ex = assertThrows(OMException.class,
           () -> new OMStartFinalizeUpgradeRequest(buildRequest()).preExecute(ozoneManager));
-      assertEquals(OMException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED, ex.getResult());
+      assertEquals(OMException.ResultCodes.NOT_SUPPORTED_OPERATION, ex.getResult());
     }
 
     verify(scmContainerLocationProtocol, never()).finalizeUpgrade();
@@ -193,7 +210,7 @@ public class TestOMStartFinalizeUpgradeRequest extends OMKeyRequestTests {
 
       OMException ex = assertThrows(OMException.class,
           () -> new OMStartFinalizeUpgradeRequest(buildRequest()).preExecute(ozoneManager));
-      assertEquals(OMException.ResultCodes.LAYOUT_FEATURE_FINALIZATION_FAILED, ex.getResult());
+      assertEquals(OMException.ResultCodes.NOT_SUPPORTED_OPERATION, ex.getResult());
     }
 
     verify(scmContainerLocationProtocol, never()).finalizeUpgrade();
