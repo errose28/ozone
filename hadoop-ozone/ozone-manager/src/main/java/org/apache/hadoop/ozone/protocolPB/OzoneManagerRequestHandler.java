@@ -1417,11 +1417,7 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   }
 
   private PrepareStatusResponse getPrepareStatus() throws IOException {
-    UserGroupInformation ugi = getRemoteUser();
-    if (!impl.isAdmin(ugi)) {
-      throw new OMException("Access denied for user " + ugi +
-          ". Superuser privilege is required to get prepare status for OM.", PERMISSION_DENIED);
-    }
+    impl.checkAdminUserPrivilege("get prepare status");
 
     // Prepare is no longer used, always return PREPARE_COMPLETED for backward compatibility
     return PrepareStatusResponse.newBuilder()
@@ -1432,11 +1428,7 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   private PrepareResponse prepare() throws IOException {
     // Prepare functionality is no longer supported. An empty successful transaction is returned for compatibility
     // with older clients and upgrade processes.
-    UserGroupInformation ugi = getRemoteUser();
-    if (!impl.isAdmin(ugi)) {
-      throw new OMException("Access denied for user " + ugi
-          + ". Superuser privilege is required to prepare OM.", PERMISSION_DENIED);
-    }
+    impl.checkAdminUserPrivilege("prepare for upgrade");
 
     return PrepareResponse.newBuilder()
         .setTxnID(0)  // Dummy transaction ID
@@ -1446,11 +1438,7 @@ public class OzoneManagerRequestHandler implements RequestHandler {
   private CancelPrepareResponse cancelPrepare() throws IOException {
     // Cancel Prepare functionality is no longer supported. An empty successful transaction is returned for
     // compatibility with older clients and upgrade processes.
-    UserGroupInformation ugi = getRemoteUser();
-    if (!impl.isAdmin(ugi)) {
-      throw new OMException("Access denied for user " + ugi
-          + ". Superuser privilege is required to cancel prepare for OM.", PERMISSION_DENIED);
-    }
+    impl.checkAdminUserPrivilege("cancel prepare");
 
     return CancelPrepareResponse.newBuilder().build();
   }

@@ -4756,7 +4756,7 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
    * Check ozone admin privilege, throws exception if not admin.
    * Only checks admin privilege if authorization is enabled.
    */
-  private void checkAdminUserPrivilege(String operation) throws IOException {
+  public void checkAdminUserPrivilege(String operation) throws IOException {
     // Skip check if authorization is disabled
     if (!isAdminAuthorizationEnabled()) {
       return;
