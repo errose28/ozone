@@ -1712,7 +1712,7 @@ message PrepareStatusRequest {
 }
 
 /**
- * Deprecated. Prepare functionality has been removed and server status will always be NOT_PREPARED.
+ * Deprecated. Prepare functionality has been removed and server status will always be PREPARE_COMPLETED.
  */
 message PrepareStatusResponse {
     enum PrepareStatus {
