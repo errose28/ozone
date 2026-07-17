@@ -40,6 +40,13 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
   @CommandLine.Mixin
   private OmAddressOptions.OptionalServiceIdOrHostMixin omAddressOptions;
 
+  @CommandLine.Option(
+      names = {"--force"},
+      description = "Skip all software version checks before finalizing.",
+      defaultValue = "false",
+      hidden = true)
+  private boolean force;
+
   @Override
   public Integer call() throws Exception {
     try (OzoneManagerProtocol client = getClient()) {
@@ -49,7 +56,12 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
             "`ozone admin om finalizeupgrade`");
         return 1;
       }
-      client.finalizeUpgrade();
+      if (force) {
+        out().println("--force specified: all software version checks will be skipped before finalizing.");
+        client.forceFinalizeUpgrade();
+      } else {
+        client.finalizeUpgrade();
+      }
       out().println("Cluster finalization has been started. Monitor progress with `ozone admin upgrade status`");
     }
     return 0;

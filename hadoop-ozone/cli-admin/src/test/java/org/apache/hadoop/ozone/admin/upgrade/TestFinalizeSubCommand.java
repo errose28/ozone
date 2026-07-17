@@ -86,6 +86,18 @@ public class TestFinalizeSubCommand {
     String output = outContent.toString(DEFAULT_ENCODING);
     assertTrue(output.contains("Cluster finalization has been started"));
     verify(omClient).finalizeUpgrade();
+    verify(omClient, never()).forceFinalizeUpgrade();
+  }
+
+  @Test
+  public void testForceFlagIsPassedToClient() throws Exception {
+    new CommandLine(cmd).parseArgs("--force");
+    assertEquals(0, cmd.call());
+
+    String output = outContent.toString(DEFAULT_ENCODING);
+    assertTrue(output.contains("all software version checks will be skipped"));
+    verify(omClient).forceFinalizeUpgrade();
+    verify(omClient, never()).finalizeUpgrade();
   }
 
   @Test
@@ -117,6 +129,7 @@ public class TestFinalizeSubCommand {
     String errOutput = errContent.toString(DEFAULT_ENCODING);
     assertTrue(errOutput.contains("OM does not support zero downtime upgrade"));
     verify(omClient, never()).finalizeUpgrade();
+    verify(omClient, never()).forceFinalizeUpgrade();
   }
 
   private ServiceInfoEx serviceInfoWithVersion(OzoneManagerVersion version) {

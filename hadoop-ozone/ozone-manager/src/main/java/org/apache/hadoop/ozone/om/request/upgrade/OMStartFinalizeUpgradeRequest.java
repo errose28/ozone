@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.utils.IOUtils;
@@ -70,7 +71,13 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
             + "Superuser privilege is required to start finalize upgrade.", OMException.ResultCodes.ACCESS_DENIED);
       }
     }
-    validatePeerOmVersionsBeforeFinalize(ozoneManager.getPeerNodes(), ozoneManager.getConfiguration());
+    boolean force = getOmRequest().getStartFinalizeUpgradeRequest().getForce();
+    if (force) {
+      LOG.warn("Forcing upgrade finalization by skipping OM peer software version checks");
+    } else {
+      validatePeerOmVersionsBeforeFinalize(ozoneManager.getPeerNodes(), ozoneManager.getConfiguration());
+    }
+
     try {
       ozoneManager.getScmClient().getContainerClient().finalizeUpgrade();
     } catch (SCMException e) {
@@ -110,7 +117,9 @@ public class OMStartFinalizeUpgradeRequest extends OMClientRequest {
       response = new OMStartFinalizeUpgradeResponse(createErrorOMResponse(responseBuilder, e));
     }
 
-    markForAudit(auditLogger, buildAuditMessage(OMAction.UPGRADE_FINALIZE, new HashMap<>(), exception, userInfo));
+    Map<String, String> auditMap = new HashMap<>();
+    auditMap.put("force", String.valueOf(getOmRequest().getStartFinalizeUpgradeRequest().getForce()));
+    markForAudit(auditLogger, buildAuditMessage(OMAction.UPGRADE_FINALIZE, auditMap, exception, userInfo));
     return response;
   }
 

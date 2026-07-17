@@ -1653,6 +1653,7 @@ message FinalizeUpgradeResponse {
 }
 
 message StartFinalizeUpgradeRequest {
+    optional bool force = 1 [default = false];
 }
 
 message StartFinalizeUpgradeResponse {

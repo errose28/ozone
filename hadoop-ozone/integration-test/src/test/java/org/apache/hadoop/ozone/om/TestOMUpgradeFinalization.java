@@ -98,7 +98,7 @@ class TestOMUpgradeFinalization {
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_PREPARE, AuditEventStatus.SUCCESS);
         omClient.cancelOzoneManagerPrepare();
         AuditLogTestUtils.verifyAuditLog(OMAction.UPGRADE_CANCEL, AuditEventStatus.SUCCESS);
-        omClient.finalizeUpgrade();
+        omClient.forceFinalizeUpgrade();
         waitForFinalization(omClient);
         AuditLogTestUtils.verifySystemAuditLog(OMAction.UPGRADE_FINALIZE, AuditEventStatus.SUCCESS);
         // Ensure the finalization in progress key has been removed.
