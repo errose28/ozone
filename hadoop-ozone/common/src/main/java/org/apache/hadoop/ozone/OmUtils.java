@@ -260,10 +260,10 @@ public final class OmUtils {
     case GetSnapshotInfo:
     case GetObjectTagging:
     case GetBucketTagging:
-      return true;
     case GetQuotaRepairStatus:
     case StartQuotaRepair:
     // Prepare and CancelPrepare are now no-ops, but still produce responses for compatability.
+    // They are marked as read-only since they don't modify state anymore.
     case Prepare:
     case CancelPrepare:
     case QueryUpgradeStatus:

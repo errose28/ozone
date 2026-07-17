@@ -124,9 +124,10 @@ public class PrepareSubCommand implements Callable<Void> {
       for (Map.Entry<String, Boolean> e : omPreparedStatusMap.entrySet()) {
         if (!e.getValue()) {
           String omHost = e.getKey();
-          try (OzoneManagerProtocol singleOmClient = parent.createOmClient(omServiceOption.getServiceID(), omHost,
-              false)) {
-            PrepareStatusResponse response = singleOmClient.getOzoneManagerPrepareStatus(prepareTxnId);
+          try (OzoneManagerProtocol singleOmClient =
+                   parent.createOmClient(omServiceOption.getServiceID(), omHost, false)) {
+            PrepareStatusResponse response =
+                singleOmClient.getOzoneManagerPrepareStatus(prepareTxnId);
             PrepareStatus status = response.getStatus();
             System.out.println("OM : [" + omHost + "], Prepare " +
                 "Status : [" + status.name() + "], Current Transaction Id : [" +
