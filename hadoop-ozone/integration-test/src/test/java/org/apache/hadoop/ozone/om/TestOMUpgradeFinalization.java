@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.apache.hadoop.hdds.conf.OzoneConfiguration;
 import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
@@ -38,6 +39,7 @@ import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.client.OzoneClient;
 import org.apache.hadoop.ozone.client.OzoneVolume;
+import org.apache.hadoop.ozone.conf.OMClientConfig;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer;
 import org.apache.hadoop.ozone.upgrade.RatisBasedVersionManager;
@@ -76,15 +78,25 @@ class TestOMUpgradeFinalization {
     conf.setStorageSize(OMConfigKeys.OZONE_OM_RATIS_SEGMENT_PREALLOCATED_SIZE_KEY, 16, StorageUnit.KB);
     conf.setLong(OMConfigKeys.OZONE_OM_RATIS_SNAPSHOT_AUTO_TRIGGER_THRESHOLD_KEY, SNAPSHOT_THRESHOLD);
 
-    LogCapturer logCapture = LogCapturer.captureLogs(RatisBasedVersionManager.class);
+    // Use a short client RPC timeout so the first request fails over quickly to
+    // a responsive OM instead of blocking on the 15-minute default if it lands on the inactive one.
+    OMClientConfig clientConfig = conf.getObject(OMClientConfig.class);
+    clientConfig.setRpcTimeOut(TimeUnit.SECONDS.toMillis(5));
+    conf.setFromObject(clientConfig);
+
+    LogCapturer versionManagerLogCapture = LogCapturer.captureLogs(RatisBasedVersionManager.class);
+    LogCapturer omLogCapture = LogCapturer.captureLogs(OzoneManager.class);
 
     try (MiniOzoneHAClusterImpl cluster = newCluster(conf)) {
+      LOG.info("Waiting for cluster to be ready");
       cluster.waitForClusterToBeReady();
       OzoneManager followerOM = cluster.getInactiveOM().next();
-      LOG.info("Inactive OM: {}", followerOM);
+      LOG.info("Cluster ready with inactive OM: {}", followerOM);
 
       try (OzoneClient client = cluster.newClient()) {
+        LOG.info("Client created");
         ObjectStore objectStore = client.getObjectStore();
+        LOG.info("Object store created");
 
         // The active OMs start un-finalized: the apparent version is the initial
         // version and no version has been written to the DB yet.
@@ -96,6 +108,7 @@ class TestOMUpgradeFinalization {
         }
 
         // Finalize the running (active) OMs.
+        LOG.info("Finalizing OMs");
         OzoneManagerProtocol omClient = objectStore.getClientProxy().getOzoneManagerClient();
         omClient.finalizeUpgrade();
         OMUpgradeTestUtils.waitForFinalization(omClient);
@@ -107,10 +120,12 @@ class TestOMUpgradeFinalization {
         OzoneManagerRatisServer leaderRatisServer = cluster.getOMLeader().getOmRatisServer();
         OzoneBucket bucket = createVolumeAndBucket(objectStore);
         long targetLogIndex = leaderRatisServer.getLastAppliedTermIndex().getIndex() + 100;
+        LOG.info("Writing keys to advance log index");
         writeKeysToIncreaseLogIndex(leaderRatisServer, targetLogIndex, bucket);
 
         // Start the inactive OM. It downloads the leader's checkpoint (which
         // already contains the finalized apparent version) and finalizes from it.
+        LOG.info("Starting inactive OM");
         cluster.startInactiveOM(followerOM.getOMNodeId());
 
         // Wait for the follower to finish installing the snapshot and catch up
@@ -118,12 +133,19 @@ class TestOMUpgradeFinalization {
         // does not race with the tail of the snapshot install.
         LOG.info("Inactive OM started, waiting to catch up with leader");
         long leaderIndex = cluster.getOMLeader().getOmRatisServer().getLastAppliedTermIndex().getIndex();
-        waitFor(() -> followerOM.isRunning()
-            && followerOM.getOmRatisServer().getLastAppliedTermIndex().getIndex() >= leaderIndex,
-            1000, 60000);
+        waitFor(() -> {
+          boolean running = followerOM.isRunning();
+          // Make sure the snapshot install finishes completely so it does not block cluster shutdown on test cleanup.
+          boolean snapshotFinished = omLogCapture.getOutput().contains("Install Checkpoint is finished");
+          long followerIndex = followerOM.getOmRatisServer().getLastAppliedTermIndex().getIndex();
+          LOG.info("Waiting for follower to catch up with leader. Running? {} Snapshot finished? {}" +
+                  " Follower index = {} leader index = {}",
+              running, snapshotFinished, followerIndex, leaderIndex);
+          return running && snapshotFinished && followerIndex >= leaderIndex;
+        }, 1000, 60000);
+        LOG.info("Inactive OM has caught up with leader, checking finalization state");
 
-        // The follower finalizes to the software version, picked up from the
-        // installed snapshot.
+        // The follower finalizes to the software version, picked up from the installed snapshot.
         assertEquals(OzoneManagerVersion.SOFTWARE_VERSION, followerOM.getVersionManager().getApparentVersion());
 
         String dbVersion = followerOM.getMetadataManager().getMetaTable().get(APPARENT_VERSION_KEY);
@@ -131,7 +153,7 @@ class TestOMUpgradeFinalization {
         assertEquals(OzoneManagerVersion.SOFTWARE_VERSION.serialize(), Integer.parseInt(dbVersion));
 
         // Confirm finalization happened via snapshot install, not log replay.
-        assertThat(logCapture.getOutput()).contains("New snapshot received with higher apparent version");
+        assertThat(versionManagerLogCapture.getOutput()).contains("New snapshot received with higher apparent version");
       }
     }
   }
