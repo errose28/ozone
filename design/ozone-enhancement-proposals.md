@@ -47,7 +47,7 @@ We propose to follow the same process what we have now, but instead of uploading
  * Create a PR to add the design doc to the current documentation
    * The content of the design can be added to the documentation (Recommended)
    * Or can be added as external reference
- * The design doc (or the summary with the reference) will be merged to the design doc folder of `hadoop-hdds/docs/content/design` (will be part of the docs)
+ * The design doc (or the summary with the reference) will be merged to the design doc folder of `design` (will be part of the docs)
  * Discuss it as before (lazy consesus, except if somebody calls for a real vote)
  * Design docs can be updated according to the changes during the implementation
  * Only the implemented design docs will be visible as part of the design docs
@@ -65,7 +65,7 @@ A good design doc has the following properties:
 
 ### Example 1: Design doc as a markdown file
 
-The easiest way to create a design doc is to create a new markdown file in a PR and merge it to `hadoop-hdds/docs/content/design`.
+The easiest way to create a design doc is to create a new markdown file in a PR and merge it to `design`.
 
  1. Publicly available: YES, it can be linked from Apache git or github
  2. Archived: YES, and it's also versioned. All the change history can be tracked.
