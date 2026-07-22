@@ -21,7 +21,6 @@ import static org.apache.hadoop.ozone.OzoneConsts.APPARENT_VERSION_KEY;
 import static org.apache.hadoop.ozone.om.TestOzoneManagerHAWithStoppedNodes.createKey;
 import static org.apache.hadoop.ozone.om.upgrade.OMLayoutFeature.INITIAL_VERSION;
 import static org.apache.ozone.test.GenericTestUtils.waitFor;
-import static org.apache.ozone.test.OzoneTestBase.uniqueObjectName;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -35,10 +34,10 @@ import org.apache.hadoop.hdds.conf.StorageUnit;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.MiniOzoneHAClusterImpl;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
+import org.apache.hadoop.ozone.TestDataUtil;
 import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.OzoneBucket;
 import org.apache.hadoop.ozone.client.OzoneClient;
-import org.apache.hadoop.ozone.client.OzoneVolume;
 import org.apache.hadoop.ozone.conf.OMClientConfig;
 import org.apache.hadoop.ozone.om.protocol.OzoneManagerProtocol;
 import org.apache.hadoop.ozone.om.ratis.OzoneManagerRatisServer;
@@ -117,8 +116,10 @@ class TestOMUpgradeFinalization {
         // Write enough keys to advance the log index well past the purge gap so
         // the leader's logs covering finalization are purged. This forces the
         // follower to install a snapshot instead of replaying the logs.
-        OzoneManagerRatisServer leaderRatisServer = cluster.getOMLeader().getOmRatisServer();
-        OzoneBucket bucket = createVolumeAndBucket(objectStore);
+        OzoneManager leaderOM = cluster.getOMLeader();
+        assertNotNull(leaderOM);
+        OzoneManagerRatisServer leaderRatisServer = leaderOM.getOmRatisServer();
+        OzoneBucket bucket = TestDataUtil.createVolumeAndBucket(cluster.newClient());
         long targetLogIndex = leaderRatisServer.getLastAppliedTermIndex().getIndex() + 100;
         LOG.info("Writing keys to advance log index");
         writeKeysToIncreaseLogIndex(leaderRatisServer, targetLogIndex, bucket);
@@ -132,7 +133,9 @@ class TestOMUpgradeFinalization {
         // to the leader before reading its DB and shutting down, so shutdown
         // does not race with the tail of the snapshot install.
         LOG.info("Inactive OM started, waiting to catch up with leader");
-        long leaderIndex = cluster.getOMLeader().getOmRatisServer().getLastAppliedTermIndex().getIndex();
+        leaderOM = cluster.getOMLeader();
+        assertNotNull(leaderOM);
+        long leaderIndex = leaderOM.getOmRatisServer().getLastAppliedTermIndex().getIndex();
         waitFor(() -> {
           boolean running = followerOM.isRunning();
           // Make sure the snapshot install finishes completely so it does not block cluster shutdown on test cleanup.
@@ -144,6 +147,7 @@ class TestOMUpgradeFinalization {
           return running && snapshotFinished && followerIndex >= leaderIndex;
         }, 1000, 60000);
         LOG.info("Inactive OM has caught up with leader, checking finalization state");
+        omLogCapture.stopCapturing();
 
         // The follower finalizes to the software version, picked up from the installed snapshot.
         assertEquals(OzoneManagerVersion.SOFTWARE_VERSION, followerOM.getVersionManager().getApparentVersion());
@@ -154,6 +158,7 @@ class TestOMUpgradeFinalization {
 
         // Confirm finalization happened via snapshot install, not log replay.
         assertThat(versionManagerLogCapture.getOutput()).contains("New snapshot received with higher apparent version");
+        versionManagerLogCapture.stopCapturing();
       }
     }
   }
@@ -167,16 +172,6 @@ class TestOMUpgradeFinalization {
         .setNumOfActiveOMs(2)
         .setNumDatanodes(1);
     return builder.build();
-  }
-
-  private static OzoneBucket createVolumeAndBucket(ObjectStore objectStore)
-      throws IOException {
-    String volumeName = uniqueObjectName("volume");
-    String bucketName = uniqueObjectName("bucket");
-    objectStore.createVolume(volumeName);
-    OzoneVolume volume = objectStore.getVolume(volumeName);
-    volume.createBucket(bucketName);
-    return volume.getBucket(bucketName);
   }
 
   private static void writeKeysToIncreaseLogIndex(OzoneManagerRatisServer omRatisServer,
