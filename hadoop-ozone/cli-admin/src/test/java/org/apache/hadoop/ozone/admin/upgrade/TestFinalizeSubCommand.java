@@ -19,6 +19,7 @@ package org.apache.hadoop.ozone.admin.upgrade;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doNothing;
@@ -35,6 +36,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hadoop.hdds.protocol.proto.HddsProtos;
 import org.apache.hadoop.ozone.OzoneManagerVersion;
 import org.apache.hadoop.ozone.om.helpers.ServiceInfo;
@@ -164,9 +166,27 @@ public class TestFinalizeSubCommand {
     assertEquals(0, cmd.call());
 
     String output = outContent.toString(DEFAULT_ENCODING);
-    assertTrue(output.contains("Waiting for finalization"));
+    // While polling, the shared basic status output is printed on each in-progress poll.
+    assertTrue(output.contains("Upgrade status:"));
     assertTrue(output.contains("Finalization complete."));
     verify(omClient, times(3)).queryUpgradeStatus();
+  }
+
+  @Test
+  public void testWaitFlagRetriesAfterQueryFailure() throws Exception {
+    // A transient query failure is reported to stderr and retried on the next poll, not fatal.
+    when(omClient.queryUpgradeStatus())
+        .thenThrow(new IOException("RPC timeout"))
+        .thenReturn(finalizedStatus(3, 3));
+
+    new CommandLine(cmd).parseArgs("--wait");
+    assertEquals(0, cmd.call());
+
+    String errOutput = errContent.toString(DEFAULT_ENCODING);
+    assertTrue(errOutput.contains("Failed to query upgrade status"));
+    assertTrue(errOutput.contains("RPC timeout"));
+    assertTrue(outContent.toString(DEFAULT_ENCODING).contains("Finalization complete."));
+    verify(omClient, times(2)).queryUpgradeStatus();
   }
 
   @Test
@@ -178,11 +198,13 @@ public class TestFinalizeSubCommand {
     new CommandLine(cmd).parseArgs("--wait");
 
     AtomicInteger result = new AtomicInteger(-1);
+    AtomicReference<Exception> thrown = new AtomicReference<>();
     Thread runner = new Thread(() -> {
       try {
         result.set(cmd.call());
-      } catch (Exception ignored) {
+      } catch (Exception e) {
         // The command handles interruption internally and should not throw.
+        thrown.set(e);
       }
     });
     runner.start();
@@ -191,6 +213,7 @@ public class TestFinalizeSubCommand {
     runner.interrupt();
     runner.join(5_000);
 
+    assertNull(thrown.get(), "wait command should not throw on interrupt");
     String output = outContent.toString(DEFAULT_ENCODING);
     assertTrue(output.contains("Waiting interrupted"));
     // With check-before-sleep, the first poll runs before the interrupting sleep.
@@ -211,11 +234,13 @@ public class TestFinalizeSubCommand {
     new CommandLine(cmd).parseArgs("--wait");
 
     AtomicInteger firstResult = new AtomicInteger(-1);
+    AtomicReference<Exception> thrown = new AtomicReference<>();
     Thread runner = new Thread(() -> {
       try {
         firstResult.set(cmd.call());
-      } catch (Exception ignored) {
-        // First call swallows interrupt cleanly; nothing to assert from the side thread.
+      } catch (Exception e) {
+        // First call should swallow the interrupt cleanly and not throw.
+        thrown.set(e);
       }
     });
     runner.start();
@@ -223,6 +248,7 @@ public class TestFinalizeSubCommand {
     runner.interrupt();
     runner.join(5_000);
 
+    assertNull(thrown.get(), "first wait command should not throw on interrupt");
     String firstOutput = outContent.toString(DEFAULT_ENCODING);
     assertTrue(firstOutput.contains("Cluster finalization has been started"));
     assertTrue(firstOutput.contains("Waiting interrupted"));
@@ -272,6 +298,7 @@ public class TestFinalizeSubCommand {
   private static QueryUpgradeStatusResponse inProgressStatus(int dnFinalized, int dnTotal) {
     return QueryUpgradeStatusResponse.newBuilder()
         .setOmFinalized(false)
+        .setClusterFinalized(false)
         .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
             .setScmFinalized(false)
             .setNumDatanodesFinalized(dnFinalized)
@@ -283,6 +310,7 @@ public class TestFinalizeSubCommand {
   private static QueryUpgradeStatusResponse finalizedStatus(int dnFinalized, int dnTotal) {
     return QueryUpgradeStatusResponse.newBuilder()
         .setOmFinalized(true)
+        .setClusterFinalized(true)
         .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
             .setScmFinalized(true)
             .setNumDatanodesFinalized(dnFinalized)

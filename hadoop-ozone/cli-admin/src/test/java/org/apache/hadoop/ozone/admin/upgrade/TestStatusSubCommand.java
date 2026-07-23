@@ -112,6 +112,8 @@ public class TestStatusSubCommand {
     assertTrue(output.contains("OM Finalized? false"));
     assertTrue(output.contains("SCM Finalized? false"));
     assertTrue(output.contains("Datanodes finalized: 1/3"));
+    // Without --verbose the apparent versions are not shown.
+    assertFalse(output.contains("Apparent Version"));
     verify(omClient).queryUpgradeStatus();
   }
 
@@ -135,21 +137,7 @@ public class TestStatusSubCommand {
   }
 
   @Test
-  public void testJsonFlagBasicOutput() throws Exception {
-    when(omClient.queryUpgradeStatus()).thenReturn(basicResponse(false, false, 1, 3));
-
-    new CommandLine(cmd).parseArgs("--json");
-    assertEquals(0, cmd.call());
-
-    JsonNode root = JSON.readTree(outContent.toString(DEFAULT_ENCODING));
-    assertFalse(root.path("omFinalized").asBoolean());
-    assertFalse(root.path("scmFinalized").asBoolean());
-    assertEquals(1, root.path("datanodesFinalized").asInt());
-    assertEquals(3, root.path("datanodesTotal").asInt());
-  }
-
-  @Test
-  public void testJsonFlagWithVerboseIncludesVersions() throws Exception {
+  public void testJsonOutput() throws Exception {
     int omVersion = OzoneManagerVersion.ZDU.serialize();
     int hddsVersion = HDDSVersion.SOFTWARE_VERSION.serialize();
     OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =
@@ -158,7 +146,7 @@ public class TestStatusSubCommand {
             .setOmApparentVersion(omVersion)
             .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
                 .setScmFinalized(true)
-                .setNumDatanodesFinalized(3)
+                .setNumDatanodesFinalized(2)
                 .setNumDatanodesTotal(3)
                 .setScmApparentVersion(hddsVersion)
                 .setMinDatanodeApparentVersion(hddsVersion)
@@ -167,15 +155,27 @@ public class TestStatusSubCommand {
             .build();
     when(omClient.queryUpgradeStatus()).thenReturn(response);
 
+    // JSON output includes every field, including the apparent versions.
     new CommandLine(cmd).parseArgs("--json");
     assertEquals(0, cmd.call());
+    String jsonOutput = outContent.toString(DEFAULT_ENCODING);
 
-    JsonNode root = JSON.readTree(outContent.toString(DEFAULT_ENCODING));
+    JsonNode root = JSON.readTree(jsonOutput);
     assertTrue(root.path("omFinalized").asBoolean());
+    assertTrue(root.path("scmFinalized").asBoolean());
+    assertEquals(2, root.path("datanodesFinalized").asInt());
+    assertEquals(3, root.path("datanodesTotal").asInt());
     assertEquals(OzoneManagerVersion.ZDU.toString(), root.path("omApparentVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("scmApparentVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("minDatanodeApparentVersion").asText());
     assertEquals(HDDSVersion.SOFTWARE_VERSION.toString(), root.path("maxDatanodeApparentVersion").asText());
+
+    // The --verbose flag only affects the human-readable output; JSON output is identical.
+    outContent.reset();
+    verbose = true;
+    new CommandLine(cmd).parseArgs("--json");
+    assertEquals(0, cmd.call());
+    assertEquals(jsonOutput, outContent.toString(DEFAULT_ENCODING));
   }
 
   @Test
@@ -210,18 +210,6 @@ public class TestStatusSubCommand {
     assertTrue(output.contains("Max Datanode Apparent Version:"));
     assertTrue(output.contains(OzoneManagerVersion.ZDU.toString()));
     assertTrue(output.contains(HDDSVersion.SOFTWARE_VERSION.toString()));
-  }
-
-  private static OzoneManagerProtocolProtos.QueryUpgradeStatusResponse basicResponse(
-      boolean omFinalized, boolean scmFinalized, int dnFinalized, int dnTotal) {
-    return OzoneManagerProtocolProtos.QueryUpgradeStatusResponse.newBuilder()
-        .setOmFinalized(omFinalized)
-        .setHddsStatus(HddsProtos.UpgradeStatus.newBuilder()
-            .setScmFinalized(scmFinalized)
-            .setNumDatanodesFinalized(dnFinalized)
-            .setNumDatanodesTotal(dnTotal)
-            .build())
-        .build();
   }
 
   private ServiceInfoEx serviceInfoWithVersion(OzoneManagerVersion version) {
