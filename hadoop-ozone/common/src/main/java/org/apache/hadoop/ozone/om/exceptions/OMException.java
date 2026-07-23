@@ -246,8 +246,11 @@ public class OMException extends IOException {
     UPDATE_LAYOUT_VERSION_FAILED,
     @Deprecated
     LAYOUT_FEATURE_FINALIZATION_FAILED,
+    // Even though new OM servers do not support prepare for upgrade, clients may still encounter these result codes
+    // when talking to an older server, so they are left in place.
     PREPARE_FAILED,
     NOT_SUPPORTED_OPERATION_WHEN_PREPARED,
+
     NOT_SUPPORTED_OPERATION_PRIOR_FINALIZATION,
 
     TENANT_NOT_FOUND,
