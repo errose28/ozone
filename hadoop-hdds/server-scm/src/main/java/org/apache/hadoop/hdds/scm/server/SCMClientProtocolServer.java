@@ -1430,14 +1430,13 @@ public class SCMClientProtocolServer implements
           .newBuilder()
           .setIsRunning(false)
           .build();
-    } else {
-
-      return ContainerBalancerStatusInfoResponseProto
-          .newBuilder()
-          .setIsRunning(true)
-          .setContainerBalancerStatusInfo(balancerStatusInfo.toProto())
-          .build();
     }
+
+    return ContainerBalancerStatusInfoResponseProto
+        .newBuilder()
+        .setIsRunning(balancerStatusInfo.getConfiguration().getShouldRun())
+        .setContainerBalancerStatusInfo(balancerStatusInfo.toProto())
+        .build();
   }
 
   /**
@@ -1620,7 +1619,7 @@ public class SCMClientProtocolServer implements
     auditMap.put("state", String.valueOf(state));
     try {
       List<ContainerID> results = scm.getContainerManager().getContainerIDs(
-          startContainerID, count, state);
+          startContainerID, count, state, null);
       AUDIT.logReadSuccess(buildAuditMessageForSuccess(
           SCMAction.LIST_CONTAINER_IDS, auditMap));
       return results;
