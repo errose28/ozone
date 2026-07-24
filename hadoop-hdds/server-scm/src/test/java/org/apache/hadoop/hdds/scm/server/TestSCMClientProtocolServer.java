@@ -285,7 +285,7 @@ public class TestSCMClientProtocolServer {
     // No datanodes registered
     assertEquals(0, status.getNumDatanodesFinalized());
     assertEquals(0, status.getNumDatanodesTotal());
-    assertTrue(status.getShouldFinalize());
+    assertTrue(status.getHddsFinalized());
   }
 
   @Test

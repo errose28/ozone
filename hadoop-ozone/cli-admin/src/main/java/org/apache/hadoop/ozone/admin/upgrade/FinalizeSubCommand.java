@@ -109,7 +109,7 @@ public class FinalizeSubCommand extends AbstractSubcommand implements Callable<I
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         out().println("Waiting interrupted. Use `ozone admin upgrade status` to monitor progress.");
-        return 0;
+        return 1;
       }
     }
   }

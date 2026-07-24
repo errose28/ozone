@@ -3677,9 +3677,8 @@ public final class OzoneManager extends ServiceRuntimeInfoImpl
     }
 
     boolean omFinalized = !versionManager.needsFinalization();
-    boolean clusterFinalized = omFinalized
-        && scmStatus.getScmFinalized()
-        && scmStatus.getNumDatanodesFinalized() == scmStatus.getNumDatanodesTotal();
+    boolean hddsFinalized = scmStatus.getHddsFinalized();
+    boolean clusterFinalized = omFinalized && hddsFinalized;
 
     return QueryUpgradeStatusResponse.newBuilder()
         .setOmFinalized(omFinalized)

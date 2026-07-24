@@ -94,7 +94,7 @@ public class TestStatusSubCommand {
         .setScmFinalized(false)
         .setNumDatanodesFinalized(1)
         .setNumDatanodesTotal(3)
-        .setShouldFinalize(true)
+        .setHddsFinalized(true)
         .build();
 
     OzoneManagerProtocolProtos.QueryUpgradeStatusResponse response =

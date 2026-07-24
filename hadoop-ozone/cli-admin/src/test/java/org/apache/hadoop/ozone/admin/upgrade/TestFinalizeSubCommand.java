@@ -218,8 +218,8 @@ public class TestFinalizeSubCommand {
     assertTrue(output.contains("Waiting interrupted"));
     // With check-before-sleep, the first poll runs before the interrupting sleep.
     verify(omClient, times(1)).queryUpgradeStatus();
-    // The command must swallow the interrupt and return success.
-    assertEquals(0, result.get());
+    // The command swallows the interrupt, but reports non-zero since finalization was not confirmed.
+    assertEquals(1, result.get());
   }
 
   @Test
@@ -252,7 +252,7 @@ public class TestFinalizeSubCommand {
     String firstOutput = outContent.toString(DEFAULT_ENCODING);
     assertTrue(firstOutput.contains("Cluster finalization has been started"));
     assertTrue(firstOutput.contains("Waiting interrupted"));
-    assertEquals(0, firstResult.get());
+    assertEquals(1, firstResult.get());
     // First invocation performed exactly one poll before being interrupted during the sleep.
     verify(omClient, times(1)).queryUpgradeStatus();
 
