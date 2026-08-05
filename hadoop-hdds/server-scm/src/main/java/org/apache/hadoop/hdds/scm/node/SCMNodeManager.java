@@ -76,6 +76,7 @@ import org.apache.hadoop.hdds.scm.container.placement.metrics.SCMNodeStat;
 import org.apache.hadoop.hdds.scm.container.replication.ContainerReplicaOp;
 import org.apache.hadoop.hdds.scm.container.replication.ContainerReplicaPendingOpsSubscriber;
 import org.apache.hadoop.hdds.scm.events.SCMEvents;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.ha.SCMContext;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.node.states.NodeAlreadyExistsException;
@@ -2036,6 +2037,19 @@ public class SCMNodeManager implements NodeManager, ContainerReplicaPendingOpsSu
     } finally {
       writeLock().unlock();
     }
+  }
+
+  @Override
+  public ComponentVersion computeCommonVersion(List<DatanodeDetails> datanodes) throws NodeNotFoundException {
+    List<DatanodeInfo> dnInfos = new ArrayList<>();
+    for (DatanodeDetails dnDetails : datanodes) {
+      DatanodeInfo dnInfo = getNode(dnDetails.getID());
+      if (dnInfo == null) {
+        throw new NodeNotFoundException(dnDetails.getID());
+      }
+      dnInfos.add(dnInfo);
+    }
+    return versionManager.computeCommonVersion(dnInfos);
   }
 
   protected boolean shouldFenceDatanode(DatanodeDetails dnDetails, DatanodeVersionProto versionReport) {

@@ -39,6 +39,7 @@ import org.apache.hadoop.hdds.protocol.proto.StorageContainerDatanodeProtocolPro
 import org.apache.hadoop.hdds.scm.container.ContainerID;
 import org.apache.hadoop.hdds.scm.container.placement.metrics.SCMNodeMetric;
 import org.apache.hadoop.hdds.scm.container.placement.metrics.SCMNodeStat;
+import org.apache.hadoop.hdds.scm.exceptions.SCMException;
 import org.apache.hadoop.hdds.scm.net.NetworkTopology;
 import org.apache.hadoop.hdds.scm.node.states.NodeNotFoundException;
 import org.apache.hadoop.hdds.scm.pipeline.Pipeline;
@@ -204,28 +205,6 @@ public interface NodeManager extends StorageContainerNodeProtocol,
         .setMinApparentVersion(minApparentVersion)
         .setMaxApparentVersion(maxApparentVersion)
         .build();
-  }
-
-  /**
-   * Returns the lowest apparent version among the given datanodes,
-   * so every node involved in an operation uses the same, mutually-supported
-   * version.
-   *
-   * @throws NodeNotFoundException if SCM has no record of one of the nodes;
-   *     callers must not proceed with an operation involving a node SCM does
-   *     not know about.
-   */
-  default ComponentVersion getLowestApparentVersion(DatanodeDetails... nodes)
-      throws NodeNotFoundException {
-    ComponentVersion[] versions = new ComponentVersion[nodes.length];
-    for (int i = 0; i < nodes.length; i++) {
-      DatanodeInfo info = getNode(nodes[i].getID());
-      if (info == null) {
-        throw new NodeNotFoundException(nodes[i].getID());
-      }
-      versions[i] = info.getLastKnownApparentVersion();
-    }
-    return ComponentVersion.min(versions);
   }
 
   /**
@@ -529,6 +508,8 @@ public interface NodeManager extends StorageContainerNodeProtocol,
   int openContainerLimit(List<DatanodeDetails> datanodes);
 
   PendingContainerTracker getPendingContainerTracker();
+
+  ComponentVersion computeCommonVersion(List<DatanodeDetails> datanodes) throws NodeNotFoundException;
 
   /**
    * Class to store the number finalized and healthy datanodes.

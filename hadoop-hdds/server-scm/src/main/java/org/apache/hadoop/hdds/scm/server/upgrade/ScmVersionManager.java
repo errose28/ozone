@@ -19,11 +19,14 @@ package org.apache.hadoop.hdds.scm.server.upgrade;
 
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import org.apache.hadoop.hdds.ComponentVersion;
 import org.apache.hadoop.hdds.HDDSVersion;
+import org.apache.hadoop.hdds.scm.node.DatanodeInfo;
 import org.apache.hadoop.hdds.scm.server.OzoneStorageContainerManager;
 import org.apache.hadoop.hdds.scm.server.SCMStorageConfig;
+import org.apache.hadoop.hdds.upgrade.HDDSLayoutFeature;
 import org.apache.hadoop.hdds.upgrade.HDDSVersionUtils;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeAction;
 import org.apache.hadoop.hdds.upgrade.ScmUpgradeActionProvider;
@@ -54,6 +57,33 @@ public class ScmVersionManager extends RatisBasedVersionManager {
     this.storage = storage;
     this.upgradeActionArg = upgradeActionArg;
     upgradeActions = upgradeActionProvider.load();
+  }
+
+  /**
+   * Computes the version clients should use for writes to the given pipeline.
+   * Before ZDU is finalized, datanodes report apparent versions from the
+   * {@link HDDSLayoutFeature} enum, which clients cannot compare against the
+   * {@link HDDSVersion} enum they use. In that state we advertise the last
+   * {@link HDDSVersion} before {@code ZDU} so clients keep pre-ZDU write behavior
+   * until the cluster finalizes. Once ZDU is finalized every apparent version is
+   * an {@link HDDSVersion} and safe to share: we return the lowest one across the
+   * pipeline, so during a later rolling upgrade clients do not enable a newer
+   * write-path feature until every datanode in the pipeline has finalized.
+   */
+  public ComponentVersion computeCommonVersion(List<DatanodeInfo> nodes) {
+    if (nodes.isEmpty()) {
+      throw new IllegalArgumentException("No nodes provided");
+    }
+
+    if (!isAllowed(HDDSVersion.ZDU)) {
+      return HDDSVersion.values()[HDDSVersion.ZDU.ordinal() - 1];
+    }
+
+    ComponentVersion minVersion = nodes.get(0).getLastKnownApparentVersion();
+    for (int i = 1; i < nodes.size(); i++) {
+      minVersion = ComponentVersion.min(nodes.get(i).getLastKnownApparentVersion(), minVersion);
+    }
+    return minVersion;
   }
 
   @Override

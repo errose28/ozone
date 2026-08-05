@@ -39,6 +39,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.hadoop.hdds.ComponentVersion;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.client.ECReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicatedReplicationConfig;
 import org.apache.hadoop.hdds.client.ReplicationConfig;
@@ -369,16 +370,18 @@ public final class Pipeline {
   }
 
   public HddsProtos.Pipeline getProtobufMessage(int clientVersion, Set<DatanodeDetails.Port.Name> filterPorts) {
-    return getProtobufMessage(clientVersion, filterPorts, null);
+    return getProtobufMessage(clientVersion, filterPorts, HDDSVersion.SOFTWARE_VERSION);
   }
 
   public HddsProtos.Pipeline getProtobufMessage(int clientVersion, Set<DatanodeDetails.Port.Name> filterPorts,
-      ComponentVersion versionOverride) {
+      ComponentVersion datanodeVersion) {
     List<HddsProtos.DatanodeDetailsProto> members = new ArrayList<>();
     List<Integer> memberReplicaIndexes = new ArrayList<>();
 
     for (DatanodeDetails dn : nodeStatus.keySet()) {
-      members.add(dn.toProto(clientVersion, filterPorts, versionOverride));
+      members.add(dn.toProtoBuilder(clientVersion, filterPorts)
+          .setCurrentVersion(datanodeVersion.serialize())
+          .build());
       memberReplicaIndexes.add(replicaIndexes.getOrDefault(dn, 0));
     }
 
