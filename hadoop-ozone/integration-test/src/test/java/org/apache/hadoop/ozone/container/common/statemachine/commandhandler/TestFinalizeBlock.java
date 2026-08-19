@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.apache.hadoop.hdds.HDDSVersion;
 import org.apache.hadoop.hdds.HddsConfigKeys;
 import org.apache.hadoop.hdds.client.BlockID;
 import org.apache.hadoop.hdds.client.ReplicationFactor;
@@ -58,6 +59,7 @@ import org.apache.hadoop.hdds.utils.IOUtils;
 import org.apache.hadoop.ozone.HddsDatanodeService;
 import org.apache.hadoop.ozone.MiniOzoneCluster;
 import org.apache.hadoop.ozone.OzoneTestUtils;
+import org.apache.hadoop.ozone.UniformDatanodesFactory;
 import org.apache.hadoop.ozone.client.ObjectStore;
 import org.apache.hadoop.ozone.client.OzoneClient;
 import org.apache.hadoop.ozone.client.OzoneClientFactory;
@@ -108,7 +110,11 @@ public class TestFinalizeBlock {
     conf.setFromObject(scmConfig);
 
     cluster = MiniOzoneCluster.newBuilder(conf)
-        .setNumDatanodes(1).build();
+        .setNumDatanodes(1)
+        // TODO HDDS-16206 workaround
+        .setDatanodeFactory(UniformDatanodesFactory.newBuilder()
+            .setApparentVersion(HDDSVersion.SOFTWARE_VERSION).build())
+        .build();
     cluster.waitForClusterToBeReady();
     cluster.waitForPipelineTobeReady(ONE, 30000);
 
