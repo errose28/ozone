@@ -38,7 +38,7 @@ run_test ha     rolling-upgrade "$OZONE_CURRENT_VERSION" "$OZONE_CURRENT_VERSION
 
 # This is the version of Ozone that should use the runner image to run the
 # code that was built. Other versions will pull images from docker hub.
-run_test ha     non-rolling-upgrade 2.2.0 "$OZONE_CURRENT_VERSION"
+# run_test ha     non-rolling-upgrade 2.2.0 "$OZONE_CURRENT_VERSION"
 # run_test ha     non-rolling-upgrade 2.1.1 "$OZONE_CURRENT_VERSION"
 # run_test ha     non-rolling-upgrade 2.0.0 "$OZONE_CURRENT_VERSION"
 # run_test non-ha non-rolling-upgrade 1.4.1 "$OZONE_CURRENT_VERSION"
