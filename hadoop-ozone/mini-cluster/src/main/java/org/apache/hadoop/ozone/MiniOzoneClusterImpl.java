@@ -120,7 +120,7 @@ public class MiniOzoneClusterImpl implements MiniOzoneCluster {
   private final List<Service> services;
 
   // Timeout for the cluster to be ready
-  private int waitForClusterToBeReadyTimeout = 120000; // 2 min
+  private int waitForClusterToBeReadyTimeout = 60_000; // 2 min
   private CertificateClient caClient;
   private final Set<AutoCloseable> clients = ConcurrentHashMap.newKeySet();
   private SecretKeyClient secretKeyClient;
@@ -179,6 +179,7 @@ public class MiniOzoneClusterImpl implements MiniOzoneCluster {
   @Override
   public void waitForClusterToBeReady()
       throws TimeoutException, InterruptedException {
+    long starTime = System.currentTimeMillis();
     waitForSCMToBeReady();
     GenericTestUtils.waitFor(() -> {
       StorageContainerManager activeScm = getActiveSCM();
@@ -197,6 +198,19 @@ public class MiniOzoneClusterImpl implements MiniOzoneCluster {
 
       return isNodeReady && exitSafeMode && checkScmLeader;
     }, 1000, waitForClusterToBeReadyTimeout);
+
+    // Wait for all SCMs to exit safemode
+    GenericTestUtils.waitFor(() -> {
+      for (StorageContainerManager scm1: getStorageContainerManagers()) {
+        if (scm1.isInSafeMode()) {
+          return false;
+        }
+      }
+      return true;
+    }, 1000, waitForClusterToBeReadyTimeout);
+
+    long endTime = System.currentTimeMillis();
+    LOG.info("---Waited {}ms for cluster to be ready", endTime - starTime);
   }
 
   @Override

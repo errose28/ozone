@@ -169,6 +169,7 @@ public class TestOzoneShellHA {
   @BeforeParameterizedClassInvocation
   public void init() throws Exception {
     cluster = startCluster(followerReadEnabled);
+    // Add all SCM safemode check here
     cluster.waitForClusterToBeReady();
     client = cluster.newClient();
   }
