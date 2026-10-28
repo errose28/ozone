@@ -21,6 +21,8 @@ on:
   # every 30 minutes; both jobs scan open PRs, so keep the cadence moderate
   schedule:
     - cron: '*/30 * * * *'
+  # allow running the workflow manually from GitHub UI
+  workflow_dispatch:
 
 permissions:
   contents: read

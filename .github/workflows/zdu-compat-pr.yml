@@ -25,6 +25,10 @@
 name: zdu-compat-pull-requests
 
 on:
+  # TEMPORARY: for testing on a fork without changing its default branch. Remove before submitting upstream.
+  push:
+    branches:
+      - worktree/incompat-static-analysis-test
   workflow_call:
     inputs:
       all:
